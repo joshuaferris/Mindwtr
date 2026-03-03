@@ -3352,11 +3352,14 @@ fn webdav_put_json(app: tauri::AppHandle, data: Value) -> Result<bool, String> {
         .or(config.webdav_password.clone())
         .ok_or_else(|| "WebDAV password not configured".to_string())?;
 
+    let payload = serde_json::to_string_pretty(&data)
+        .map_err(|e| format!("Failed to encode WebDAV payload: {e}"))?;
     let client = reqwest::blocking::Client::new();
     let response = client
         .put(url)
         .basic_auth(username, Some(password))
-        .json(&data)
+        .header("Content-Type", "application/json")
+        .body(payload)
         .send()
         .map_err(|e| format!("WebDAV request failed: {e}"))?;
 
