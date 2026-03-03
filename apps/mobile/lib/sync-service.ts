@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { AppData, Attachment, MergeStats, useTaskStore, webdavGetJson, webdavPutJson, cloudGetJson, cloudPutJson, flushPendingSave, performSyncCycle, findOrphanedAttachments, removeOrphanedAttachmentsFromData, removeAttachmentsByIdFromData, webdavDeleteFile, cloudDeleteFile, CLOCK_SKEW_THRESHOLD_MS, appendSyncHistory, withRetry, isRetryableWebdavReadError, isWebdavInvalidJsonError, normalizeWebdavUrl, normalizeCloudUrl, sanitizeAppDataForRemote, areSyncPayloadsEqual, assertNoPendingAttachmentUploads, injectExternalCalendars as injectExternalCalendarsForSync, persistExternalCalendars as persistExternalCalendarsForSync, mergeAppData, cloneAppData, LocalSyncAbort, getInMemoryAppDataSnapshot, shouldRunAttachmentCleanup } from '@mindwtr/core';
+import { AppData, Attachment, MergeStats, useTaskStore, webdavGetJson, webdavPutJson, cloudGetJson, cloudPutJson, flushPendingSave, performSyncCycle, findOrphanedAttachments, removeOrphanedAttachmentsFromData, removeAttachmentsByIdFromData, webdavDeleteFile, cloudDeleteFile, CLOCK_SKEW_THRESHOLD_MS, appendSyncHistory, withRetry, isRetryableWebdavReadError, isWebdavInvalidJsonError, normalizeWebdavUrl, normalizeCloudUrl, sanitizeAppDataForRemote, areSyncPayloadsEqual, assertNoPendingAttachmentUploads, injectExternalCalendars as injectExternalCalendarsForSync, persistExternalCalendars as persistExternalCalendarsForSync, mergeAppData, cloneAppData, LocalSyncAbort, getInMemoryAppDataSnapshot, shouldRunAttachmentCleanup, createAbortableFetch, normalizeCloudProvider as normalizeCoreCloudProvider, CLOUD_PROVIDER_DROPBOX, CLOUD_PROVIDER_SELF_HOSTED, type CloudProvider } from '@mindwtr/core';
 import { mobileStorage } from './storage-adapter';
 import { logInfo, logSyncError, logWarn, sanitizeLogMessage } from './app-log';
 import { readSyncFile, resolveSyncFileUri, writeSyncFile } from './storage-file';
@@ -41,9 +41,6 @@ const SYNC_FILE_NAME = 'data.json';
 const syncConfigCache = new Map<string, { value: string | null; readAt: number }>();
 const IOS_TEMP_INBOX_PATH_PATTERN = /\/tmp\/[^/]*-Inbox\//i;
 const INVALID_CONFIG_CHAR_PATTERN = /[\u0000-\u001F\u007F]/;
-const CLOUD_PROVIDER_SELF_HOSTED = 'selfhosted';
-const CLOUD_PROVIDER_DROPBOX = 'dropbox';
-type CloudProvider = typeof CLOUD_PROVIDER_SELF_HOSTED | typeof CLOUD_PROVIDER_DROPBOX;
 type MobileSyncActivityState = 'idle' | 'syncing';
 type MobileSyncActivityListener = (state: MobileSyncActivityState) => void;
 type MobileSyncResult = { success: boolean; stats?: MergeStats; error?: string };
@@ -77,10 +74,8 @@ const sanitizeConfigValue = (value: unknown): string | null => {
   return value;
 };
 
-const normalizeCloudProvider = (value: string | null): CloudProvider => (
-  DROPBOX_SYNC_ENABLED && value === CLOUD_PROVIDER_DROPBOX
-    ? CLOUD_PROVIDER_DROPBOX
-    : CLOUD_PROVIDER_SELF_HOSTED
+const resolveCloudProvider = (value: string | null): CloudProvider => (
+  normalizeCoreCloudProvider(value, { allowDropbox: DROPBOX_SYNC_ENABLED })
 );
 
 const getDropboxAppKey = (): string => {
@@ -169,7 +164,7 @@ export async function getMobileSyncConfigurationStatus(): Promise<{ backend: Syn
     return { backend, configured: Boolean(webdavUrl) };
   }
 
-  const cloudProvider = normalizeCloudProvider((await readConfigValue(CLOUD_PROVIDER_KEY, false))?.trim() ?? null);
+  const cloudProvider = resolveCloudProvider((await readConfigValue(CLOUD_PROVIDER_KEY, false))?.trim() ?? null);
   if (cloudProvider === CLOUD_PROVIDER_DROPBOX) {
     return {
       backend,
@@ -268,29 +263,7 @@ const mobileSyncOrchestrator = createSyncOrchestrator<string | undefined, Mobile
     let networkSubscription: { remove?: () => void } | null = null;
     let preSyncedLocalData: AppData | null = null;
     const requestAbortController = new AbortController();
-    const fetchWithAbort: typeof fetch = (input, init) => {
-      const baseSignal = requestAbortController.signal;
-      const existingSignal = (init?.signal ?? undefined) as AbortSignal | undefined;
-      if (!existingSignal) {
-        return fetch(input, { ...(init || {}), signal: baseSignal });
-      }
-      if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.any === 'function') {
-        return fetch(input, { ...(init || {}), signal: AbortSignal.any([baseSignal, existingSignal]) });
-      }
-
-      const mergedController = new AbortController();
-      const abortMerged = () => mergedController.abort();
-      if (baseSignal.aborted || existingSignal.aborted) {
-        mergedController.abort();
-      } else {
-        baseSignal.addEventListener('abort', abortMerged, { once: true });
-        existingSignal.addEventListener('abort', abortMerged, { once: true });
-      }
-      return fetch(input, { ...(init || {}), signal: mergedController.signal }).finally(() => {
-        baseSignal.removeEventListener('abort', abortMerged);
-        existingSignal.removeEventListener('abort', abortMerged);
-      });
-    };
+    const fetchWithAbort = createAbortableFetch(fetch, { baseSignal: requestAbortController.signal });
     const ensureLocalSnapshotFresh = () => {
       if (useTaskStore.getState().lastDataChangeAt > localSnapshotChangeAt) {
         requestFollowUp(syncPathOverride);
@@ -382,7 +355,7 @@ const mobileSyncOrchestrator = createSyncOrchestrator<string | undefined, Mobile
       }
       if (backend === 'cloud') {
         const storedCloudProvider = (await getCachedConfigValue(CLOUD_PROVIDER_KEY))?.trim() ?? null;
-        cloudProvider = normalizeCloudProvider(storedCloudProvider);
+        cloudProvider = resolveCloudProvider(storedCloudProvider);
         if (!DROPBOX_SYNC_ENABLED && storedCloudProvider === CLOUD_PROVIDER_DROPBOX) {
           logSyncInfo('Dropbox cloud provider disabled in FOSS build; using self-hosted backend');
         }

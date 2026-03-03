@@ -43,6 +43,9 @@ import {
     LocalSyncAbort,
     getInMemoryAppDataSnapshot,
     shouldRunAttachmentCleanup,
+    createAbortableFetch,
+    normalizeCloudProvider,
+    type CloudProvider,
 } from '@mindwtr/core';
 import { isTauriRuntime } from './runtime';
 import { reportError } from './report-error';
@@ -95,6 +98,7 @@ import {
 } from './dropbox-sync';
 
 export type ExternalSyncChangeResolution = 'keep-local' | 'use-external' | 'merge';
+export type { CloudProvider };
 
 export type ExternalSyncChange = {
     at: string;
@@ -452,11 +456,6 @@ async function tauriInvoke<T>(command: string, args?: Record<string, unknown>): 
 
 type WebDavConfig = { url: string; username: string; password?: string; hasPassword?: boolean };
 type CloudConfig = { url: string; token: string };
-export type CloudProvider = 'selfhosted' | 'dropbox';
-
-const normalizeCloudProvider = (value: string | null | undefined): CloudProvider => {
-    return value === 'dropbox' ? 'dropbox' : 'selfhosted';
-};
 const DROPBOX_REDIRECT_URI_FALLBACK = 'http://127.0.0.1:53682/oauth/dropbox/callback';
 const DROPBOX_TEST_TIMEOUT_MS = 15_000;
 
@@ -1939,30 +1938,8 @@ export class SyncService {
         };
 
         const runSync = async (): Promise<{ success: boolean; stats?: MergeStats; error?: string }> => {
-            const createFetchWithAbort = (baseFetch: typeof fetch): typeof fetch => {
-                return (input, init) => {
-                    const baseSignal = requestAbortController.signal;
-                    const existingSignal = init?.signal;
-                    if (!existingSignal) {
-                        return baseFetch(input, { ...(init || {}), signal: baseSignal });
-                    }
-                    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.any === 'function') {
-                        return baseFetch(input, { ...(init || {}), signal: AbortSignal.any([baseSignal, existingSignal]) });
-                    }
-                    const mergedController = new AbortController();
-                    const abortMerged = () => mergedController.abort();
-                    if (baseSignal.aborted || existingSignal.aborted) {
-                        mergedController.abort();
-                    } else {
-                        baseSignal.addEventListener('abort', abortMerged, { once: true });
-                        existingSignal.addEventListener('abort', abortMerged, { once: true });
-                    }
-                    return baseFetch(input, { ...(init || {}), signal: mergedController.signal }).finally(() => {
-                        baseSignal.removeEventListener('abort', abortMerged);
-                        existingSignal.removeEventListener('abort', abortMerged);
-                    });
-                };
-            };
+            const createFetchWithAbort = (baseFetch: typeof fetch): typeof fetch =>
+                createAbortableFetch(baseFetch, { baseSignal: requestAbortController.signal });
             const ensureNetworkStillAvailable = () => {
                 if (backend !== 'cloud' && backend !== 'webdav') return;
                 if (

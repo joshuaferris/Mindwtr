@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { useTaskStore } from './store';
 import {
+    CLOUD_PROVIDER_DROPBOX,
+    CLOUD_PROVIDER_SELF_HOSTED,
     DEFAULT_ATTACHMENT_CLEANUP_INTERVAL_MS,
     LocalSyncAbort,
+    createAbortableFetch,
     getInMemoryAppDataSnapshot,
+    normalizeCloudProvider,
     shouldRunAttachmentCleanup,
 } from './sync-client-helpers';
 
@@ -42,5 +46,38 @@ describe('sync-client-helpers', () => {
         const error = new LocalSyncAbort();
         expect(error.name).toBe('LocalSyncAbort');
         expect(error.message).toContain('Local changes detected');
+    });
+
+    it('normalizes cloud provider values', () => {
+        expect(normalizeCloudProvider('dropbox')).toBe(CLOUD_PROVIDER_DROPBOX);
+        expect(normalizeCloudProvider('dropbox', { allowDropbox: false })).toBe(CLOUD_PROVIDER_SELF_HOSTED);
+        expect(normalizeCloudProvider('anything-else')).toBe(CLOUD_PROVIDER_SELF_HOSTED);
+        expect(normalizeCloudProvider(null)).toBe(CLOUD_PROVIDER_SELF_HOSTED);
+    });
+
+    it('applies the base abort signal when wrapping fetch', async () => {
+        const baseController = new AbortController();
+        const baseFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+            expect(init?.signal).toBe(baseController.signal);
+            return new Response(null, { status: 200 });
+        }) as typeof fetch;
+        const wrappedFetch = createAbortableFetch(baseFetch, { baseSignal: baseController.signal });
+
+        await wrappedFetch('https://example.com');
+        expect(baseFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses an already-aborted base signal for wrapped fetch calls', async () => {
+        const baseController = new AbortController();
+        baseController.abort();
+
+        const baseFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+            expect(init?.signal?.aborted).toBe(true);
+            return new Response(null, { status: 200 });
+        }) as typeof fetch;
+        const wrappedFetch = createAbortableFetch(baseFetch, { baseSignal: baseController.signal });
+
+        await wrappedFetch('https://example.com');
+        expect(baseFetch).toHaveBeenCalledTimes(1);
     });
 });
