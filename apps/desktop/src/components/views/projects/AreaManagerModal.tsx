@@ -42,6 +42,14 @@ export function AreaManagerModal({
     const stopPropagation: MouseEventHandler<HTMLDivElement> = (event) => {
         event.stopPropagation();
     };
+    const resolveText = (key: string, fallback: string) => {
+        const value = t(key);
+        return value === key ? fallback : value;
+    };
+    const manageAreasLabel = resolveText('areas.manage', 'Manage Areas');
+    const newAreaLabel = resolveText('areas.new', 'New Area');
+    const areaNamePlaceholder = resolveText('areas.namePlaceholder', 'Area name');
+    const loadingLabel = resolveText('common.loading', 'Loading...');
 
     return (
         <div
@@ -56,7 +64,7 @@ export function AreaManagerModal({
             >
                 <div className="px-4 py-3 border-b flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">Manage Areas</h3>
+                        <h3 className="font-semibold">{manageAreasLabel}</h3>
                         <div className="flex items-center gap-1">
                             <button
                                 type="button"
@@ -108,7 +116,7 @@ export function AreaManagerModal({
                     </div>
                     <div className="border-t border-border/50 pt-3 space-y-2">
                         <label className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                            New Area
+                            {newAreaLabel}
                         </label>
                         <div className="flex items-center gap-2">
                             <input
@@ -121,7 +129,7 @@ export function AreaManagerModal({
                                 type="text"
                                 value={newAreaName}
                                 onChange={onChangeNewAreaName}
-                                placeholder="Area name"
+                                placeholder={areaNamePlaceholder}
                                 className="flex-1 bg-muted/50 border border-border rounded px-2 py-1 text-sm"
                             />
                             <button
@@ -130,7 +138,7 @@ export function AreaManagerModal({
                                 disabled={isCreatingArea}
                                 className="px-3 py-1.5 rounded-md text-sm bg-primary text-primary-foreground hover:bg-primary/90"
                             >
-                                {isCreatingArea ? (t('common.loading') || 'Loading...') : t('projects.create')}
+                                {isCreatingArea ? loadingLabel : t('projects.create')}
                             </button>
                         </div>
                     </div>

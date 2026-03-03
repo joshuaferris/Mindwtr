@@ -251,6 +251,9 @@ export function InboxProcessingWizard({
                                     }}
                                     placeholder={t('process.project')}
                                     noProjectLabel={t('process.noProject')}
+                                    searchPlaceholder={t('projects.search')}
+                                    noMatchesLabel={t('common.noMatches')}
+                                    createProjectLabel={t('projects.create')}
                                 />
                             </div>
                         )}

@@ -688,6 +688,9 @@ export function QuickAddModal() {
                                     onChange={setSelectedAreaId}
                                     placeholder={t('taskEdit.noAreaOption')}
                                     noAreaLabel={t('taskEdit.noAreaOption')}
+                                    searchPlaceholder={t('areas.search')}
+                                    noMatchesLabel={t('common.noMatches')}
+                                    createAreaLabel={t('areas.create')}
                                     className="w-full"
                                 />
                             </div>

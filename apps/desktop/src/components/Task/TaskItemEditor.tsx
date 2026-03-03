@@ -362,6 +362,9 @@ export function TaskItemEditor({
                             onCreateProject={onCreateProject}
                             placeholder={t('taskEdit.noProjectOption')}
                             noProjectLabel={t('taskEdit.noProjectOption')}
+                            searchPlaceholder={t('projects.search')}
+                            noMatchesLabel={t('common.noMatches')}
+                            createProjectLabel={t('projects.create')}
                             className="w-full"
                         />
                     </div>
@@ -376,6 +379,9 @@ export function TaskItemEditor({
                             onCreateSection={onCreateSection}
                             placeholder={t('taskEdit.noSectionOption')}
                             noSectionLabel={t('taskEdit.noSectionOption')}
+                            searchPlaceholder={t('sections.search')}
+                            noMatchesLabel={t('common.noMatches')}
+                            createSectionLabel={t('projects.addSection')}
                             className="w-full"
                         />
                     </div>
@@ -390,6 +396,9 @@ export function TaskItemEditor({
                             onCreateArea={onCreateArea}
                             placeholder={t('taskEdit.noAreaOption')}
                             noAreaLabel={t('taskEdit.noAreaOption')}
+                            searchPlaceholder={t('areas.search')}
+                            noMatchesLabel={t('common.noMatches')}
+                            createAreaLabel={t('areas.create')}
                             className="w-full"
                         />
                     </div>
