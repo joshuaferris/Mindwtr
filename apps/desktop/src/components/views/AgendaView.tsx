@@ -365,6 +365,7 @@ export function AgendaView() {
             onToggle: () => handleToggleFocus(task.id),
             title,
             ariaLabel: title,
+            alwaysVisible: true,
         };
     }, [focusedCount, handleToggleFocus, t]);
 

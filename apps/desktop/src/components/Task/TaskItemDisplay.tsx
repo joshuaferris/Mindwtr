@@ -27,6 +27,7 @@ interface TaskItemDisplayActions {
         onToggle: () => void;
         title: string;
         ariaLabel: string;
+        alwaysVisible?: boolean;
     };
 }
 
@@ -628,6 +629,7 @@ export function TaskItemDisplay({
                             aria-label={focusToggle.ariaLabel}
                             className={cn(
                                 "p-1.5 rounded-full transition-colors",
+                                !focusToggle.alwaysVisible && "opacity-0 group-hover:opacity-100 focus:opacity-100",
                                 focusToggle.isFocused
                                     ? "text-yellow-500 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
                                     : focusToggle.canToggle

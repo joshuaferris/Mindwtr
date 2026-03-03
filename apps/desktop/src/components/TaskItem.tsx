@@ -56,6 +56,7 @@ interface TaskItemProps {
         onToggle: () => void;
         title: string;
         ariaLabel: string;
+        alwaysVisible?: boolean;
     };
     readOnly?: boolean;
     compactMetaEnabled?: boolean;

@@ -140,7 +140,29 @@ describe('TaskItem', () => {
                 <TaskItem task={mockTask} />
             </LanguageProvider>
         );
-        expect(getByRole('button', { name: /add.*focus/i })).toBeInTheDocument();
+        const button = getByRole('button', { name: /add.*focus/i });
+        expect(button).toBeInTheDocument();
+        expect(button.className).toContain('opacity-0');
+    });
+
+    it('keeps focus toggle visible when a view requests always-visible mode', () => {
+        const { getByRole } = render(
+            <LanguageProvider>
+                <TaskItem
+                    task={mockTask}
+                    focusToggle={{
+                        isFocused: false,
+                        canToggle: true,
+                        onToggle: vi.fn(),
+                        title: 'Add to focus',
+                        ariaLabel: 'Add to focus',
+                        alwaysVisible: true,
+                    }}
+                />
+            </LanguageProvider>
+        );
+        const button = getByRole('button', { name: /add.*focus/i });
+        expect(button.className).not.toContain('opacity-0');
     });
 
     it('does not show today focus toggle for done tasks', () => {
