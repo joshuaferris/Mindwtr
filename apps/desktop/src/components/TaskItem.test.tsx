@@ -43,6 +43,16 @@ describe('TaskItem', () => {
         expect(getByDisplayValue('Test Task')).toBeInTheDocument();
     });
 
+    it('enters edit mode when task title is double-clicked', () => {
+        const { getByRole, getByDisplayValue } = render(
+            <LanguageProvider>
+                <TaskItem task={mockTask} />
+            </LanguageProvider>
+        );
+        fireEvent.doubleClick(getByRole('button', { name: /toggle task details/i }));
+        expect(getByDisplayValue('Test Task')).toBeInTheDocument();
+    });
+
     it('does not render checkbox when not in selection mode', () => {
         const { queryByRole } = render(
             <LanguageProvider>

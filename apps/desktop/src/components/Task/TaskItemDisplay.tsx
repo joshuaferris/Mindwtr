@@ -377,9 +377,15 @@ export function TaskItemDisplay({
                     />
                     <button
                         type="button"
-                        onClick={() => {
+                        onClick={(event) => {
                             if (selectionMode) {
                                 onToggleSelect?.();
+                                return;
+                            }
+                            // Some desktop environments can miss onDoubleClick for this control;
+                            // use click detail as a reliable fallback for opening the editor.
+                            if (!readOnly && event.detail >= 2) {
+                                onEdit();
                                 return;
                             }
                             onToggleView();
