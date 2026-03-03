@@ -37,7 +37,25 @@ let pendingSaves: PendingSave[] = [];
 let pendingVersion = 0;
 let savedVersion = 0;
 let saveInFlight: Promise<void> | null = null;
+const MAX_PENDING_SAVES = 100;
 const hasPendingSaveWork = (): boolean => pendingSaves.length > 0 || saveInFlight !== null;
+
+const enforcePendingSaveCap = () => {
+    if (pendingSaves.length <= MAX_PENDING_SAVES) return;
+    const overflow = pendingSaves.length - MAX_PENDING_SAVES;
+    const dropped = pendingSaves.splice(0, overflow);
+    const callbacks = dropped
+        .flatMap((item) => item.onErrorCallbacks)
+        .filter((callback): callback is (msg: string) => void => typeof callback === 'function');
+    const latest = pendingSaves[pendingSaves.length - 1];
+    if (latest && callbacks.length > 0) {
+        latest.onErrorCallbacks.push(...callbacks);
+    }
+    markCoreStartupPhase('core.debounced_save.capped', {
+        dropped: overflow,
+        queueLen: pendingSaves.length,
+    });
+};
 
 const isStartupProfilingEnabled = (): boolean => {
     const g = globalThis as Record<string, unknown>;
@@ -70,6 +88,7 @@ const debouncedSave = (data: AppData, onError?: (msg: string) => void) => {
         data: sanitizeAppDataForStorage(data),
         onErrorCallbacks: onError ? [onError] : [],
     });
+    enforcePendingSaveCap();
     markCoreStartupPhase('core.debounced_save.enqueued', {
         version: pendingVersion,
         queueLen: pendingSaves.length,
@@ -158,6 +177,7 @@ export const flushPendingSave = async (): Promise<void> => {
                             data: dataToSave,
                             onErrorCallbacks: [],
                         });
+                        enforcePendingSaveCap();
                     }
                 }
             });
