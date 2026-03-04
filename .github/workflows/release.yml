@@ -849,6 +849,54 @@ jobs:
             echo "pkgver unchanged (${VERSION}); keep current pkgrel for now"
           fi
 
+      - name: Ensure PKGBUILD handles tauri macOS config compatibility
+        shell: bash
+        working-directory: aur-mindwtr
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          path = Path("PKGBUILD")
+          text = path.read_text(encoding="utf-8")
+          marker = "tauri_conf_v2_compat"
+          if marker in text:
+            print("PKGBUILD already contains tauri config compatibility patch.")
+            sys.exit(0)
+
+          compat_block = """  # tauri_conf_v2_compat: normalize deprecated bundle.macOS.infoPlist for tauri v2 schema.
+  node - <<'NODE'
+const fs = require('fs');
+const configPaths = [
+  'apps/desktop/src-tauri/tauri.conf.json',
+  'apps/desktop/src-tauri/tauri.appstore.conf.json'
+];
+
+for (const configPath of configPaths) {
+  if (!fs.existsSync(configPath)) continue;
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const mac = config?.bundle?.macOS;
+  if (!mac || typeof mac.infoPlist !== 'string' || mac.infoPlist.length === 0) continue;
+  const infoPlist = mac.infoPlist;
+  delete mac.infoPlist;
+  mac.files = { ...(mac.files || {}), 'Info.plist': infoPlist };
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\\n');
+  console.log(`Patched ${configPath} for tauri v2 schema compatibility`);
+}
+NODE
+
+"""
+
+          pattern = re.compile(r"(?m)^(\\s*cd apps/desktop/src-tauri\\s*)$")
+          if not pattern.search(text):
+            raise SystemExit("Could not find insertion point for tauri config compatibility patch in PKGBUILD")
+
+          updated = pattern.sub(lambda m: compat_block + m.group(1), text, count=1)
+          path.write_text(updated, encoding="utf-8")
+          print("Inserted tauri config compatibility patch into PKGBUILD.")
+          PY
+
       - name: Update checksums
         shell: bash
         working-directory: aur-mindwtr
