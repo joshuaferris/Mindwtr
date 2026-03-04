@@ -186,8 +186,9 @@ export function KeybindingProvider({
         const root = document.querySelector<HTMLElement>('[data-main-content]') ?? document.body;
         const input = Array.from(root.querySelectorAll<HTMLElement>('[data-view-filter-input]'))
             .find((element) => {
-                if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) return false;
-                if (element.disabled) return false;
+                const tagName = element.tagName.toLowerCase();
+                if (tagName !== 'input' && tagName !== 'textarea') return false;
+                if ('disabled' in element && Boolean((element as HTMLInputElement | HTMLTextAreaElement).disabled)) return false;
                 const rect = element.getBoundingClientRect();
                 if (rect.width <= 0 || rect.height <= 0) return false;
                 const style = window.getComputedStyle(element);

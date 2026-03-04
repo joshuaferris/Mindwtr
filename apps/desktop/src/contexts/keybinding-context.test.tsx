@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, waitFor } from '@testing-library/react';
 import { useCallback, useEffect, useState } from 'react';
+import { useTaskStore } from '@mindwtr/core';
 import { LanguageProvider } from './language-context';
 import { KeybindingProvider } from './keybinding-context';
 import { useKeybindings } from './keybinding-context';
@@ -102,6 +103,12 @@ const FallbackTaskList = ({
 describe('KeybindingProvider (vim)', () => {
     beforeEach(() => {
         useUiStore.setState({ editingTaskId: null });
+        useTaskStore.setState((state) => ({
+            settings: {
+                ...state.settings,
+                keybindingStyle: 'vim',
+            },
+        }));
     });
 
     it('moves selection with j/k', async () => {
