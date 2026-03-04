@@ -743,7 +743,7 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
                         return {
                             ...project,
                             areaId: existing.id,
-                            color: mergedArea.color,
+                            color: mergedArea.color ?? project.color,
                             updatedAt: now,
                             rev: normalizeRevision(project.rev) + 1,
                             revBy: deviceState.deviceId,
@@ -769,22 +769,23 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
             const now = new Date().toISOString();
             const nextOrder = Number.isFinite(updates.order) ? (updates.order as number) : area.order;
             const nextName = updates.name ? updates.name.trim() : area.name;
-            const hasColorUpdate = Object.prototype.hasOwnProperty.call(updates, 'color');
             let projectsChanged = false;
-            const newAllProjects = hasColorUpdate
-                ? state._allProjects.map((project) => {
+            let newAllProjects = state._allProjects;
+            if (typeof updates.color === 'string') {
+                const nextAreaColor = updates.color;
+                newAllProjects = state._allProjects.map((project) => {
                     if (project.areaId !== id) return project;
-                    if (project.color === updates.color) return project;
+                    if (project.color === nextAreaColor) return project;
                     projectsChanged = true;
                     return {
                         ...project,
-                        color: updates.color,
+                        color: nextAreaColor,
                         updatedAt: now,
                         rev: normalizeRevision(project.rev) + 1,
                         revBy: deviceState.deviceId,
                     };
-                })
-                : state._allProjects;
+                });
+            }
             const newAllAreas = allAreas
                 .map(a => (a.id === id
                     ? {
