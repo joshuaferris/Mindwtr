@@ -5,7 +5,7 @@ import type { Task, Project } from '@mindwtr/core';
 import { useLanguage } from '../../contexts/language-context';
 import { cn } from '../../lib/utils';
 import { useUiStore } from '../../store/ui-store';
-import { Clock, Star, Calendar, ArrowRight, Filter, Folder, List, type LucideIcon } from 'lucide-react';
+import { Clock, Star, Calendar, ArrowRight, Filter, Folder, List, ChevronDown, type LucideIcon } from 'lucide-react';
 import { usePerformanceMonitor } from '../../hooks/usePerformanceMonitor';
 import { checkBudget } from '../../config/performanceBudgets';
 import { TaskItem } from '../TaskItem';
@@ -535,16 +535,26 @@ export function AgendaView() {
                         <List className="w-3.5 h-3.5" />
                         {showListDetails ? (t('list.details') || 'Details') : (t('list.detailsOff') || 'Details off')}
                     </button>
-                    <select
-                        value={nextGroupBy}
-                        onChange={(event) => setListOptions({ nextGroupBy: event.target.value as NextGroupBy })}
-                        aria-label={resolveText('list.groupBy', 'Group')}
-                        className="text-xs bg-muted/50 text-foreground border border-border rounded-full px-3 py-1.5 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    >
-                        <option value="none">{resolveText('list.groupByNone', 'No grouping')}</option>
-                        <option value="context">{resolveText('list.groupByContext', 'Context')}</option>
-                        <option value="area">{resolveText('list.groupByArea', 'Area')}</option>
-                    </select>
+                    <div className="relative">
+                        <select
+                            value={nextGroupBy}
+                            onChange={(event) => setListOptions({ nextGroupBy: event.target.value as NextGroupBy })}
+                            aria-label={resolveText('list.groupBy', 'Group')}
+                            className={cn(
+                                "min-w-[136px] appearance-none text-xs leading-none rounded-full border pl-3 pr-8 py-1.5 transition-colors",
+                                "bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground",
+                                "focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            )}
+                        >
+                            <option value="none">{resolveText('list.groupByNone', 'No grouping')}</option>
+                            <option value="context">{resolveText('list.groupByContext', 'Context')}</option>
+                            <option value="area">{resolveText('list.groupByArea', 'Area')}</option>
+                        </select>
+                        <ChevronDown
+                            className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                            aria-hidden="true"
+                        />
+                    </div>
                 </div>
             </header>
 
