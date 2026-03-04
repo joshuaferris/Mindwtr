@@ -23,15 +23,22 @@ export function KeybindingHelpModal({
 }: KeybindingHelpModalProps) {
     const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
     const quickAddShortcutDisplay = formatGlobalQuickAddShortcutForDisplay(quickAddShortcut, isMac);
-    const vimGlobal: HelpItem[] = [
+    const sharedGlobal: HelpItem[] = [
         { keys: quickAddShortcutDisplay, labelKey: 'keybindings.quickAdd' },
+        { keys: 'Ctrl+, / Cmd+,', labelKey: 'keybindings.openSettings' },
+        { keys: 'Ctrl-b / Cmd-b', labelKey: 'keybindings.toggleSidebar' },
+        { keys: 'Ctrl+\\ / Cmd+\\', labelKey: 'keybindings.toggleSidebar' },
+        { keys: 'Ctrl+Shift+\\ / Cmd+Shift+\\', labelKey: 'keybindings.toggleFocusMode' },
+        { keys: 'Ctrl+Shift+D / Cmd+Shift+D', labelKey: 'keybindings.list.toggleDetails' },
+        { keys: 'Ctrl+Shift+C / Cmd+Shift+C', labelKey: 'keybindings.list.toggleDensity' },
+        { keys: 'F11', labelKey: 'keybindings.toggleFullscreen' },
+    ];
+    const vimGlobal: HelpItem[] = [
+        ...sharedGlobal,
         { keys: '/', labelKey: 'keybindings.openSearch' },
         { keys: '?', labelKey: 'keybindings.openHelp' },
-        { keys: 'Ctrl-b', labelKey: 'keybindings.toggleSidebar' },
-        { keys: 'Ctrl+\\ / Cmd+\\', labelKey: 'keybindings.toggleSidebar' },
         { keys: 'h / ←', labelKey: 'keybindings.focusSidebar' },
         { keys: 'l / →', labelKey: 'keybindings.focusContent' },
-        { keys: 'Ctrl+Shift+\\ / Cmd+Shift+\\', labelKey: 'keybindings.toggleFocusMode' },
         { keys: 'gi', labelKey: 'keybindings.goInbox' },
         { keys: 'gn', labelKey: 'keybindings.goNext' },
         { keys: 'gf', labelKey: 'keybindings.goAgenda' },
@@ -56,17 +63,12 @@ export function KeybindingHelpModal({
         { keys: 'x', labelKey: 'keybindings.list.toggleDone' },
         { keys: 'dd', labelKey: 'keybindings.list.delete' },
         { keys: 'o', labelKey: 'keybindings.list.newTask' },
-        { keys: 'Ctrl+Shift+D / Cmd+Shift+D', labelKey: 'keybindings.list.toggleDetails' },
-        { keys: 'Ctrl+Shift+C / Cmd+Shift+C', labelKey: 'keybindings.list.toggleDensity' },
     ];
 
     const emacsGlobal: HelpItem[] = [
-        { keys: quickAddShortcutDisplay, labelKey: 'keybindings.quickAdd' },
+        ...sharedGlobal,
         { keys: 'Ctrl-s', labelKey: 'keybindings.openSearch' },
-        { keys: 'Ctrl-h', labelKey: 'keybindings.openHelp' },
-        { keys: 'Ctrl-b', labelKey: 'keybindings.toggleSidebar' },
-        { keys: 'Ctrl+\\ / Cmd+\\', labelKey: 'keybindings.toggleSidebar' },
-        { keys: 'Ctrl+Shift+\\ / Cmd+Shift+\\', labelKey: 'keybindings.toggleFocusMode' },
+        { keys: 'Ctrl-h / Ctrl-?', labelKey: 'keybindings.openHelp' },
         { keys: 'Alt-i', labelKey: 'keybindings.goInbox' },
         { keys: 'Alt-n', labelKey: 'keybindings.goNext' },
         { keys: 'Alt-a', labelKey: 'keybindings.goAgenda' },
@@ -90,8 +92,6 @@ export function KeybindingHelpModal({
         { keys: 'Ctrl-t', labelKey: 'keybindings.list.toggleDone' },
         { keys: 'Ctrl-d', labelKey: 'keybindings.list.delete' },
         { keys: 'Ctrl-o', labelKey: 'keybindings.list.newTask' },
-        { keys: 'Ctrl+Shift+D / Cmd+Shift+D', labelKey: 'keybindings.list.toggleDetails' },
-        { keys: 'Ctrl+Shift+C / Cmd+Shift+C', labelKey: 'keybindings.list.toggleDensity' },
     ];
 
     const globalItems = style === 'emacs' ? emacsGlobal : vimGlobal;
