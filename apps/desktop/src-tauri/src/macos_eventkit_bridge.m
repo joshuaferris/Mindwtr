@@ -11,11 +11,9 @@ static NSString *mindwtr_permission_status_string(EKAuthorizationStatus status) 
         case EKAuthorizationStatusRestricted:
         case EKAuthorizationStatusDenied:
             return @"denied";
-#ifdef EKAuthorizationStatusFullAccess
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
         case EKAuthorizationStatusFullAccess:
             return @"granted";
-#endif
-#ifdef EKAuthorizationStatusWriteOnly
         case EKAuthorizationStatusWriteOnly:
             return @"denied";
 #endif
