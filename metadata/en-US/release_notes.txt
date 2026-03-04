@@ -1,4 +1,4 @@
-- Fixed a sync edge case where stale attachment references could block sync completion.
-- Improved attachment validation handling to stop repeated failing retries.
-- Refined delete-vs-edit conflict handling to better preserve genuinely newer updates.
-- Included reliability hardening for release and sync pipelines.
+- Reduced false sync conflict prompts and improved overall sync reliability.
+- Improved iOS file-sync fallback behavior for providers without folder picking.
+- Added recurrence UI translation coverage for repeat-on labels in non-English locales.
+- Hardened cloud and sync error handling for more stable daily use.

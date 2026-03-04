@@ -1,4 +1,4 @@
-- Corregimos un caso limite de sincronizacion donde referencias antiguas de adjuntos podian bloquear el sync.
-- Mejoramos la validacion de adjuntos para detener reintentos fallidos repetidos.
-- Refinamos conflictos entre borrado y edicion para preservar mejor cambios realmente mas nuevos.
-- Incluimos mejoras de fiabilidad en los pipelines de release y sincronizacion.
+- Reducimos avisos falsos de conflictos y mejoramos la fiabilidad general del sync.
+- Mejoramos el fallback de sync en iOS cuando el proveedor no permite elegir carpetas.
+- Anadimos cobertura de traduccion para etiquetas de repeticion "repetir en".
+- Reforzamos el manejo de errores de cloud/sync para un uso diario mas estable.
