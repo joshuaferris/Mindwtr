@@ -4584,7 +4584,7 @@ export default function SettingsPage() {
                             <View style={[styles.settingCard, { backgroundColor: tc.cardBg }]}>
                                 <View style={[styles.settingRowColumn]}>
                                     <Text style={[styles.settingLabel, { color: tc.text }]}>
-                                        {localize('Cloud provider', '云端提供方')}
+                                        {t('settings.cloudProvider')}
                                     </Text>
                                     <View style={[styles.backendToggle, { marginTop: 8, width: '100%' }]}>
                                         <TouchableOpacity
@@ -4602,7 +4602,7 @@ export default function SettingsPage() {
                                             }}
                                         >
                                             <Text style={[styles.backendOptionText, { color: cloudProvider === 'selfhosted' ? tc.tint : tc.secondaryText }]}>
-                                                {localize('Self-hosted', '自托管')}
+                                                {t('settings.cloudProviderSelfHosted')}
                                             </Text>
                                         </TouchableOpacity>
                                         {!isFossBuild && (
