@@ -939,7 +939,7 @@ export const zhHant: Record<string, string> = {
         'trash.deletedAt': '刪除於',
         'trash.deleteConfirm': '永久刪除？',
         'trash.deleteConfirmBody': '此操作無法撤銷。',
-        'trash.clearAll': '清空回收筒',
+        'trash.clearAll': '清空垃圾桶',
         'trash.clearAllConfirm': '清除所有已刪除的任務？',
         'trash.clearAllConfirmBody': '這將永久刪除所有已丟棄的任務。',
         'contexts.search': '搜索情境...',
