@@ -1,6 +1,15 @@
 import type { AppData } from './types';
 
-export const cloneAppData = (data: AppData): AppData => JSON.parse(JSON.stringify(data)) as AppData;
+export const cloneAppData = (data: AppData): AppData => {
+    if (typeof globalThis.structuredClone === 'function') {
+        try {
+            return globalThis.structuredClone(data);
+        } catch {
+            // Fall back for environments or values unsupported by structuredClone.
+        }
+    }
+    return JSON.parse(JSON.stringify(data)) as AppData;
+};
 
 export const getErrorStatus = (error: unknown): number | null => {
     if (!error || typeof error !== 'object') return null;

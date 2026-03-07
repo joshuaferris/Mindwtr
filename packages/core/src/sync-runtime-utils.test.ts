@@ -36,6 +36,22 @@ describe('sync-runtime-utils', () => {
         expect(cloned.tasks[0].title).toBe('Changed');
     });
 
+    it('prefers structuredClone when available', () => {
+        const source = {
+            tasks: [{ id: 't1', title: 'Task', status: 'inbox', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' }],
+            projects: [],
+            sections: [],
+            areas: [],
+            settings: { theme: 'dark' },
+        } as any;
+        const structuredCloneSpy = vi.spyOn(globalThis, 'structuredClone');
+
+        cloneAppData(source);
+
+        expect(structuredCloneSpy).toHaveBeenCalledWith(source);
+        structuredCloneSpy.mockRestore();
+    });
+
     it('tracks, prunes, and clears download backoff entries', () => {
         const backoff = createWebdavDownloadBackoff({ missingBackoffMs: 1_000, errorBackoffMs: 2_000 });
         const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
