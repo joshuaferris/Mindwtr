@@ -168,9 +168,37 @@ jobs:
             fi
             found=1
             echo "Submitting $dmg for notarization"
-            xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+            submit_output="${RUNNER_TEMP}/$(basename "$dmg").notary.json"
+            xcrun notarytool submit "$dmg" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait \
+              --output-format json | tee "$submit_output"
+
+            submission_id="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("id", ""))' "$submit_output")"
+            submission_status="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("status", ""))' "$submit_output")"
+
+            if [ "$submission_status" != "Accepted" ]; then
+              echo "::error::Notarization failed for $dmg with status: ${submission_status:-unknown}"
+              if [ -n "$submission_id" ]; then
+                log_output="${RUNNER_TEMP}/$(basename "$dmg").notary-log.json"
+                xcrun notarytool log "$submission_id" \
+                  --apple-id "$APPLE_ID" \
+                  --password "$APPLE_PASSWORD" \
+                  --team-id "$APPLE_TEAM_ID" \
+                  "$log_output" || true
+                if [ -f "$log_output" ]; then
+                  echo "Apple notary log for $dmg:"
+                  cat "$log_output"
+                fi
+              fi
+              exit 1
+            fi
+
             echo "Stapling $dmg"
             xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
           done
           if [ "$found" -eq 0 ]; then
             echo "No dmg files found in $DMG_DIR"
