@@ -2277,27 +2277,37 @@ export class SyncService {
             if ((backend === 'webdav' || backend === 'file' || backend === 'cloud') && isTauriRuntimeEnv()) {
                 setStep('attachments');
                 try {
+                    const applyAttachmentSyncMutation = async (
+                        syncAttachmentsOp: (candidateData: AppData) => Promise<AppData | boolean | null>
+                    ): Promise<void> => {
+                        const candidateData = cloneAppData(mergedData);
+                        const mutationResult = await syncAttachmentsOp(candidateData);
+                        const nextData = mutationResult && typeof mutationResult === 'object'
+                            ? mutationResult
+                            : mutationResult
+                                ? candidateData
+                                : null;
+                        if (!nextData) return;
+                        ensureLocalSnapshotFresh();
+                        mergedData = nextData;
+                        await tauriInvoke('save_data', { data: mergedData });
+                    };
+
                     ensureLocalSnapshotFresh();
                     if (backend === 'webdav') {
                         ensureNetworkStillAvailable();
                         const config = await SyncService.getWebDavConfig();
                         const baseUrl = config.url ? getBaseSyncUrl(config.url) : '';
                         if (baseUrl) {
-                            const candidateData = cloneAppData(mergedData);
-                            const syncedData = await syncAttachments(candidateData, config, baseUrl);
-                            if (syncedData) {
-                                mergedData = syncedData;
-                                await tauriInvoke('save_data', { data: mergedData });
-                            }
+                            await applyAttachmentSyncMutation((candidateData) =>
+                                syncAttachments(candidateData, config, baseUrl)
+                            );
                         }
                     } else if (backend === 'file') {
                         if (fileBaseDir) {
-                            const candidateData = cloneAppData(mergedData);
-                            const mutated = await syncFileAttachments(candidateData, fileBaseDir);
-                            if (mutated) {
-                                mergedData = candidateData;
-                                await tauriInvoke('save_data', { data: mergedData });
-                            }
+                            await applyAttachmentSyncMutation((candidateData) =>
+                                syncFileAttachments(candidateData, fileBaseDir)
+                            );
                         }
                     } else if (backend === 'cloud') {
                         ensureNetworkStillAvailable();
@@ -2305,20 +2315,14 @@ export class SyncService {
                             const config = cloudConfig ?? await SyncService.getCloudConfig();
                             const baseUrl = config.url ? getCloudBaseUrl(config.url) : '';
                             if (baseUrl) {
-                                const candidateData = cloneAppData(mergedData);
-                                const mutated = await syncCloudAttachments(candidateData, config, baseUrl);
-                                if (mutated) {
-                                    mergedData = candidateData;
-                                    await tauriInvoke('save_data', { data: mergedData });
-                                }
+                                await applyAttachmentSyncMutation((candidateData) =>
+                                    syncCloudAttachments(candidateData, config, baseUrl)
+                                );
                             }
                         } else if (cloudProvider === 'dropbox') {
-                            const candidateData = cloneAppData(mergedData);
-                            const mutated = await syncDropboxAttachments(candidateData, resolveDropboxAccessToken);
-                            if (mutated) {
-                                mergedData = candidateData;
-                                await tauriInvoke('save_data', { data: mergedData });
-                            }
+                            await applyAttachmentSyncMutation((candidateData) =>
+                                syncDropboxAttachments(candidateData, resolveDropboxAccessToken)
+                            );
                         }
                     }
                 } catch (error) {
