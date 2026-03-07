@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Project } from '@mindwtr/core';
@@ -9,6 +9,26 @@ const projects: Project[] = [
     { id: 'p1', title: 'Alpha', status: 'active', color: '#3b82f6', order: 0, tagIds: [], createdAt: '', updatedAt: '' },
     { id: 'p2', title: 'Work Project', status: 'active', color: '#10b981', order: 1, tagIds: [], areaId: 'a1', createdAt: '', updatedAt: '' },
 ];
+
+/**
+ * Simulate typing into a controlled React input under bun + JSDOM.
+ * React 19 intercepts the value property descriptor to track changes;
+ * we must call the *native* setter so React sees a new value, then
+ * dispatch an `input` event inside `act()` so the state update flushes.
+ */
+function setInputValue(input: HTMLInputElement, value: string) {
+    const proto = Object.getPrototypeOf(Object.getPrototypeOf(input));
+    const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
+        ?? Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set;
+    act(() => {
+        if (nativeSetter) {
+            nativeSetter.call(input, value);
+        } else {
+            (input as any).value = value;
+        }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+}
 
 describe('ProjectSelector', () => {
     it('suppresses create when an exact match exists outside the filtered list', () => {
@@ -26,13 +46,13 @@ describe('ProjectSelector', () => {
         );
 
         fireEvent.click(getByRole('button', { name: 'Select project' }));
-        fireEvent.change(getByLabelText('Search projects'), { target: { value: 'Work Project' } });
+        setInputValue(getByLabelText('Search projects') as HTMLInputElement, 'Work Project');
 
         expect(queryByText(/Create project/i)).not.toBeInTheDocument();
     });
 
-    it('shows the empty label before falling back to no-matches text', () => {
-        const { getByRole, getByLabelText, getByText } = render(
+    it('prefers the empty label and falls back to the no-matches label', () => {
+        const first = render(
             <ProjectSelector
                 projects={[]}
                 allProjects={projects}
@@ -45,10 +65,23 @@ describe('ProjectSelector', () => {
             />
         );
 
-        fireEvent.click(getByRole('button', { name: 'Select project' }));
-        getByText('No projects in this area.');
+        fireEvent.click(first.getByRole('button', { name: 'Select project' }));
+        first.getByText('No projects in this area.');
+        first.unmount();
 
-        fireEvent.change(getByLabelText('Search projects'), { target: { value: 'zzz' } });
-        getByText('No matches');
+        const second = render(
+            <ProjectSelector
+                projects={[]}
+                allProjects={projects}
+                value=""
+                onChange={vi.fn()}
+                placeholder="Select project"
+                searchPlaceholder="Search projects"
+                noMatchesLabel="No matches"
+            />
+        );
+
+        fireEvent.click(second.getByRole('button', { name: 'Select project' }));
+        second.getByText('No matches');
     });
 });
