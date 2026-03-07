@@ -149,6 +149,29 @@ jobs:
           echo "Resolved macOS signing identity: ${RESOLVED_IDENTITY}"
           echo "APPLE_SIGNING_IDENTITY=${RESOLVED_IDENTITY}" >> "$GITHUB_ENV"
 
+      - name: Prepare macOS release Tauri config
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("apps/desktop/src-tauri/tauri.conf.json")
+          config = json.loads(path.read_text(encoding="utf-8"))
+          mac = config.setdefault("bundle", {}).setdefault("macOS", {})
+          files = mac.get("files")
+          if isinstance(files, dict):
+            files.pop("Info.plist", None)
+            if files:
+              mac["files"] = files
+            else:
+              mac.pop("files", None)
+          mac["infoPlist"] = "./Info.plist"
+          path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+          print("Prepared tauri.conf.json for notarized macOS build")
+          PY
+          grep -n '"infoPlist"\|"files"' apps/desktop/src-tauri/tauri.conf.json || true
+        shell: bash
+
       - name: Build App
         timeout-minutes: 40
         run: |
