@@ -227,7 +227,7 @@ export default function SearchScreen() {
         else if (status === 'next') router.push('/focus');
         else if (status === 'waiting') router.push('/waiting');
         else if (status === 'someday') router.push('/someday');
-        else if (status === 'reference') router.push('/reference');
+        else if (status === 'reference') router.push('/reference' as never);
         else router.push('/focus');
     };
 

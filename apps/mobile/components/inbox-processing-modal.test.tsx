@@ -97,23 +97,20 @@ describe('InboxProcessingModal', () => {
     });
 
     const root = tree!.root;
-    const titleInput = root.find(
-      (node) => node.type === 'TextInput' && node.props.placeholder === 'taskEdit.titleLabel'
-    );
-    const descriptionInput = root.find(
-      (node) => node.type === 'TextInput' && node.props.placeholder === 'taskEdit.descriptionPlaceholder'
-    );
+    const titleInput = root.findByProps({ placeholder: 'taskEdit.titleLabel' });
+    const descriptionInput = root.findByProps({ placeholder: 'taskEdit.descriptionPlaceholder' });
 
     act(() => {
       titleInput.props.onChangeText('Renamed inbox task');
       descriptionInput.props.onChangeText('Updated description');
     });
 
-    const skipButton = root.find(
-      (node) =>
-        node.type === 'TouchableOpacity'
-        && node.findAll((child) => child.type === 'Text' && child.props.children === 'Skip').length > 0
-    );
+    const skipLabel = root.findByProps({ children: 'Skip' });
+    const skipButton = skipLabel.parent;
+
+    if (!skipButton) {
+      throw new Error('Skip button not found');
+    }
 
     act(() => {
       skipButton.props.onPress();

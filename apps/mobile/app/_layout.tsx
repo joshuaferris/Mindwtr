@@ -417,10 +417,10 @@ function RootLayoutContent() {
       router.replace({
         pathname: '/capture-modal',
         params: { text: encodeURIComponent(sharedText.trim()) },
-      });
+      } as never);
     } else {
       void logError(new Error('Share intent payload missing text'), { scope: 'share-intent' });
-      router.replace('/capture-modal');
+      router.replace('/capture-modal' as never);
     }
     resetShareIntent();
   }, [hasShareIntent, resetShareIntent, router, shareIntent?.text, shareIntent?.webUrl]);
@@ -703,7 +703,7 @@ function RootLayoutContent() {
               params.set('initialProps', encodeURIComponent(JSON.stringify(options.initialProps)));
             }
             const query = params.toString();
-            router.push(query ? `/capture-modal?${query}` : '/capture-modal');
+            router.push((query ? `/capture-modal?${query}` : '/capture-modal') as never);
           },
         }}
       >
