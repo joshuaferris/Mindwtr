@@ -104,6 +104,27 @@ export const parseArgs = (argv: string[]) => {
   return flags;
 };
 
+export const parseBooleanFlag = (value: string | boolean | undefined): boolean | undefined => {
+  if (value === undefined) return undefined;
+  if (typeof value === 'boolean') return value;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+  if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') return false;
+  return true;
+};
+
+export const resolveServerModeFlags = (flags: Record<string, string | boolean>) => {
+  const allowWrite = parseBooleanFlag(flags.write) ?? false;
+  const explicitReadonly = parseBooleanFlag(flags.readonly);
+  const keepAlive = !((parseBooleanFlag(flags.nowait) ?? false) || (parseBooleanFlag(flags.noWait) ?? false));
+  return {
+    allowWrite,
+    readonly: explicitReadonly ?? !allowWrite,
+    keepAlive,
+  };
+};
+
 const taskStatusSchema = z.enum(['inbox', 'next', 'waiting', 'someday', 'reference', 'done', 'archived']);
 const taskStatusOrAllSchema = z.enum(['inbox', 'next', 'waiting', 'someday', 'reference', 'done', 'archived', 'all']);
 const isoDateLikeSchema = z
@@ -322,9 +343,7 @@ export async function startMcpServer(argv: string[] = process.argv.slice(2)) {
   const flags = parseArgs(argv);
 
   const dbPath = typeof flags.db === 'string' ? flags.db : undefined;
-  const allowWrite = Boolean(flags.write);
-  const readonly = Boolean(flags.readonly) || !allowWrite;
-  const keepAlive = !(flags.nowait || flags.noWait);
+  const { readonly, keepAlive } = resolveServerModeFlags(flags);
 
   const service = createService({ dbPath, readonly });
   attachLifecycleHandlers(service);

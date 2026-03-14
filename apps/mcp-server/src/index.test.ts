@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-import { parseArgs, registerMindwtrTools } from './index.js';
+import { parseArgs, parseBooleanFlag, registerMindwtrTools, resolveServerModeFlags } from './index.js';
 
 type RegisteredTool = {
   name: string;
@@ -42,6 +42,33 @@ describe('mcp server index', () => {
     const flags = parseArgs(['--db=/tmp/mindwtr.db', '--write=true']);
     expect(flags.db).toBe('/tmp/mindwtr.db');
     expect(flags.write).toBe('true');
+  });
+
+  test('parses boolean flag values explicitly', () => {
+    expect(parseBooleanFlag(true)).toBe(true);
+    expect(parseBooleanFlag(false)).toBe(false);
+    expect(parseBooleanFlag('true')).toBe(true);
+    expect(parseBooleanFlag('false')).toBe(false);
+    expect(parseBooleanFlag('0')).toBe(false);
+    expect(parseBooleanFlag(undefined)).toBeUndefined();
+  });
+
+  test('resolves readonly and keepalive modes from CLI flags', () => {
+    expect(resolveServerModeFlags(parseArgs(['--write=false']))).toEqual({
+      allowWrite: false,
+      readonly: true,
+      keepAlive: true,
+    });
+    expect(resolveServerModeFlags(parseArgs(['--write=true', '--readonly=false', '--noWait=false']))).toEqual({
+      allowWrite: true,
+      readonly: false,
+      keepAlive: true,
+    });
+    expect(resolveServerModeFlags(parseArgs(['--write', '--readonly', '--noWait']))).toEqual({
+      allowWrite: true,
+      readonly: true,
+      keepAlive: false,
+    });
   });
 
   test('registers all mindwtr tools', () => {
