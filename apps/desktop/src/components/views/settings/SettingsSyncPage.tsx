@@ -36,6 +36,9 @@ type Labels = {
     webdavUsername: string;
     webdavPassword: string;
     webdavSave: string;
+    testConnection: string;
+    webdavTestHint: string;
+    webdavTestAccessibility: string;
     cloudUrl: string;
     cloudHint: string;
     cloudToken: string;
@@ -106,10 +109,13 @@ type SettingsSyncPageProps = {
     webdavPassword: string;
     webdavHasPassword: boolean;
     isSavingWebDav: boolean;
+    isTestingWebDav: boolean;
+    webdavTestState: 'idle' | 'success' | 'error';
     onWebdavUrlChange: (value: string) => void;
     onWebdavUsernameChange: (value: string) => void;
     onWebdavPasswordChange: (value: string) => void;
     onSaveWebDav: () => Promise<void> | void;
+    onTestWebDavConnection: () => Promise<void> | void;
     cloudUrl: string;
     cloudToken: string;
     cloudProvider: CloudProvider;
@@ -186,10 +192,13 @@ export function SettingsSyncPage({
     webdavPassword,
     webdavHasPassword,
     isSavingWebDav,
+    isTestingWebDav,
+    webdavTestState,
     onWebdavUrlChange,
     onWebdavUsernameChange,
     onWebdavPasswordChange,
     onSaveWebDav,
+    onTestWebDavConnection,
     cloudUrl,
     cloudToken,
     cloudProvider,
@@ -455,7 +464,15 @@ export function SettingsSyncPage({
                                 </p>
                             )}
 
-                            <div className="flex justify-end">
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                <button
+                                    onClick={onTestWebDavConnection}
+                                    disabled={webdavUrlError || !webdavUrl.trim() || isTestingWebDav}
+                                    aria-label={t.webdavTestAccessibility}
+                                    className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover:bg-secondary/90 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isTestingWebDav ? t.syncing : t.testConnection}
+                                </button>
                                 <button
                                     onClick={onSaveWebDav}
                                     disabled={webdavUrlError || isSavingWebDav}
@@ -464,7 +481,20 @@ export function SettingsSyncPage({
                                 >
                                     {t.webdavSave}
                                 </button>
+                                {webdavTestState !== 'idle' && (
+                                    <span
+                                        className={cn(
+                                            "inline-flex items-center rounded-md border px-2 py-1 text-xs",
+                                            webdavTestState === 'success'
+                                                ? "border-emerald-600/40 text-emerald-500"
+                                                : "border-destructive/40 text-destructive"
+                                        )}
+                                    >
+                                        {webdavTestState === 'success' ? `✓ ${t.dropboxTestReachable}` : `! ${t.dropboxTestFailed}`}
+                                    </span>
+                                )}
                             </div>
+                            <p className="text-xs text-muted-foreground">{t.webdavTestHint}</p>
                         </div>
                     )}
 

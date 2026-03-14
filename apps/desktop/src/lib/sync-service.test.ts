@@ -120,6 +120,31 @@ describe('SyncService testability hooks', () => {
         await SyncService.setDropboxAppKey('');
         expect(await SyncService.getDropboxAppKey()).toBe(baseline);
     });
+
+    it('tests WebDAV connectivity against the normalized data.json URL', async () => {
+        const fetchSpy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('{}', {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+        }));
+        __syncServiceTestUtils.setDependenciesForTests({
+            getTauriFetch: async () => fetchSpy as unknown as typeof fetch,
+        });
+
+        await SyncService.testWebDavConnection({
+            url: 'https://example.com/remote.php/dav/files/user/mindwtr/',
+            username: 'alice',
+            password: 'secret',
+        });
+
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        const firstCall = fetchSpy.mock.calls[0];
+        expect(firstCall).toBeDefined();
+        if (!firstCall) {
+            throw new Error('Expected WebDAV fetch call');
+        }
+        expect(firstCall[0]).toBe('https://example.com/remote.php/dav/files/user/mindwtr/data.json');
+        expect(firstCall[1]).toMatchObject({ method: 'GET' });
+    });
 });
 
 describe('SyncService orchestration', () => {

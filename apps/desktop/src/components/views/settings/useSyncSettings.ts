@@ -6,6 +6,7 @@ import { markSettingsOpenTrace, measureSettingsOpenStep } from '../../../lib/set
 
 export type SyncBackend = 'off' | 'file' | 'webdav' | 'cloud';
 export type DropboxTestState = 'idle' | 'success' | 'error';
+export type WebDavTestState = 'idle' | 'success' | 'error';
 
 type UseSyncSettingsOptions = {
     isTauri: boolean;
@@ -23,6 +24,8 @@ export const useSyncSettings = ({ isTauri, showSaved, selectSyncFolderTitle }: U
     const [webdavPassword, setWebdavPassword] = useState('');
     const [webdavHasPassword, setWebdavHasPassword] = useState(false);
     const [isSavingWebDav, setIsSavingWebDav] = useState(false);
+    const [isTestingWebDav, setIsTestingWebDav] = useState(false);
+    const [webdavTestState, setWebdavTestState] = useState<WebDavTestState>('idle');
     const [cloudUrl, setCloudUrl] = useState('');
     const [cloudToken, setCloudToken] = useState('');
     const [cloudProvider, setCloudProvider] = useState<CloudProvider>('selfhosted');
@@ -159,6 +162,10 @@ export const useSyncSettings = ({ isTauri, showSaved, selectSyncFolderTitle }: U
         };
     }, [dropboxAppKey]);
 
+    useEffect(() => {
+        setWebdavTestState('idle');
+    }, [webdavUrl, webdavUsername, webdavPassword]);
+
     const handleSaveSyncPath = useCallback(async () => {
         if (!syncPath.trim()) return;
         const result = await SyncService.setSyncPath(syncPath.trim());
@@ -228,6 +235,36 @@ export const useSyncSettings = ({ isTauri, showSaved, selectSyncFolderTitle }: U
             setIsSavingWebDav(false);
         }
     }, [showSaved, webdavPassword, webdavUrl, webdavUsername]);
+
+    const handleTestWebDavConnection = useCallback(async () => {
+        const trimmedUrl = webdavUrl.trim();
+        if (!trimmedUrl) {
+            const message = 'Enter a WebDAV URL first.';
+            setWebdavTestState('error');
+            setSyncError(message);
+            showToast(message, 'error');
+            return;
+        }
+
+        setIsTestingWebDav(true);
+        try {
+            await SyncService.testWebDavConnection({
+                url: trimmedUrl,
+                username: webdavUsername.trim(),
+                password: webdavPassword,
+            });
+            setWebdavTestState('success');
+            setSyncError(null);
+            showToast('WebDAV endpoint is reachable.', 'success');
+        } catch (error) {
+            const message = toErrorMessage(error, 'WebDAV connection failed.');
+            setWebdavTestState('error');
+            setSyncError(message);
+            showToast(message, 'error');
+        } finally {
+            setIsTestingWebDav(false);
+        }
+    }, [showToast, toErrorMessage, webdavPassword, webdavUrl, webdavUsername]);
 
     const handleSaveCloud = useCallback(async () => {
         await SyncService.setCloudConfig({
@@ -435,6 +472,8 @@ export const useSyncSettings = ({ isTauri, showSaved, selectSyncFolderTitle }: U
         setWebdavPassword,
         webdavHasPassword,
         isSavingWebDav,
+        isTestingWebDav,
+        webdavTestState,
         cloudUrl,
         setCloudUrl,
         cloudToken,
@@ -454,6 +493,7 @@ export const useSyncSettings = ({ isTauri, showSaved, selectSyncFolderTitle }: U
         handleChangeSyncLocation,
         handleSetSyncBackend,
         handleSaveWebDav,
+        handleTestWebDavConnection,
         handleSaveCloud,
         handleSetCloudProvider,
         handleConnectDropbox,

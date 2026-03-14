@@ -891,6 +891,8 @@ export function SettingsView() {
         setWebdavPassword,
         webdavHasPassword,
         isSavingWebDav,
+        isTestingWebDav,
+        webdavTestState,
         cloudUrl,
         setCloudUrl,
         cloudToken,
@@ -909,6 +911,7 @@ export function SettingsView() {
         handleChangeSyncLocation,
         handleSetSyncBackend,
         handleSaveWebDav,
+        handleTestWebDavConnection,
         handleSaveCloud,
         handleSetCloudProvider,
         handleConnectDropbox,
@@ -1099,10 +1102,13 @@ export function SettingsView() {
                     webdavPassword={webdavPassword}
                     webdavHasPassword={webdavHasPassword}
                     isSavingWebDav={isSavingWebDav}
+                    isTestingWebDav={isTestingWebDav}
+                    webdavTestState={webdavTestState}
                     onWebdavUrlChange={setWebdavUrl}
                     onWebdavUsernameChange={setWebdavUsername}
                     onWebdavPasswordChange={setWebdavPassword}
                     onSaveWebDav={handleSaveWebDav}
+                    onTestWebDavConnection={handleTestWebDavConnection}
                     cloudUrl={cloudUrl}
                     cloudToken={cloudToken}
                     cloudProvider={cloudProvider}

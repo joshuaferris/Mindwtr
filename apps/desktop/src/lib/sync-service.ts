@@ -1508,6 +1508,20 @@ export class SyncService {
         }
     }
 
+    static async testWebDavConnection(config: { url: string; username?: string; password?: string }): Promise<void> {
+        const normalizedUrl = normalizeWebdavUrl(config.url.trim());
+        if (!normalizedUrl) {
+            throw new Error('WebDAV URL not configured');
+        }
+        const fetcher = await getTauriFetch();
+        await webdavGetJson<unknown>(normalizedUrl, {
+            username: config.username?.trim(),
+            password: config.password ?? '',
+            timeoutMs: 10_000,
+            fetcher: fetcher ?? fetch,
+        });
+    }
+
     static async getCloudConfig(options?: { silent?: boolean }): Promise<CloudConfig> {
         if (!isTauriRuntimeEnv()) return SyncService.getCloudConfigLocal();
         await SyncService.maybeMigrateLegacyLocalStorageToConfig();
