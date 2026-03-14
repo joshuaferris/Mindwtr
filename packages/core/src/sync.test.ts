@@ -1116,6 +1116,103 @@ describe('Sync Logic', () => {
             expect(result.stats.projects.conflicts).toBe(0);
             expect(result.stats.sections.conflicts).toBe(0);
         });
+
+        it('does not count conflicts for omitted legacy default fields', () => {
+            const now = '2026-03-07T00:00:00.000Z';
+            const localTask = {
+                ...createMockTask('task-legacy', now),
+                isFocusedToday: false,
+                pushCount: 0,
+            } satisfies Task;
+            const incomingTask = {
+                ...createMockTask('task-legacy', now),
+            } as unknown as Task;
+            delete (incomingTask as Record<string, unknown>).status;
+            delete (incomingTask as Record<string, unknown>).tags;
+            delete (incomingTask as Record<string, unknown>).contexts;
+
+            const localProject = {
+                ...createMockProject('project-legacy', now),
+                color: '#6B7280',
+                isSequential: false,
+                isFocused: false,
+            } satisfies Project;
+            const incomingProject = {
+                ...createMockProject('project-legacy', now),
+            } as unknown as Project;
+            delete (incomingProject as Record<string, unknown>).status;
+            delete (incomingProject as Record<string, unknown>).color;
+            delete (incomingProject as Record<string, unknown>).tagIds;
+            delete (incomingProject as Record<string, unknown>).isSequential;
+            delete (incomingProject as Record<string, unknown>).isFocused;
+
+            const localSection = {
+                ...createMockSection('section-legacy', 'project-legacy', now),
+                isCollapsed: false,
+            } satisfies Section;
+            const incomingSection = {
+                ...createMockSection('section-legacy', 'project-legacy', now),
+            } as unknown as Section;
+            delete (incomingSection as Record<string, unknown>).isCollapsed;
+
+            const result = mergeAppDataWithStats(
+                mockAppData([localTask], [localProject], [localSection]),
+                mockAppData([incomingTask], [incomingProject], [incomingSection])
+            );
+
+            expect(result.stats.tasks.conflicts).toBe(0);
+            expect(result.stats.projects.conflicts).toBe(0);
+            expect(result.stats.sections.conflicts).toBe(0);
+        });
+
+        it('does not count conflicts when remote payload omits default task and project fields', () => {
+            const now = '2026-03-13T00:00:00.000Z';
+            const localTask = {
+                ...createMockTask('task-1', now),
+                isFocusedToday: false,
+            } satisfies Task;
+            const incomingTask = {
+                id: 'task-1',
+                title: 'Task task-1',
+                status: 'inbox',
+                createdAt: '2023-01-01T00:00:00.000Z',
+                updatedAt: now,
+            } as unknown as Task;
+
+            const localProject = {
+                ...createMockProject('project-1', now),
+                isSequential: false,
+                isFocused: false,
+            } satisfies Project;
+            const incomingProject = {
+                id: 'project-1',
+                title: 'Project project-1',
+                status: 'active',
+                color: '#000000',
+                createdAt: '2023-01-01T00:00:00.000Z',
+                updatedAt: now,
+            } as unknown as Project;
+
+            const result = mergeAppDataWithStats(
+                mockAppData([localTask], [localProject]),
+                mockAppData([incomingTask], [incomingProject])
+            );
+
+            expect(result.stats.tasks.conflicts).toBe(0);
+            expect(result.stats.projects.conflicts).toBe(0);
+            expect(result.data.tasks[0]).toMatchObject({
+                id: 'task-1',
+                tags: [],
+                contexts: [],
+                isFocusedToday: false,
+            });
+            expect(result.data.projects[0]).toMatchObject({
+                id: 'project-1',
+                tagIds: [],
+                isSequential: false,
+                isFocused: false,
+            });
+        });
     });
 
     describe('performSyncCycle', () => {
@@ -1168,6 +1265,57 @@ describe('Sync Logic', () => {
                 ...createMockSection('section-1', 'project-1', now),
             } as unknown as Section;
             delete (incomingSection as Record<string, unknown>).order;
+
+            const result = await performSyncCycle({
+                readLocal: async () => mockAppData([localTask], [localProject], [localSection]),
+                readRemote: async () => mockAppData([incomingTask], [incomingProject], [incomingSection]),
+                writeLocal: async () => undefined,
+                writeRemote: async () => undefined,
+            });
+
+            expect(result.status).toBe('success');
+            expect(result.stats.tasks.conflicts).toBe(0);
+            expect(result.stats.projects.conflicts).toBe(0);
+            expect(result.stats.sections.conflicts).toBe(0);
+        });
+
+        it('returns success when local defaults differ from omitted legacy fields', async () => {
+            const now = '2026-03-07T00:00:00.000Z';
+            const localTask = {
+                ...createMockTask('task-legacy', now),
+                isFocusedToday: false,
+                pushCount: 0,
+            } satisfies Task;
+            const incomingTask = {
+                ...createMockTask('task-legacy', now),
+            } as unknown as Task;
+            delete (incomingTask as Record<string, unknown>).status;
+            delete (incomingTask as Record<string, unknown>).tags;
+            delete (incomingTask as Record<string, unknown>).contexts;
+
+            const localProject = {
+                ...createMockProject('project-legacy', now),
+                color: '#6B7280',
+                isSequential: false,
+                isFocused: false,
+            } satisfies Project;
+            const incomingProject = {
+                ...createMockProject('project-legacy', now),
+            } as unknown as Project;
+            delete (incomingProject as Record<string, unknown>).status;
+            delete (incomingProject as Record<string, unknown>).color;
+            delete (incomingProject as Record<string, unknown>).tagIds;
+            delete (incomingProject as Record<string, unknown>).isSequential;
+            delete (incomingProject as Record<string, unknown>).isFocused;
+
+            const localSection = {
+                ...createMockSection('section-legacy', 'project-legacy', now),
+                isCollapsed: false,
+            } satisfies Section;
+            const incomingSection = {
+                ...createMockSection('section-legacy', 'project-legacy', now),
+            } as unknown as Section;
+            delete (incomingSection as Record<string, unknown>).isCollapsed;
 
             const result = await performSyncCycle({
                 readLocal: async () => mockAppData([localTask], [localProject], [localSection]),

@@ -1,5 +1,5 @@
 
-import type { AppData, Attachment, Project, Task, Area, SettingsSyncGroup } from './types';
+import type { AppData, Attachment, Project, Task, Area, Section, SettingsSyncGroup } from './types';
 import { normalizeTaskForLoad } from './task-status';
 import { logWarn } from './logger';
 import {
@@ -126,6 +126,12 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
 const isValidTimestamp = (value: unknown): value is string =>
     typeof value === 'string' && Number.isFinite(Date.parse(value));
 
+const normalizeOptionalString = (value: unknown): string | undefined =>
+    typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+
+const normalizeStringArray = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
 type RevisionMetadata = {
     rev?: unknown;
     revBy?: unknown;
@@ -154,6 +160,43 @@ const normalizeRevisionMetadata = <T extends RevisionMetadata>(item: T): T => {
         delete normalized.revBy;
     }
     return normalized;
+};
+
+const normalizeProjectStatusForMerge = (value: unknown): Project['status'] => {
+    if (value === 'active' || value === 'someday' || value === 'waiting' || value === 'archived') {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const lowered = value.toLowerCase().trim();
+        if (lowered === 'active' || lowered === 'someday' || lowered === 'waiting' || lowered === 'archived') {
+            return lowered as Project['status'];
+        }
+    }
+    return 'active';
+};
+
+const normalizeTaskForSyncMerge = (task: Task, nowIso: string): Task => {
+    const normalized = normalizeTaskForLoad(task, nowIso);
+    return {
+        ...normalized,
+        tags: normalizeStringArray(normalized.tags),
+        contexts: normalizeStringArray(normalized.contexts),
+        sectionId: normalizeOptionalString(normalized.sectionId),
+        isFocusedToday: normalized.isFocusedToday === true,
+    };
+};
+
+const normalizeProjectForSyncMerge = (project: Project): Project => {
+    return {
+        ...project,
+        status: normalizeProjectStatusForMerge(project.status),
+        color: normalizeOptionalString(project.color) ?? '#6B7280',
+        tagIds: normalizeStringArray(project.tagIds),
+        isSequential: project.isSequential === true,
+        isFocused: project.isFocused === true,
+        areaId: normalizeOptionalString(project.areaId),
+        areaTitle: normalizeOptionalString(project.areaTitle),
+    };
 };
 
 const validateRevisionFields = (
@@ -778,6 +821,43 @@ const CONTENT_DIFF_IGNORED_KEYS = new Set([
     'orderNum',
 ]);
 
+type ComparisonNormalizer<T> = (item: T) => unknown;
+
+const normalizeOptionalArrayForComparison = <T>(value: T[] | undefined): T[] | undefined =>
+    Array.isArray(value) && value.length > 0 ? value : undefined;
+
+const normalizeTaskForContentComparison = (task: Task): Record<string, unknown> => {
+    const comparable: Record<string, unknown> = {
+        ...task,
+        tags: normalizeOptionalArrayForComparison(task.tags),
+        contexts: normalizeOptionalArrayForComparison(task.contexts),
+        checklist: normalizeOptionalArrayForComparison(task.checklist),
+        attachments: normalizeOptionalArrayForComparison(task.attachments),
+        isFocusedToday: task.isFocusedToday ? true : undefined,
+        pushCount: task.pushCount === 0 ? undefined : task.pushCount,
+    };
+    if (task.status === 'inbox') delete comparable.status;
+    return comparable;
+};
+
+const normalizeProjectForContentComparison = (project: Project): Record<string, unknown> => {
+    const comparable: Record<string, unknown> = {
+        ...project,
+        tagIds: normalizeOptionalArrayForComparison(project.tagIds),
+        attachments: normalizeOptionalArrayForComparison(project.attachments),
+        isSequential: project.isSequential ? true : undefined,
+        isFocused: project.isFocused ? true : undefined,
+    };
+    if (project.status === 'active') delete comparable.status;
+    if (project.color === '#6B7280') delete comparable.color;
+    return comparable;
+};
+
+const normalizeSectionForContentComparison = (section: Section): Record<string, unknown> => ({
+    ...section,
+    isCollapsed: section.isCollapsed ? true : undefined,
+});
+
 const toComparableValue = (value: unknown, options?: { includeIgnoredKeys?: boolean }): unknown => {
     const includeIgnoredKeys = options?.includeIgnoredKeys === true;
     if (Array.isArray(value)) {
@@ -849,7 +929,8 @@ const parseMergeTimestamp = (value: unknown, maxAllowedMs?: number): number => {
 function mergeEntitiesWithStats<T extends { id: string; updatedAt: string; deletedAt?: string; rev?: number; revBy?: string }>(
     local: T[],
     incoming: T[],
-    mergeConflict?: (localItem: T, incomingItem: T, winner: T) => T
+    mergeConflict?: (localItem: T, incomingItem: T, winner: T) => T,
+    normalizeForComparison?: ComparisonNormalizer<T>
 ): { merged: T[]; stats: EntityMergeStats } {
     const localMap = new Map<string, T>(local.map((item) => [item.id, item]));
     const incomingMap = new Map<string, T>(incoming.map((item) => [item.id, item]));
@@ -920,10 +1001,12 @@ function mergeEntitiesWithStats<T extends { id: string; updatedAt: string; delet
         const incomingDeleted = !!normalizedIncomingItem.deletedAt;
         const revDiff = localRev - incomingRev;
         const revByDiff = localRevBy !== incomingRevBy;
+        const comparableLocalItem = normalizeForComparison ? normalizeForComparison(normalizedLocalItem) : normalizedLocalItem;
+        const comparableIncomingItem = normalizeForComparison ? normalizeForComparison(normalizedIncomingItem) : normalizedIncomingItem;
         const shouldCheckContentDiff = hasRevision
             ? revDiff === 0 && localDeleted === incomingDeleted
             : localDeleted === incomingDeleted;
-        const contentDiff = shouldCheckContentDiff ? hasContentDifference(normalizedLocalItem, normalizedIncomingItem) : false;
+        const contentDiff = shouldCheckContentDiff ? hasContentDifference(comparableLocalItem, comparableIncomingItem) : false;
 
         const differs = hasRevision
             ? revDiff !== 0 || localDeleted !== incomingDeleted || contentDiff
@@ -1051,15 +1134,15 @@ export function mergeAppDataWithStats(local: AppData, incoming: AppData): MergeR
     const nowIso = new Date().toISOString();
     const localNormalized: AppData = {
         ...local,
-        tasks: (local.tasks || []).map((t) => normalizeRevisionMetadata(normalizeTaskForLoad(t, nowIso))),
-        projects: (local.projects || []).map((project) => normalizeRevisionMetadata(project)),
+        tasks: (local.tasks || []).map((t) => normalizeRevisionMetadata(normalizeTaskForSyncMerge(t, nowIso))),
+        projects: (local.projects || []).map((project) => normalizeRevisionMetadata(normalizeProjectForSyncMerge(project))),
         sections: (local.sections || []).map((section) => normalizeRevisionMetadata(section)),
         areas: (local.areas || []).map((area) => normalizeRevisionMetadata(area)),
     };
     const incomingNormalized: AppData = {
         ...incoming,
-        tasks: (incoming.tasks || []).map((t) => normalizeRevisionMetadata(normalizeTaskForLoad(t, nowIso))),
-        projects: (incoming.projects || []).map((project) => normalizeRevisionMetadata(project)),
+        tasks: (incoming.tasks || []).map((t) => normalizeRevisionMetadata(normalizeTaskForSyncMerge(t, nowIso))),
+        projects: (incoming.projects || []).map((project) => normalizeRevisionMetadata(normalizeProjectForSyncMerge(project))),
         sections: (incoming.sections || []).map((section) => normalizeRevisionMetadata(section)),
         areas: (incoming.areas || []).map((area) => normalizeRevisionMetadata(area)),
     };
@@ -1142,17 +1225,32 @@ export function mergeAppDataWithStats(local: AppData, incoming: AppData): MergeR
         return hadExplicitAttachments ? [] : undefined;
     };
 
-    const tasksResult = mergeEntitiesWithStats(localNormalized.tasks, incomingNormalized.tasks, (localTask: Task, incomingTask: Task, winner: Task) => {
-        const attachments = mergeAttachments(localTask.attachments, incomingTask.attachments);
-        return { ...winner, attachments };
-    });
+    const tasksResult = mergeEntitiesWithStats(
+        localNormalized.tasks,
+        incomingNormalized.tasks,
+        (localTask: Task, incomingTask: Task, winner: Task) => {
+            const attachments = mergeAttachments(localTask.attachments, incomingTask.attachments);
+            return { ...winner, attachments };
+        },
+        normalizeTaskForContentComparison
+    );
 
-    const projectsResult = mergeEntitiesWithStats(localNormalized.projects, incomingNormalized.projects, (localProject: Project, incomingProject: Project, winner: Project) => {
-        const attachments = mergeAttachments(localProject.attachments, incomingProject.attachments);
-        return { ...winner, attachments };
-    });
+    const projectsResult = mergeEntitiesWithStats(
+        localNormalized.projects,
+        incomingNormalized.projects,
+        (localProject: Project, incomingProject: Project, winner: Project) => {
+            const attachments = mergeAttachments(localProject.attachments, incomingProject.attachments);
+            return { ...winner, attachments };
+        },
+        normalizeProjectForContentComparison
+    );
 
-    const sectionsResult = mergeEntitiesWithStats(localNormalized.sections, incomingNormalized.sections);
+    const sectionsResult = mergeEntitiesWithStats(
+        localNormalized.sections,
+        incomingNormalized.sections,
+        undefined,
+        normalizeSectionForContentComparison
+    );
 
     const areasResult = mergeAreas(localNormalized.areas, incomingNormalized.areas, nowIso);
 
