@@ -1,2 +1,7 @@
+[env]
+# whisper-rs-sys bindgen output is unstable across newer Linux/libc headers.
+# Use the crate's bundled bindings so source builds stay reproducible in AUR and CI.
+WHISPER_DONT_GENERATE_BINDINGS = "1"
+
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
