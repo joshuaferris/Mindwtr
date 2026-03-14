@@ -25,6 +25,13 @@ describe('mobile sync-service test utils', () => {
     expect(message).toContain('WebDAV unauthorized (401)');
   });
 
+  it('formats WebDAV rate limit errors with actionable text', () => {
+    const error = Object.assign(new Error('HTTP 429'), { status: 429 });
+    const message = formatSyncErrorMessage(error, 'webdav');
+    expect(message).toContain('WebDAV rate limited');
+    expect(message).toContain('about a minute');
+  });
+
   it('formats iOS temporary inbox file sync errors with provider guidance', () => {
     const error = new Error("Calling the 'writeAsStringAsync' function has failed -> File '/private/var/mobile/.../tmp/tech.dongdongbh.mindwtr-Inbox/data.json.tmp' is not writable");
     const message = formatSyncErrorMessage(error, 'file');

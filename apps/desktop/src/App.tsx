@@ -24,6 +24,7 @@ import type { ExternalSyncChange, ExternalSyncChangeResolution } from './lib/syn
 import * as LocalDataWatcher from './lib/local-data-watcher';
 import { isFlatpakRuntime, isTauriRuntime } from './lib/runtime';
 import { logError } from './lib/app-log';
+import { createDesktopAutoSyncController } from './lib/auto-sync-controller';
 import { beginSettingsOpenTrace, markSettingsOpenTrace, wrapSettingsOpenImport } from './lib/settings-open-diagnostics';
 import { THEME_STORAGE_KEY, applyThemeMode, mapSyncedThemeToDesktop, resolveNativeTheme } from './lib/theme';
 import { useUiStore } from './store/ui-store';
@@ -52,11 +53,6 @@ function App() {
     const isFlatpak = isFlatpakRuntime();
     const { t, language, setLanguage } = useLanguage();
     const isActiveRef = useRef(true);
-    const lastAutoSyncRef = useRef(0);
-    const syncDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const initialSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const syncInFlightRef = useRef<Promise<void> | null>(null);
-    const syncQueuedRef = useRef(false);
     const lastSyncErrorRef = useRef<string | null>(null);
     const lastSyncErrorAtRef = useRef(0);
     const [closePromptOpen, setClosePromptOpen] = useState(false);
@@ -236,79 +232,44 @@ function App() {
         };
 
         const performSync = async () => {
-            if (!isActiveRef.current || !isTauriRuntime()) return;
-            const now = Date.now();
-            if (now - lastAutoSyncRef.current < 5_000) return;
-            if (!(await canSync())) return;
+            return SyncService.performSync();
+        };
 
-            lastAutoSyncRef.current = now;
-            await flushPendingSave().catch((error) => reportError('Save failed', error));
-            const result = await SyncService.performSync();
-            if (!result.success && result.error) {
-                const nowMs = Date.now();
-                const shouldAlert = result.error !== lastSyncErrorRef.current || nowMs - lastSyncErrorAtRef.current > 10 * 60 * 1000;
-                if (shouldAlert) {
-                    lastSyncErrorRef.current = result.error;
-                    lastSyncErrorAtRef.current = nowMs;
-                    showToast(`Sync failed: ${result.error}`, 'error', 6000);
-                }
+        const handleSyncFailure = (message: string) => {
+            const nowMs = Date.now();
+            const shouldAlert = message !== lastSyncErrorRef.current || nowMs - lastSyncErrorAtRef.current > 10 * 60 * 1000;
+            if (shouldAlert) {
+                lastSyncErrorRef.current = message;
+                lastSyncErrorAtRef.current = nowMs;
+                showToast(`Sync failed: ${message}`, 'error', 6000);
             }
         };
 
-        const queueSync = async () => {
-            if (!isActiveRef.current || !isTauriRuntime()) return;
-            if (syncInFlightRef.current) {
-                syncQueuedRef.current = true;
-                return;
-            }
-            syncInFlightRef.current = performSync()
-                .catch((error) => reportError('Sync failed', error))
-                .finally(() => {
-                    const shouldQueue = syncQueuedRef.current;
-                    syncQueuedRef.current = false;
-                    syncInFlightRef.current = null;
-                    if (shouldQueue && isActiveRef.current) {
-                        void queueSync();
-                    }
-                });
-            await syncInFlightRef.current;
-        };
+        const autoSyncController = createDesktopAutoSyncController({
+            canSync,
+            performSync,
+            flushPendingSave,
+            reportError,
+            onSyncFailure: handleSyncFailure,
+            isRuntimeActive: () => isActiveRef.current && isTauriRuntime(),
+        });
 
         const focusListener = () => {
-            // On focus, use 30s throttle to avoid excessive syncs
-            const now = Date.now();
-            if (now - lastAutoSyncRef.current > 30_000) {
-                queueSync().catch((error) => reportError('Sync failed', error));
-            }
+            autoSyncController.handleFocus();
         };
 
         const blurListener = () => {
-            // Sync when window loses focus
-            flushPendingSave().catch((error) => reportError('Save failed', error));
-            queueSync().catch((error) => reportError('Sync failed', error));
+            autoSyncController.handleBlur();
         };
 
-        // Auto-sync on data changes with debounce
         const storeUnsubscribe = useTaskStore.subscribe((state, prevState) => {
             if (state.lastDataChangeAt === prevState.lastDataChangeAt) return;
-            const hadTimer = !!syncDebounceTimerRef.current;
-            if (syncDebounceTimerRef.current) {
-                clearTimeout(syncDebounceTimerRef.current);
-            }
-            const debounceMs = hadTimer ? 5000 : 2000;
-            syncDebounceTimerRef.current = setTimeout(() => {
-                if (!isActiveRef.current) return;
-                queueSync().catch((error) => reportError('Sync failed', error));
-            }, debounceMs);
+            autoSyncController.handleDataChange();
         });
 
-        // Background/on-resume sync (focus/blur) and initial auto-sync
         window.addEventListener('focus', focusListener);
         window.addEventListener('blur', blurListener);
-        initialSyncTimerRef.current = setTimeout(() => {
-            if (!isActiveRef.current) return;
-            queueSync().catch((error) => reportError('Sync failed', error));
-        }, 1500);
+        autoSyncController.scheduleInitialSync();
 
         return () => {
             disposed = true;
@@ -320,18 +281,13 @@ function App() {
                 unlistenClose();
             }
             storeUnsubscribe();
-            if (syncDebounceTimerRef.current) {
-                clearTimeout(syncDebounceTimerRef.current);
-            }
-            if (initialSyncTimerRef.current) {
-                clearTimeout(initialSyncTimerRef.current);
-            }
+            autoSyncController.dispose();
             stopDesktopNotifications();
             LocalDataWatcher.stop();
             SyncService.stopFileWatcher().catch((error) => reportError('File watcher failed', error));
             unsubscribeExternalSync();
         };
-    }, [fetchData, setError]);
+    }, [fetchData, setError, showToast]);
 
     useEffect(() => {
         if (!isTauriRuntime()) return;

@@ -215,8 +215,9 @@ export class SqliteAdapter {
                 });
             });
         }, FTS_LOCK_REFRESH_INTERVAL_MS);
-        if (typeof timer.unref === 'function') {
-            timer.unref();
+        const unref = (timer as { unref?: () => void }).unref;
+        if (typeof unref === 'function') {
+            unref.call(timer);
         }
         return timer;
     }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSyncOrchestrator } from './sync-orchestrator';
 
-describe('mobile sync orchestrator', () => {
+describe('sync orchestrator', () => {
     afterEach(() => {
         vi.restoreAllMocks();
     });

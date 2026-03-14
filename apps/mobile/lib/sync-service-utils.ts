@@ -1,4 +1,4 @@
-import { getFileSyncDir, isSyncFilePath as isCoreSyncFilePath, normalizeSyncBackend, type SyncBackend } from '@mindwtr/core';
+import { getFileSyncDir, isSyncFilePath as isCoreSyncFilePath, isWebdavRateLimitedError, normalizeSyncBackend, type SyncBackend } from '@mindwtr/core';
 
 const SYNC_FILE_NAME = 'data.json';
 const LEGACY_SYNC_FILE_NAME = 'mindwtr-sync.json';
@@ -63,6 +63,9 @@ export const formatSyncErrorMessage = (error: unknown, backend: SyncBackend): st
   const unauthorized = status === 401 || /\(401\)/.test(raw) || /\b401\b/.test(raw);
   if (unauthorized) {
     return 'WebDAV unauthorized (401). Check folder URL, username, and app password.';
+  }
+  if (isWebdavRateLimitedError(error)) {
+    return 'WebDAV rate limited. Sync paused briefly; try again in about a minute.';
   }
   if (raw.includes('WebDAV URL not configured')) {
     return 'WebDAV folder URL is not configured. Save WebDAV settings first.';

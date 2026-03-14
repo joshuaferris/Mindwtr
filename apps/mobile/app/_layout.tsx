@@ -33,6 +33,7 @@ import { SYNC_BACKEND_KEY } from '../lib/sync-constants';
 import { updateMobileWidgetFromStore } from '../lib/widget-service';
 import { markStartupPhase, measureStartupPhase } from '../lib/startup-profiler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { SyncActivityIndicator } from '../components/SyncActivityIndicator';
 import { verifyPolyfills } from '../utils/verify-polyfills';
 import { logError, logWarn, setupGlobalErrorLogging } from '../lib/app-log';
 import { useThemeColors } from '../hooks/use-theme-colors';
@@ -742,6 +743,7 @@ function RootLayoutContent() {
               }}
             />
           </Stack>
+          <SyncActivityIndicator />
           <StatusBar
             barStyle={isDark ? 'light-content' : 'dark-content'}
           />

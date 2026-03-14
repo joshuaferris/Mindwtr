@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { AppData, Attachment, MergeStats, useTaskStore, webdavGetJson, webdavPutJson, cloudGetJson, cloudPutJson, flushPendingSave, performSyncCycle, findOrphanedAttachments, removeOrphanedAttachmentsFromData, removeAttachmentsByIdFromData, webdavDeleteFile, cloudDeleteFile, CLOCK_SKEW_THRESHOLD_MS, appendSyncHistory, withRetry, isRetryableWebdavReadError, isWebdavInvalidJsonError, normalizeWebdavUrl, normalizeCloudUrl, sanitizeAppDataForRemote, areSyncPayloadsEqual, assertNoPendingAttachmentUploads, injectExternalCalendars as injectExternalCalendarsForSync, persistExternalCalendars as persistExternalCalendarsForSync, mergeAppData, cloneAppData, LocalSyncAbort, getInMemoryAppDataSnapshot, shouldRunAttachmentCleanup, createAbortableFetch, normalizeCloudProvider as normalizeCoreCloudProvider, CLOUD_PROVIDER_DROPBOX, CLOUD_PROVIDER_SELF_HOSTED, type CloudProvider } from '@mindwtr/core';
+import { AppData, Attachment, MergeStats, createSyncOrchestrator, useTaskStore, webdavGetJson, webdavPutJson, cloudGetJson, cloudPutJson, flushPendingSave, performSyncCycle, findOrphanedAttachments, removeOrphanedAttachmentsFromData, removeAttachmentsByIdFromData, webdavDeleteFile, cloudDeleteFile, CLOCK_SKEW_THRESHOLD_MS, appendSyncHistory, withRetry, isRetryableWebdavReadError, isWebdavInvalidJsonError, normalizeWebdavUrl, normalizeCloudUrl, sanitizeAppDataForRemote, areSyncPayloadsEqual, assertNoPendingAttachmentUploads, injectExternalCalendars as injectExternalCalendarsForSync, persistExternalCalendars as persistExternalCalendarsForSync, mergeAppData, cloneAppData, LocalSyncAbort, getInMemoryAppDataSnapshot, shouldRunAttachmentCleanup, createAbortableFetch, normalizeCloudProvider as normalizeCoreCloudProvider, CLOUD_PROVIDER_DROPBOX, CLOUD_PROVIDER_SELF_HOSTED, type CloudProvider } from '@mindwtr/core';
 import { mobileStorage } from './storage-adapter';
 import { logInfo, logSyncError, logWarn, sanitizeLogMessage } from './app-log';
 import { readSyncFile, resolveSyncFileUri, writeSyncFile } from './storage-file';
@@ -18,7 +18,7 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Network from 'expo-network';
 import { formatSyncErrorMessage, getFileSyncBaseDir, isLikelyFilePath, normalizeFileSyncPath, resolveBackend, type SyncBackend } from './sync-service-utils';
-import { createSyncOrchestrator } from './sync-orchestrator';
+import { createWebdavSyncRateLimitController } from './sync-rate-limit';
 import {
   SYNC_PATH_KEY,
   SYNC_BACKEND_KEY,
@@ -107,6 +107,7 @@ const persistExternalCalendars = async (data: AppData): Promise<void> =>
 
 let mobileSyncActivityState: MobileSyncActivityState = 'idle';
 const mobileSyncActivityListeners = new Set<MobileSyncActivityListener>();
+const webdavSyncRateLimitController = createWebdavSyncRateLimitController();
 
 const setMobileSyncActivityState = (next: MobileSyncActivityState) => {
   if (mobileSyncActivityState === next) return;
@@ -270,6 +271,13 @@ const mobileSyncOrchestrator = createSyncOrchestrator<string | undefined, Mobile
         throw new LocalSyncAbort();
       }
     };
+    const ensureWebdavSyncNotRateLimited = () => {
+      webdavSyncRateLimitController.assertReady(backend);
+    };
+    const handleWebdavRateLimit = (error: unknown) => {
+      if (!webdavSyncRateLimitController.noteError(backend, error)) return;
+      logSyncWarning('WebDAV rate limited; pausing remote sync', error);
+    };
     const ensureNetworkStillAvailable = async () => {
       if (backend !== 'webdav' && backend !== 'cloud') return;
       if (networkWentOffline) {
@@ -420,6 +428,7 @@ const mobileSyncOrchestrator = createSyncOrchestrator<string | undefined, Mobile
       const readRemoteDataByBackend = async (): Promise<AppData | null> => {
         await ensureNetworkStillAvailable();
         if (backend === 'webdav' && webdavConfig?.url) {
+          ensureWebdavSyncNotRateLimited();
           try {
             const data = await withRetry(
               () =>
@@ -441,6 +450,7 @@ const mobileSyncOrchestrator = createSyncOrchestrator<string | undefined, Mobile
               logSyncWarning('WebDAV remote data.json appears corrupted; treating as missing for repair write', error);
               return null;
             }
+            handleWebdavRateLimit(error);
             throw error;
           }
         }
@@ -488,19 +498,25 @@ const mobileSyncOrchestrator = createSyncOrchestrator<string | undefined, Mobile
         }
         if (backend === 'webdav') {
           if (!webdavConfig?.url) throw new Error('WebDAV URL not configured');
+          ensureWebdavSyncNotRateLimited();
           if (webdavRemoteCorrupted) {
             logSyncInfo('Repairing corrupted WebDAV data.json with current merged data');
           }
-          await withRetry(
-            () =>
-              webdavPutJson(webdavConfig.url, sanitized, {
-                username: webdavConfig.username,
-                password: webdavConfig.password,
-                timeoutMs: DEFAULT_SYNC_TIMEOUT_MS,
-                fetcher: fetchWithAbort,
-              }),
-            WEBDAV_RETRY_OPTIONS
-          );
+          try {
+            await withRetry(
+              () =>
+                webdavPutJson(webdavConfig.url, sanitized, {
+                  username: webdavConfig.username,
+                  password: webdavConfig.password,
+                  timeoutMs: DEFAULT_SYNC_TIMEOUT_MS,
+                  fetcher: fetchWithAbort,
+                }),
+              WEBDAV_RETRY_OPTIONS
+            );
+          } catch (error) {
+            handleWebdavRateLimit(error);
+            throw error;
+          }
           remoteDataForCompare = sanitized;
           webdavRemoteCorrupted = false;
           return;
@@ -836,3 +852,16 @@ const mobileSyncOrchestrator = createSyncOrchestrator<string | undefined, Mobile
 export async function performMobileSync(syncPathOverride?: string): Promise<MobileSyncResult> {
   return mobileSyncOrchestrator.run(syncPathOverride);
 }
+
+export const __mobileSyncTestUtils = {
+  reset() {
+    mobileSyncOrchestrator.reset();
+    syncConfigCache.clear();
+    mobileSyncActivityListeners.clear();
+    mobileSyncActivityState = 'idle';
+    webdavSyncRateLimitController.reset();
+  },
+  getWebdavSyncBlockedUntil() {
+    return webdavSyncRateLimitController.getBlockedUntil();
+  },
+};
