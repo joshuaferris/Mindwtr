@@ -28,12 +28,14 @@ Mindwtr's sync engine is built around `data.json`, while Obsidian is note-based.
 
 On desktop:
 
-1. Open **Settings -> Sync**
+1. Open **Settings -> Integrations**
 2. Find **Obsidian Vault**
 3. Select your vault folder
 4. Enable the integration
 5. Optionally limit scanning to specific folders
 6. Save and run **Rescan vault**
+
+By default, scan folders use `/`, which means “scan the whole vault”.
 
 If the selected folder does not contain a `.obsidian/` directory, Mindwtr shows a warning but still lets you save the path.
 
@@ -67,6 +69,8 @@ Imported tasks show:
 - source note path + line number
 - an **Open in Obsidian** action
 
+To keep scans predictable, Mindwtr skips unusually large Markdown files instead of loading them into memory.
+
 ## Deep Linking
 
 Mindwtr opens source notes with Obsidian's URI scheme:
@@ -92,3 +96,7 @@ This lets you review context in Obsidian without copying file paths manually.
 - optional Dataview compatibility
 - mobile feasibility work
 - possible Obsidian plugin in a separate repo
+
+## See Also
+
+- [[Calendar Integration]]

@@ -5,7 +5,6 @@ export type ObsidianSourceRef = {
     lineNumber: number;
     fileModifiedAt: string;
     noteTags: string[];
-    noteDue?: string;
 };
 
 export type ObsidianTask = {
@@ -40,7 +39,7 @@ const FRONTMATTER_BOUNDARY_RE = /^---\s*$/;
 const FENCE_RE = /^\s*(`{3,}|~{3,})/;
 const TASK_RE = /^([ \t]*)(?:[-*+])\s+\[( |x|X)\]\s+(.+)$/;
 const WIKI_LINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
-const TAG_RE = /(^|\s)#([\p{L}\p{N}_/-]+)/gu;
+const TAG_RE = /(^|\s)#([\p{L}\p{N}_/.:-]+)/gu;
 
 const stripYamlQuotes = (value: string): string => {
     const trimmed = value.trim();
@@ -82,17 +81,36 @@ const uniqueStrings = (items: string[]): string[] => {
 };
 
 export const normalizeObsidianRelativePath = (value: string): string => {
-    return value.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/');
+    const normalized = String(value || '').trim().replace(/\\/g, '/').replace(/\/+/g, '/');
+    if (!normalized) return '';
+    if (normalized.startsWith('/')) {
+        throw new Error('Obsidian relative paths cannot be absolute.');
+    }
+    if (/^[A-Za-z]:/.test(normalized)) {
+        throw new Error('Obsidian relative paths cannot include drive prefixes.');
+    }
+
+    const segments = normalized
+        .split('/')
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    if (segments.some((segment) => segment === '..')) {
+        throw new Error('Obsidian relative paths cannot contain parent traversal.');
+    }
+
+    return segments.filter((segment) => segment !== '.').join('/');
 };
 
 export const buildObsidianTaskId = (relativeFilePath: string, lineNumber: number): string => {
-    const source = `${normalizeObsidianRelativePath(relativeFilePath)}:${lineNumber}`;
+    const normalizedLineNumber = Number.isFinite(lineNumber) ? Math.max(0, Math.floor(lineNumber)) : 0;
+    const source = `${normalizeObsidianRelativePath(relativeFilePath)}:${normalizedLineNumber}`;
     let hash = 0x811c9dc5;
     for (let index = 0; index < source.length; index += 1) {
         hash ^= source.charCodeAt(index);
         hash = Math.imul(hash, 0x01000193);
     }
-    return `obsidian-${lineNumber}-${(hash >>> 0).toString(36)}`;
+    return `obsidian-${normalizedLineNumber}-${(hash >>> 0).toString(36)}`;
 };
 
 export const extractObsidianTags = (text: string): string[] => {
@@ -260,7 +278,6 @@ export const parseObsidianTasksFromMarkdown = (
                 lineNumber,
                 fileModifiedAt: options.fileModifiedAt,
                 noteTags: frontmatter.tags,
-                ...(frontmatter.due ? { noteDue: frontmatter.due } : {}),
             },
         });
     }

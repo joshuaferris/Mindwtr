@@ -7,6 +7,7 @@ type ObsidianStoreState = {
     config: ObsidianConfig;
     tasks: ObsidianTask[];
     scannedFileCount: number;
+    warnings: string[];
     hasScannedThisSession: boolean;
     hasVaultMarker: boolean | null;
     isLoadingConfig: boolean;
@@ -38,6 +39,7 @@ export const useObsidianStore = createWithEqualityFn<ObsidianStoreState>()((set,
     config: defaultConfig,
     tasks: [],
     scannedFileCount: 0,
+    warnings: [],
     hasScannedThisSession: false,
     hasVaultMarker: null,
     isLoadingConfig: false,
@@ -56,6 +58,7 @@ export const useObsidianStore = createWithEqualityFn<ObsidianStoreState>()((set,
             set({
                 config,
                 hasVaultMarker,
+                warnings: [],
                 isInitialized: true,
                 isLoadingConfig: false,
             });
@@ -77,11 +80,12 @@ export const useObsidianStore = createWithEqualityFn<ObsidianStoreState>()((set,
         set({
             config: saved,
             hasVaultMarker,
+            warnings: [],
             error: null,
             hasScannedThisSession: false,
         });
         if (!saved.enabled || !saved.vaultPath) {
-            set({ tasks: [], scannedFileCount: 0, hasScannedThisSession: false });
+            set({ tasks: [], scannedFileCount: 0, warnings: [], hasScannedThisSession: false });
         }
         return saved;
     },
@@ -109,6 +113,7 @@ export const useObsidianStore = createWithEqualityFn<ObsidianStoreState>()((set,
         set({
             tasks: [],
             scannedFileCount: 0,
+            warnings: [],
             hasScannedThisSession: false,
             hasVaultMarker: null,
         });
@@ -122,29 +127,33 @@ export const useObsidianStore = createWithEqualityFn<ObsidianStoreState>()((set,
         await get().rescan();
     },
     rescan: async () => {
+        if (get().isScanning) return;
         const config = get().config;
         if (!config.enabled || !config.vaultPath) {
-            set({ tasks: [], scannedFileCount: 0, hasScannedThisSession: false });
+            set({ tasks: [], scannedFileCount: 0, warnings: [], hasScannedThisSession: false });
             return;
         }
 
+        const startedAt = new Date().toISOString();
         set({ isScanning: true, error: null });
         try {
             const result = await ObsidianService.scanVault(config);
             const savedConfig = await ObsidianService.setConfig({
                 ...config,
-                lastScannedAt: new Date().toISOString(),
+                lastScannedAt: startedAt,
             });
             set({
                 config: savedConfig,
                 tasks: result.tasks,
                 scannedFileCount: result.scannedFileCount,
+                warnings: result.warnings,
                 hasScannedThisSession: true,
                 isScanning: false,
                 error: null,
             });
         } catch (error) {
             set({
+                warnings: [],
                 hasScannedThisSession: true,
                 isScanning: false,
                 error: toErrorMessage(error, 'Failed to scan Obsidian vault.'),

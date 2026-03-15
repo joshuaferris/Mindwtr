@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     buildObsidianTaskId,
+    normalizeObsidianRelativePath,
     parseObsidianTasksFromMarkdown,
     type ParseObsidianTasksOptions,
 } from './obsidian-parser';
@@ -49,12 +50,19 @@ describe('parseObsidianTasksFromMarkdown', () => {
         expect(result.frontmatter.tags).toEqual(['project/alpha', 'work']);
         expect(result.frontmatter.due).toBe('2026-04-01');
         expect(result.tasks[0]?.tags).toEqual(['journal', 'project/alpha', 'work']);
-        expect(result.tasks[0]?.source.noteDue).toBe('2026-04-01');
     });
 
     it('skips task-like lines inside fenced code blocks', () => {
         const result = parseObsidianTasksFromMarkdown(readFixture('EdgeCases.md'), createOptions('EdgeCases.md'));
         expect(result.tasks.some((task) => task.text.includes('inside code block'))).toBe(false);
+    });
+
+    it('keeps fences open until eof when a closing fence is missing', () => {
+        const result = parseObsidianTasksFromMarkdown(
+            '```md\n- [ ] hidden\n- [ ] also hidden',
+            createOptions('UnclosedFence.md')
+        );
+        expect(result.tasks).toHaveLength(0);
     });
 
     it('handles files without frontmatter or tasks', () => {
@@ -74,5 +82,30 @@ describe('parseObsidianTasksFromMarkdown', () => {
     it('builds deterministic ids from file path and line number', () => {
         expect(buildObsidianTaskId('Projects/Alpha.md', 10)).toBe(buildObsidianTaskId('Projects/Alpha.md', 10));
         expect(buildObsidianTaskId('Projects/Alpha.md', 10)).not.toBe(buildObsidianTaskId('Projects/Alpha.md', 11));
+    });
+
+    it('rejects parent traversal and absolute relative paths', () => {
+        expect(() => normalizeObsidianRelativePath('../../etc/passwd')).toThrow(/parent traversal/i);
+        expect(() => normalizeObsidianRelativePath('/etc/passwd')).toThrow(/absolute/i);
+    });
+
+    it('handles malformed frontmatter and wider tag characters without crashing', () => {
+        const result = parseObsidianTasksFromMarkdown(
+            [
+                '---',
+                'tags:',
+                '  - "project/alpha',
+                'tags: [ops]',
+                '---',
+                '- [ ] Follow up #work.project #ops:urgent',
+            ].join('\n'),
+            createOptions('Malformed.md')
+        );
+        expect(result.tasks[0]?.tags).toEqual(['work.project', 'ops:urgent', 'ops']);
+    });
+
+    it('normalizes non-finite or negative line numbers in task ids', () => {
+        expect(buildObsidianTaskId('Projects/Alpha.md', -4)).toMatch(/^obsidian-0-/);
+        expect(buildObsidianTaskId('Projects/Alpha.md', Number.NaN)).toMatch(/^obsidian-0-/);
     });
 });

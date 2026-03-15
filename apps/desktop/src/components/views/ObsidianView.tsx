@@ -65,10 +65,14 @@ export function ObsidianView() {
 
     const handleRescan = useCallback(async () => {
         await rescan();
-        const nextError = useObsidianStore.getState().error;
+        const { error: nextError, warnings } = useObsidianStore.getState();
         if (nextError) {
             showToast(nextError, 'error', 5000);
             clearError();
+            return;
+        }
+        if (warnings.length > 0) {
+            showToast(warnings[0], 'info', 6000);
             return;
         }
         showToast(resolveText('obsidian.scanSuccess', 'Obsidian vault scanned.'), 'success');
@@ -176,7 +180,7 @@ export function ObsidianView() {
                     <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
                         {resolveText(
                             'obsidian.setupBody',
-                            'Choose your vault folder in Settings -> Sync -> Obsidian Vault, then enable the integration and rescan.'
+                            'Choose your vault folder in Settings -> Integrations -> Obsidian Vault, then enable the integration and rescan.'
                         )}
                     </p>
                     <button

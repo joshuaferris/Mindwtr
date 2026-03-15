@@ -950,6 +950,14 @@ export function SettingsView() {
         isTauri,
         showSaved,
         selectVaultFolderTitle: selectObsidianVaultTitle,
+        messages: {
+            missingMarker: t.obsidianMissingMarker,
+            chooseFailed: t.obsidianChooseVaultFailed,
+            saveFailed: t.obsidianSaveFailed,
+            removeFailed: t.obsidianRemoveFailed,
+            scanFailed: t.obsidianScanFailed,
+            scanSuccess: t.obsidianScanSuccess,
+        },
     });
     const syncPreferences = settings?.syncPreferences ?? {};
     const handleUpdateSyncPreferences = useCallback((updates: Partial<NonNullable<AppData['settings']['syncPreferences']>>) => {

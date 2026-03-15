@@ -37,7 +37,7 @@ const writeStoredConfig = (config: ObsidianConfig): void => {
 
 export const parseScanFoldersInput = (input: string): string[] => {
     const parts = input
-        .split(/[\n,]/)
+        .split(/\r?\n|,/)
         .map((item) => item.trim())
         .filter(Boolean);
     return sanitizeScanFolders(parts);
@@ -114,7 +114,7 @@ export class ObsidianService {
 
     static async scanVault(config: ObsidianConfig): Promise<ObsidianScanResult> {
         if (!isTauriRuntime()) {
-            return { tasks: [], scannedFileCount: 0 };
+            return { tasks: [], scannedFileCount: 0, warnings: [] };
         }
 
         const { exists, readDir, readTextFile, stat } = await import('@tauri-apps/plugin-fs');
@@ -122,7 +122,15 @@ export class ObsidianService {
             exists: (path) => exists(path),
             readDir: (path) => readDir(path),
             readTextFile: (path) => readTextFile(path),
-            stat: (path) => stat(path),
+            stat: async (path) => {
+                const fileInfo = await stat(path);
+                return {
+                    mtime: fileInfo.mtime,
+                    size: fileInfo.size,
+                    isFile: fileInfo.isFile,
+                    isDirectory: fileInfo.isDirectory,
+                };
+            },
         });
     }
 

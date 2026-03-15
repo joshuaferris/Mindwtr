@@ -4,7 +4,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { normalizeObsidianConfig, scanObsidianVault, type ObsidianScannerDependencies } from './obsidian-scanner';
+import {
+    MAX_OBSIDIAN_MARKDOWN_BYTES,
+    MAX_OBSIDIAN_SCAN_WARNINGS,
+    normalizeObsidianConfig,
+    scanObsidianVault,
+    type ObsidianScannerDependencies,
+} from './obsidian-scanner';
 
 const fixtureRoot = join(
     dirname(fileURLToPath(import.meta.url)),
@@ -42,6 +48,7 @@ describe('scanObsidianVault', () => {
 
         expect(result.scannedFileCount).toBe(8);
         expect(result.tasks).toHaveLength(13);
+        expect(result.warnings).toEqual([]);
         expect(result.tasks.map((task) => task.source.relativeFilePath)).not.toContain('.trash/Deleted.md');
         expect(result.tasks.map((task) => task.source.relativeFilePath)).not.toContain('.obsidian/.gitkeep');
         expect(result.tasks[0]?.source.relativeFilePath).toBe('Daily/2026-03-14.md');
@@ -57,6 +64,7 @@ describe('scanObsidianVault', () => {
 
         expect(result.scannedFileCount).toBe(2);
         expect(result.tasks).toHaveLength(6);
+        expect(result.warnings).toEqual([]);
         expect([...new Set(result.tasks.map((task) => task.source.relativeFilePath))]).toEqual([
             'Projects/Alpha.md',
             'Projects/Beta.md',
@@ -77,12 +85,78 @@ describe('scanObsidianVault', () => {
 
         expect(hiddenResult.scannedFileCount).toBe(2);
         expect(hiddenResult.tasks).toHaveLength(6);
+        expect(hiddenResult.warnings).toEqual(['Skipped invalid scan folder: .obsidian']);
         expect(singleFileResult.scannedFileCount).toBe(1);
         expect(singleFileResult.tasks.map((task) => task.text)).toEqual([
             'Buy groceries #errands',
             'Pay rent [[Bills]]',
             'Review docs #writing/reference',
         ]);
+        expect(singleFileResult.warnings).toEqual([]);
+    });
+
+    it('skips markdown files larger than the size limit and reports a warning', async () => {
+        const deps: ObsidianScannerDependencies = {
+            exists: async () => true,
+            readDir: async (path) => {
+                if (path === '/Vault') {
+                    return [{ name: 'Huge.md', isFile: true, isDirectory: false }];
+                }
+                return [];
+            },
+            readTextFile: async () => '- [ ] should never be read',
+            stat: async (path) => ({
+                mtime: new Date('2026-03-14T12:00:00.000Z'),
+                isFile: path.endsWith('.md'),
+                isDirectory: !path.endsWith('.md'),
+                size: path.endsWith('.md') ? MAX_OBSIDIAN_MARKDOWN_BYTES + 1 : 0,
+            }),
+        };
+
+        const result = await scanObsidianVault({
+            vaultPath: '/Vault',
+            enabled: true,
+            scanFolders: ['/'],
+        }, deps);
+
+        expect(result.scannedFileCount).toBe(0);
+        expect(result.tasks).toHaveLength(0);
+        expect(result.warnings).toEqual(['Skipped large Markdown file: Huge.md']);
+    });
+
+    it('caps accumulated scan warnings', async () => {
+        const deps: ObsidianScannerDependencies = {
+            exists: async () => true,
+            readDir: async (path) => {
+                if (path === '/Vault') {
+                    return Array.from({ length: MAX_OBSIDIAN_SCAN_WARNINGS + 5 }, (_, index) => ({
+                        name: `Huge-${index}.md`,
+                        isFile: true,
+                        isDirectory: false,
+                    }));
+                }
+                return [];
+            },
+            readTextFile: async () => '- [ ] should never be read',
+            stat: async (path) => ({
+                mtime: new Date('2026-03-14T12:00:00.000Z'),
+                isFile: path.endsWith('.md'),
+                isDirectory: !path.endsWith('.md'),
+                size: path.endsWith('.md') ? MAX_OBSIDIAN_MARKDOWN_BYTES + 1 : 0,
+            }),
+        };
+
+        const result = await scanObsidianVault({
+            vaultPath: '/Vault',
+            enabled: true,
+            scanFolders: ['/'],
+        }, deps);
+
+        expect(result.warnings).toHaveLength(MAX_OBSIDIAN_SCAN_WARNINGS);
+        expect(result.warnings[0]).toBe('Skipped large Markdown file: Huge-0.md');
+        expect(result.warnings[result.warnings.length - 1]).toBe(
+            `Skipped large Markdown file: Huge-${MAX_OBSIDIAN_SCAN_WARNINGS - 1}.md`
+        );
     });
 });
 

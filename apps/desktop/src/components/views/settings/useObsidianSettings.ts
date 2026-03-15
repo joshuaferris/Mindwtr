@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
-    normalizeObsidianScanFolders,
+    parseScanFoldersInput,
     ObsidianService,
 } from '../../../lib/obsidian-service';
 import { useObsidianStore } from '../../../store/obsidian-store';
@@ -11,6 +11,14 @@ type UseObsidianSettingsOptions = {
     isTauri: boolean;
     showSaved: () => void;
     selectVaultFolderTitle: string;
+    messages: {
+        missingMarker: string;
+        chooseFailed: string;
+        saveFailed: string;
+        removeFailed: string;
+        scanFailed: string;
+        scanSuccess: string;
+    };
 };
 
 const toErrorMessage = (error: unknown, fallback: string): string => {
@@ -19,19 +27,11 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
     return text || fallback;
 };
 
-const parseScanFoldersInput = (value: string): string[] => {
-    return normalizeObsidianScanFolders(
-        value
-            .split(/\r?\n|,/)
-            .map((item) => item.trim())
-            .filter(Boolean)
-    );
-};
-
 export const useObsidianSettings = ({
     isTauri,
     showSaved,
     selectVaultFolderTitle,
+    messages,
 }: UseObsidianSettingsOptions) => {
     const showToast = useUiStore((state) => state.showToast);
     const config = useObsidianStore((state) => state.config);
@@ -62,32 +62,23 @@ export const useObsidianSettings = ({
     const vaultWarning = useMemo(() => {
         if (!hasConfiguredVault) return null;
         if (hasVaultMarker === null || hasVaultMarker) return null;
-        return 'The selected folder does not contain a .obsidian directory. You can still save it if your vault layout is unconventional.';
-    }, [hasConfiguredVault, hasVaultMarker]);
+        return messages.missingMarker;
+    }, [hasConfiguredVault, hasVaultMarker, messages.missingMarker]);
 
     const handleBrowseVault = useCallback(async () => {
         if (!isTauri) return;
         try {
-            const { open } = await import('@tauri-apps/plugin-dialog');
-            const selected = await open({
-                directory: true,
-                multiple: false,
-                title: selectVaultFolderTitle,
-            });
-            if (!selected || typeof selected !== 'string') return;
+            const selected = await ObsidianService.selectVaultFolder(selectVaultFolderTitle);
+            if (!selected) return;
             setVaultPath(selected);
             const inspection = await ObsidianService.inspectVault(selected);
             if (!inspection.hasObsidianDir) {
-                showToast(
-                    'The selected folder does not contain a .obsidian directory. You can still save it if your vault layout is unconventional.',
-                    'info',
-                    5000
-                );
+                showToast(messages.missingMarker, 'info', 5000);
             }
         } catch (error) {
-            showToast(toErrorMessage(error, 'Failed to choose Obsidian vault folder.'), 'error');
+            showToast(toErrorMessage(error, messages.chooseFailed), 'error');
         }
-    }, [isTauri, selectVaultFolderTitle, showToast]);
+    }, [isTauri, messages.chooseFailed, messages.missingMarker, selectVaultFolderTitle, showToast]);
 
     const handleSave = useCallback(async () => {
         setIsSaving(true);
@@ -99,11 +90,11 @@ export const useObsidianSettings = ({
             });
             showSaved();
         } catch (error) {
-            showToast(toErrorMessage(error, 'Failed to save Obsidian config.'), 'error');
+            showToast(toErrorMessage(error, messages.saveFailed), 'error');
         } finally {
             setIsSaving(false);
         }
-    }, [enabled, saveConfig, scanFoldersText, showSaved, showToast, vaultPath]);
+    }, [enabled, messages.saveFailed, saveConfig, scanFoldersText, showSaved, showToast, vaultPath]);
 
     const handleRemove = useCallback(async () => {
         try {
@@ -113,23 +104,27 @@ export const useObsidianSettings = ({
             setScanFoldersText('/');
             showSaved();
         } catch (error) {
-            showToast(toErrorMessage(error, 'Failed to remove Obsidian config.'), 'error');
+            showToast(toErrorMessage(error, messages.removeFailed), 'error');
         }
-    }, [removeConfig, showSaved, showToast]);
+    }, [messages.removeFailed, removeConfig, showSaved, showToast]);
 
     const handleRescan = useCallback(async () => {
         try {
             await scan();
-            const error = useObsidianStore.getState().error;
+            const { error, warnings } = useObsidianStore.getState();
             if (error) {
                 showToast(error, 'error');
                 return;
             }
-            showToast('Obsidian vault scanned.', 'success');
+            if (warnings.length > 0) {
+                showToast(warnings[0], 'info', 6000);
+            } else {
+                showToast(messages.scanSuccess, 'success');
+            }
         } catch (error) {
-            showToast(toErrorMessage(error, 'Failed to scan Obsidian vault.'), 'error');
+            showToast(toErrorMessage(error, messages.scanFailed), 'error');
         }
-    }, [scan, showToast]);
+    }, [messages.scanFailed, messages.scanSuccess, scan, showToast]);
 
     return {
         obsidianVaultPath: vaultPath,
