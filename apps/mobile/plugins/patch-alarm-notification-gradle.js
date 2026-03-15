@@ -99,6 +99,15 @@ const applyAlarmReminderBehaviorPatchToSource = (original) => {
 
 const applyAlarmReminderBehaviorPatch = (filePath) => patchFile(filePath, applyAlarmReminderBehaviorPatchToSource);
 
+const applyAlarmAudioInterfacePatchToSource = (original) => {
+  return original.replace(
+    '        uri = Settings.System.DEFAULT_ALARM_ALERT_URI;',
+    '        uri = Settings.System.DEFAULT_NOTIFICATION_URI;'
+  );
+};
+
+const applyAlarmAudioInterfacePatch = (filePath) => patchFile(filePath, applyAlarmAudioInterfacePatchToSource);
+
 const applyAlarmDismissReceiverPatchToSource = (original) => {
   let next = original;
 
@@ -277,6 +286,7 @@ function withAlarmNotificationGradlePatch(config) {
         path.join(projectRoot, '..', '..', 'node_modules', 'react-native-alarm-notification', 'android', 'build.gradle'),
       ];
       const alarmUtilCandidates = getAndroidSourceCandidates(projectRoot, 'AlarmUtil.java');
+      const alarmAudioCandidates = getAndroidSourceCandidates(projectRoot, 'AudioInterface.java');
       const dismissReceiverCandidates = getAndroidSourceCandidates(projectRoot, 'AlarmDismissReceiver.java');
       const alarmReceiverCandidates = getAndroidSourceCandidates(projectRoot, 'AlarmReceiver.java');
 
@@ -293,6 +303,12 @@ function withAlarmNotificationGradlePatch(config) {
         }
         if (applyAlarmReminderBehaviorPatch(candidate)) {
           logPatchedCandidate('alarm-reminder-behavior-patch', candidate);
+        }
+      }
+
+      for (const candidate of alarmAudioCandidates) {
+        if (applyAlarmAudioInterfacePatch(candidate)) {
+          logPatchedCandidate('alarm-audio-interface-patch', candidate);
         }
       }
 
@@ -319,6 +335,7 @@ module.exports.__testables = {
   applyGradleCompatPatchToSource,
   applyAlarmPendingIntentPatchToSource,
   applyAlarmReminderBehaviorPatchToSource,
+  applyAlarmAudioInterfacePatchToSource,
   applyAlarmDismissReceiverPatchToSource,
   applyAlarmReceiverPatchToSource,
 };

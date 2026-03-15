@@ -6,6 +6,7 @@ const {
   applyGradleCompatPatchToSource,
   applyAlarmPendingIntentPatchToSource,
   applyAlarmReminderBehaviorPatchToSource,
+  applyAlarmAudioInterfacePatchToSource,
   applyAlarmDismissReceiverPatchToSource,
   applyAlarmReceiverPatchToSource,
 } = plugin.__testables;
@@ -47,6 +48,19 @@ describe('patch-alarm-notification-gradle', () => {
     expect(output).toContain('Settings.System.DEFAULT_NOTIFICATION_URI');
     expect(output).toContain('NotificationCompat.CATEGORY_REMINDER');
     expect(output).toContain('VibrationEffect.createWaveform(vibrationPattern, -1)');
+  });
+
+  it('patches AudioInterface fallback sound away from the alarm tone', () => {
+    const input = `class AudioInterface {
+    void init(Context context) {
+        uri = Settings.System.DEFAULT_ALARM_ALERT_URI;
+    }
+}`;
+
+    const output = applyAlarmAudioInterfacePatchToSource(input);
+
+    expect(output).toContain('Settings.System.DEFAULT_NOTIFICATION_URI');
+    expect(output).not.toContain('Settings.System.DEFAULT_ALARM_ALERT_URI');
   });
 
   it('patches dismiss receiver to cancel alarms even without a React context', () => {
