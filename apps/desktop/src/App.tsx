@@ -240,7 +240,10 @@ function App() {
 
         const handleSyncFailure = (message: string) => {
             const nowMs = Date.now();
-            const shouldAlert = message !== lastSyncErrorRef.current || nowMs - lastSyncErrorAtRef.current > 10 * 60 * 1000;
+            const isSameError = message === lastSyncErrorRef.current;
+            // Throttle repeated identical errors to once per 2 minutes, but always
+            // show new/different error messages immediately so the user stays informed.
+            const shouldAlert = !isSameError || nowMs - lastSyncErrorAtRef.current > 2 * 60 * 1000;
             if (shouldAlert) {
                 lastSyncErrorRef.current = message;
                 lastSyncErrorAtRef.current = nowMs;
@@ -303,7 +306,11 @@ function App() {
 
         const setup = async () => {
             const { listen } = await import('@tauri-apps/api/event');
+            const { invoke } = await import('@tauri-apps/api/core');
             unlisten = await listen('close-requested', async () => {
+                await invoke('acknowledge_close_request').catch((error) => {
+                    void logError(error, { scope: 'app', step: 'acknowledgeCloseRequest' });
+                });
                 if (isFlatpak) {
                     await quitApp().catch((error) => reportCloseError('Quit failed', error));
                     return;
