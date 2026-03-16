@@ -408,19 +408,25 @@ export function Layout({ children, currentView, onViewChange }: LayoutProps) {
                             )}
                             aria-current={currentView === 'settings' ? 'page' : undefined}
                             title={!isCollapsed ? `${t('nav.settings')} • ${syncTooltip}` : t('nav.settings')}
-                            aria-label={t('nav.settings')}
+                            aria-label={isCollapsed ? `${t('nav.settings')}. ${syncTooltip}` : t('nav.settings')}
                         >
                             <span className="inline-flex items-center gap-2">
                                 <Settings className="w-4 h-4" />
                                 {!isCollapsed && <span>{t('nav.settings')}</span>}
                             </span>
                             {!isCollapsed && (
-                                <span className="inline-flex items-center gap-2 text-[11px]">
+                                <span
+                                    className="inline-flex items-center gap-2 text-[11px]"
+                                    role="status"
+                                    aria-live="polite"
+                                    aria-label={syncTooltip}
+                                >
                                     <RefreshCw className={cn("w-3.5 h-3.5", syncStatus.inFlight && "animate-spin")} />
                                     <span>{compactSyncLabel}</span>
                                     <span
                                         className={cn("w-2 h-2 rounded-full shrink-0", syncFreshnessDotClass)}
                                         title={syncTooltip}
+                                        aria-hidden="true"
                                     />
                                 </span>
                             )}

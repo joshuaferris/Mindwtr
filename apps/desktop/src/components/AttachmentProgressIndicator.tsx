@@ -25,12 +25,20 @@ export function AttachmentProgressIndicator({ attachmentId, className }: Attachm
 
     return (
         <div className={cn("flex items-center gap-2 text-[10px] text-muted-foreground", className)}>
-            <div className="h-1 w-16 overflow-hidden rounded-full bg-muted">
+            <div
+                className="h-1 w-16 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-label="Attachment transfer progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={percentage ?? undefined}
+                aria-valuetext={percentage !== null ? `${percentage}% complete` : 'Transfer in progress'}
+            >
                 {percentage !== null && (
                     <div className="h-full bg-primary" style={{ width: `${percentage}%` }} />
                 )}
             </div>
-            <span>{percentage !== null ? `${percentage}%` : '...'}</span>
+            <span aria-live="polite">{percentage !== null ? `${percentage}%` : '...'}</span>
         </div>
     );
 }

@@ -1281,6 +1281,13 @@ export class SyncService {
     private static pendingExternalSyncChange: ExternalSyncChange | null = null;
     private static externalSyncChangeListeners = new Set<(change: ExternalSyncChange | null) => void>();
 
+    private static getMonotonicNow(): number {
+        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+            return performance.now();
+        }
+        return Date.now();
+    }
+
     static getSyncStatus() {
         return SyncService.syncStatus;
     }
@@ -1688,7 +1695,7 @@ export class SyncService {
     private static async markSyncWrite(data: AppData) {
         const hash = await hashString(toStableJson(data));
         SyncService.lastWrittenHash = hash;
-        SyncService.ignoreFileEventsUntil = Date.now() + 2000;
+        SyncService.ignoreFileEventsUntil = SyncService.getMonotonicNow() + 2000;
     }
 
     private static hasPendingLocalChangesForExternalSync(): boolean {
@@ -1758,7 +1765,7 @@ export class SyncService {
 
     private static async handleFileChange(paths: string[]) {
         if (!isTauriRuntimeEnv()) return;
-        if (Date.now() < SyncService.ignoreFileEventsUntil) return;
+        if (SyncService.getMonotonicNow() < SyncService.ignoreFileEventsUntil) return;
 
         const hasSyncFile = paths.some((path) => isSyncFilePath(path, SYNC_FILE_NAME, LEGACY_SYNC_FILE_NAME));
         if (!hasSyncFile) return;
@@ -2446,12 +2453,13 @@ export class SyncService {
         });
 
         const result = await resultPromise;
+        requestAbortController.abort();
         try {
             const releaseNetworkListener = removeNetworkListener as (() => void) | null;
-            removeNetworkListener = null;
             if (typeof releaseNetworkListener === 'function') {
                 releaseNetworkListener();
             }
+            removeNetworkListener = null;
         } catch (error) {
             logSyncWarning('Failed to unsubscribe network listener after sync', error);
         }
@@ -2469,6 +2477,11 @@ export class SyncService {
                 .then((queuedResult) => {
                     if (!queuedResult.success) {
                         logSyncWarning('Queued sync failed', queuedResult.error);
+                        try {
+                            useUiStore.getState().showToast(queuedResult.error || 'Queued sync failed.', 'error', 6000);
+                        } catch {
+                            // UI store may be unavailable during shutdown/tests.
+                        }
                     }
                 })
                 .catch((error) => {
