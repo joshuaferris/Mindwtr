@@ -30,7 +30,7 @@
           "完全离线可用，无需互联网连接",
           "完全开源，安全透明"
         ],
-        "ReleaseNotes": "• 新增日期与时间格式覆盖选项，并让收件箱处理设置改为按需启用。\n• 支持在桌面端按区域拖放整理项目，并补强设置页诊断与日历本地化。\n• 强化桌面与移动端同步可靠性，包含更安全的队列同步与云端合并处理。\n• 恢复 macOS 日历权限提示，并修复多项同步、提醒与持久化边缘问题。",
+        "ReleaseNotes": "• 新增桌面端 Obsidian Vault 任务浏览，并补强扫描安全性与启用流程。\n• 调整 Projects、Contexts 与 Obsidian 页面在宽屏下的布局比例，并改进同步状态无障碍提示。\n• 强化核心与桌面端同步，包含更安全的附件合并、单调时钟文件监听抑制与更丰富的冲突诊断。\n• 强化自托管云同步可靠性，加入请求大小限制、超时与更严格的数据校验。",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
@@ -82,7 +82,7 @@
           "No internet connection required to function",
           "Open source and transparent"
         ],
-        "ReleaseNotes": "• Added date and time format overrides, and made inbox-processing settings opt-in.\n• Added desktop drag-and-drop project moves across areas plus better settings diagnostics and calendar localization.\n• Improved desktop and mobile sync reliability with safer queued-sync handling and stronger cloud merge protection.\n• Restored macOS calendar permission prompting and fixed several reminder, persistence, and sync edge cases.",
+        "ReleaseNotes": "• Added desktop Obsidian vault browsing with safer scanning and a cleaner enablement flow.\n• Rebalanced Projects, Contexts, and Obsidian page widths on wide screens and improved sync status accessibility.\n• Hardened core and desktop sync with safer attachment merges, monotonic file-watch handling, and richer conflict diagnostics.\n• Improved self-hosted cloud sync reliability with request size limits, timeouts, and stronger data validation.",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
@@ -130,7 +130,7 @@
           "No requiere conexión a internet para funcionar",
           "Código abierto y transparente"
         ],
-        "ReleaseNotes": "• Anadimos opciones de formato de fecha y hora, y las opciones de procesamiento de bandeja de entrada ahora son opt-in.\n• Anadimos reordenacion de proyectos entre areas en escritorio junto con mejores diagnosticos de configuracion y localizacion del calendario.\n• Mejoramos la fiabilidad del sync en escritorio y movil con colas mas seguras y mejor proteccion del merge en la nube.\n• Recuperamos el aviso de permisos de calendario en macOS y corregimos varios casos limite de recordatorios, persistencia y sync.",
+        "ReleaseNotes": "• Anadimos navegacion del vault de Obsidian en escritorio con un escaneo mas seguro y una activacion mas clara.\n• Reequilibramos el ancho de Proyectos, Contextos y Obsidian en pantallas grandes y mejoramos la accesibilidad del estado de sync.\n• Reforzamos el sync de core y escritorio con merges de adjuntos mas seguros, manejo monotono de file-watch y mejores diagnosticos de conflicto.\n• Mejoramos la fiabilidad del sync en la nube autoalojada con limites de peticion, timeouts y validacion de datos mas fuerte.",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",

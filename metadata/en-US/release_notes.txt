@@ -1,4 +1,4 @@
-- Added date and time format overrides in Settings.
-- Improved mobile sync reliability with clearer sync activity feedback and stronger WebDAV cooldown handling.
-- Improved task editing and inbox processing flows, including safer close confirmation and better tab-state recovery.
-- Hardened persistence and merge reliability across devices.
+- Added iCloud sync support on Apple platforms.
+- Added a global area switcher and time estimate filters on mobile.
+- Added focus toggles in daily review and improved offline/background sync handling.
+- Hardened sync merge handling and calendar cancellation for more reliable cross-device sync.
