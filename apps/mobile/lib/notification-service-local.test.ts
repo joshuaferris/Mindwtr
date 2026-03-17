@@ -184,7 +184,7 @@ describe('notification-service-local', () => {
         description: '',
       },
     ];
-    mockGetNextScheduledAt.mockReturnValue(new Date('2026-03-17T09:30:00.000Z'));
+    mockGetNextScheduledAt.mockReturnValue(new Date(Date.now() + 5 * 60 * 1000));
 
     await startLocalMobileNotifications();
 
