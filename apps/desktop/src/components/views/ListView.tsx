@@ -286,6 +286,28 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
         if (!exists) setSelectedWaitingPerson('');
     }, [selectedWaitingPerson, statusFilter, waitingPeople]);
 
+    // Only show the filtering banner for user-driven filter changes.
+    // Background task refreshes can still be deferred without shifting the list UI.
+    const filterFeedbackInputs = useMemo(() => ({
+        statusFilter,
+        selectedTokens,
+        activePriorities,
+        activeTimeEstimates,
+        resolvedAreaFilter,
+        selectedWaitingPerson,
+        normalizedSearchQuery,
+    }), [
+        statusFilter,
+        selectedTokens,
+        activePriorities,
+        activeTimeEstimates,
+        resolvedAreaFilter,
+        selectedWaitingPerson,
+        normalizedSearchQuery,
+    ]);
+    const deferredFilterFeedbackInputs = useDeferredValue(filterFeedbackInputs);
+    const isFiltering = deferredFilterFeedbackInputs !== filterFeedbackInputs;
+
     const filterInputs = useMemo(() => ({
         baseTasks,
         statusFilter,
@@ -314,7 +336,6 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
         selectedWaitingPerson,
     ]);
     const deferredFilterInputs = useDeferredValue(filterInputs);
-    const isFiltering = deferredFilterInputs !== filterInputs;
 
     const filteredTasks = useMemo(() => {
         perf.trackUseMemo();
