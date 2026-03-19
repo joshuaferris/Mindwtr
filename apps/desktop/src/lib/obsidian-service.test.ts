@@ -1,6 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ObsidianSourceRef } from '@mindwtr/core';
 
+const isTauriRuntimeMock = vi.hoisted(() => vi.fn(() => false));
+const invokeMock = vi.hoisted(() => vi.fn());
+
+vi.mock('./runtime', () => ({
+    isTauriRuntime: isTauriRuntimeMock,
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: invokeMock,
+}));
+
 import { ObsidianService, formatScanFoldersInput, parseScanFoldersInput } from './obsidian-service';
 
 const sourceRef: ObsidianSourceRef = {
@@ -14,6 +25,9 @@ const sourceRef: ObsidianSourceRef = {
 
 afterEach(() => {
     localStorage.clear();
+    isTauriRuntimeMock.mockReset();
+    isTauriRuntimeMock.mockReturnValue(false);
+    invokeMock.mockReset();
     vi.restoreAllMocks();
 });
 
@@ -47,5 +61,16 @@ describe('obsidian-service helpers', () => {
             '_blank',
             'noopener,noreferrer'
         );
+    });
+
+    it('checks the vault marker through the desktop backend in Tauri', async () => {
+        isTauriRuntimeMock.mockReturnValue(true);
+        invokeMock.mockResolvedValueOnce(true);
+
+        await expect(ObsidianService.hasVaultMarker('/Vault')).resolves.toBe(true);
+
+        expect(invokeMock).toHaveBeenCalledWith('check_obsidian_vault_marker', {
+            vaultPath: '/Vault',
+        });
     });
 });

@@ -1,7 +1,13 @@
-use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use keyring::{Entry, Error as KeyringError};
+use rand::RngCore;
+use reqwest::StatusCode;
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension, ToSql};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::env;
 #[cfg(target_os = "macos")]
@@ -9,35 +15,29 @@ use std::ffi::{CStr, CString};
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::TcpListener;
+#[cfg(target_os = "macos")]
+use std::os::raw::c_char;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-#[cfg(target_os = "macos")]
-use std::os::raw::c_char;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{Emitter, Manager};
-use tauri::menu::{Menu, MenuItem};
+use tauri::image::Image;
 #[cfg(target_os = "macos")]
 use tauri::menu::HELP_SUBMENU_ID;
+use tauri::menu::{Menu, MenuItem};
 use tauri::path::BaseDirectory;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::image::Image;
+use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-use rusqlite::{params, Connection, OptionalExtension, params_from_iter, ToSql};
-use keyring::{Entry, Error as KeyringError};
-use rand::RngCore;
-use reqwest::StatusCode;
-use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 /// App name used for config directories and files
 const APP_NAME: &str = "mindwtr";
@@ -334,7 +334,10 @@ struct MacOsCalendarReadResult {
 unsafe extern "C" {
     fn mindwtr_macos_calendar_permission_status_json() -> *mut c_char;
     fn mindwtr_macos_calendar_request_permission_json() -> *mut c_char;
-    fn mindwtr_macos_calendar_events_json(range_start: *const c_char, range_end: *const c_char) -> *mut c_char;
+    fn mindwtr_macos_calendar_events_json(
+        range_start: *const c_char,
+        range_end: *const c_char,
+    ) -> *mut c_char;
     fn mindwtr_macos_calendar_free_string(value: *mut c_char);
 }
 
@@ -455,7 +458,10 @@ fn apply_global_quick_add_shortcut(
     shortcut: Option<&str>,
 ) -> Result<String, String> {
     let normalized = normalize_global_quick_add_shortcut(shortcut)?;
-    let mut guard = state.0.lock().map_err(|_| "Shortcut state lock poisoned".to_string())?;
+    let mut guard = state
+        .0
+        .lock()
+        .map_err(|_| "Shortcut state lock poisoned".to_string())?;
 
     if *guard == normalized {
         return Ok(guard
@@ -493,7 +499,9 @@ fn set_global_quick_add_shortcut(
             warning: None,
         }),
         Err(error) => {
-            log::warn!("Failed to apply global quick add shortcut; falling back to disabled: {error}");
+            log::warn!(
+                "Failed to apply global quick add shortcut; falling back to disabled: {error}"
+            );
             let disabled = apply_global_quick_add_shortcut(
                 &app,
                 &state,
@@ -605,7 +613,10 @@ fn is_homebrew_cask_installed() -> bool {
     {
         return true;
     }
-    let caskroom_paths = ["/opt/homebrew/Caskroom/mindwtr", "/usr/local/Caskroom/mindwtr"];
+    let caskroom_paths = [
+        "/opt/homebrew/Caskroom/mindwtr",
+        "/usr/local/Caskroom/mindwtr",
+    ];
     caskroom_paths.iter().any(|path| Path::new(path).exists())
 }
 
@@ -638,8 +649,7 @@ fn is_homebrew_install_linux() -> bool {
 
 #[cfg(target_os = "windows")]
 fn is_winget_install_path(path: &str) -> bool {
-    path.contains("\\microsoft\\winget\\packages\\")
-        || path.contains("/microsoft/winget/packages/")
+    path.contains("\\microsoft\\winget\\packages\\") || path.contains("/microsoft/winget/packages/")
 }
 
 #[cfg(target_os = "windows")]
@@ -694,7 +704,13 @@ fn detect_install_source() -> String {
         }
         if let Some(list_output) = command_output_lowercase(
             "winget",
-            &["list", "--id", "dongdongbh.Mindwtr", "--exact", "--disable-interactivity"],
+            &[
+                "list",
+                "--id",
+                "dongdongbh.Mindwtr",
+                "--exact",
+                "--disable-interactivity",
+            ],
         ) {
             if list_output.contains("dongdongbh.mindwtr") && list_output.contains("winget") {
                 return "winget".to_string();
@@ -717,7 +733,8 @@ fn detect_install_source() -> String {
                 }
             }
         }
-        let is_homebrew_path = |path: &str| path.contains("/caskroom/") || path.contains("/homebrew/");
+        let is_homebrew_path =
+            |path: &str| path.contains("/caskroom/") || path.contains("/homebrew/");
         if let Some(path) = current_exe_path_lowercase() {
             if is_homebrew_path(&path) {
                 return "homebrew".to_string();
@@ -789,7 +806,11 @@ async fn get_install_source() -> String {
 
 #[tauri::command]
 fn start_audio_recording(state: tauri::State<'_, AudioRecorderState>) -> Result<(), String> {
-    let mut guard = state.inner().0.lock().map_err(|_| "Recorder lock poisoned".to_string())?;
+    let mut guard = state
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| "Recorder lock poisoned".to_string())?;
     if guard.is_some() {
         return Err("Recording already in progress".into());
     }
@@ -803,10 +824,11 @@ fn start_audio_recording(state: tauri::State<'_, AudioRecorderState>) -> Result<
     let info_clone = info.clone();
     let join = std::thread::spawn(move || {
         let host = cpal::default_host();
-        let device = match host
-            .default_input_device()
-            .or_else(|| host.input_devices().ok().and_then(|mut devices| devices.next()))
-        {
+        let device = match host.default_input_device().or_else(|| {
+            host.input_devices()
+                .ok()
+                .and_then(|mut devices| devices.next())
+        }) {
             Some(device) => device,
             None => {
                 let _ = ready_tx.send(Err("No audio input device available".to_string()));
@@ -829,39 +851,42 @@ fn start_audio_recording(state: tauri::State<'_, AudioRecorderState>) -> Result<
 
         let stream_config: cpal::StreamConfig = config.clone().into();
         let stream = match config.sample_format() {
-            cpal::SampleFormat::F32 => device
-                .build_input_stream(
-                    &stream_config,
-                    move |data: &[f32], _| {
-                        let Ok(mut buffer) = samples_clone.lock() else { return };
-                        buffer.extend(data.iter().map(|sample| {
-                            let clamped = sample.clamp(-1.0, 1.0);
-                            (clamped * i16::MAX as f32) as i16
-                        }));
-                    },
-                    err_fn,
-                    None,
-                ),
-            cpal::SampleFormat::I16 => device
-                .build_input_stream(
-                    &stream_config,
-                    move |data: &[i16], _| {
-                        let Ok(mut buffer) = samples_clone.lock() else { return };
-                        buffer.extend_from_slice(data);
-                    },
-                    err_fn,
-                    None,
-                ),
-            cpal::SampleFormat::U16 => device
-                .build_input_stream(
-                    &stream_config,
-                    move |data: &[u16], _| {
-                        let Ok(mut buffer) = samples_clone.lock() else { return };
-                        buffer.extend(data.iter().map(|sample| (*sample as i32 - 32768) as i16));
-                    },
-                    err_fn,
-                    None,
-                ),
+            cpal::SampleFormat::F32 => device.build_input_stream(
+                &stream_config,
+                move |data: &[f32], _| {
+                    let Ok(mut buffer) = samples_clone.lock() else {
+                        return;
+                    };
+                    buffer.extend(data.iter().map(|sample| {
+                        let clamped = sample.clamp(-1.0, 1.0);
+                        (clamped * i16::MAX as f32) as i16
+                    }));
+                },
+                err_fn,
+                None,
+            ),
+            cpal::SampleFormat::I16 => device.build_input_stream(
+                &stream_config,
+                move |data: &[i16], _| {
+                    let Ok(mut buffer) = samples_clone.lock() else {
+                        return;
+                    };
+                    buffer.extend_from_slice(data);
+                },
+                err_fn,
+                None,
+            ),
+            cpal::SampleFormat::U16 => device.build_input_stream(
+                &stream_config,
+                move |data: &[u16], _| {
+                    let Ok(mut buffer) = samples_clone.lock() else {
+                        return;
+                    };
+                    buffer.extend(data.iter().map(|sample| (*sample as i32 - 32768) as i16));
+                },
+                err_fn,
+                None,
+            ),
             _ => Err(cpal::BuildStreamError::StreamConfigNotSupported),
         };
 
@@ -879,7 +904,10 @@ fn start_audio_recording(state: tauri::State<'_, AudioRecorderState>) -> Result<
         }
 
         if let Ok(mut info_guard) = info_clone.lock() {
-            *info_guard = Some(RecorderInfo { sample_rate, channels });
+            *info_guard = Some(RecorderInfo {
+                sample_rate,
+                channels,
+            });
         }
 
         let _ = ready_tx.send(Ok(()));
@@ -904,18 +932,35 @@ fn start_audio_recording(state: tauri::State<'_, AudioRecorderState>) -> Result<
 }
 
 #[tauri::command]
-fn stop_audio_recording(app: tauri::AppHandle, state: tauri::State<'_, AudioRecorderState>) -> Result<AudioCaptureResult, String> {
-    let mut guard = state.inner().0.lock().map_err(|_| "Recorder lock poisoned".to_string())?;
-    let mut recorder = guard.take().ok_or_else(|| "No active recording".to_string())?;
+fn stop_audio_recording(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AudioRecorderState>,
+) -> Result<AudioCaptureResult, String> {
+    let mut guard = state
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| "Recorder lock poisoned".to_string())?;
+    let mut recorder = guard
+        .take()
+        .ok_or_else(|| "No active recording".to_string())?;
 
     let _ = recorder.stop_tx.send(());
     if let Some(join) = recorder.join.take() {
         let _ = join.join();
     }
 
-    let info = recorder.info.lock().map_err(|_| "Recorder info lock poisoned".to_string())?;
-    let info = info.clone().ok_or_else(|| "Recorder did not initialize".to_string())?;
-    let samples = recorder.samples.lock().map_err(|_| "Recorder buffer lock poisoned".to_string())?;
+    let info = recorder
+        .info
+        .lock()
+        .map_err(|_| "Recorder info lock poisoned".to_string())?;
+    let info = info
+        .clone()
+        .ok_or_else(|| "Recorder did not initialize".to_string())?;
+    let samples = recorder
+        .samples
+        .lock()
+        .map_err(|_| "Recorder buffer lock poisoned".to_string())?;
     if samples.is_empty() {
         return Err("No audio captured".into());
     }
@@ -953,7 +998,11 @@ fn stop_audio_recording(app: tauri::AppHandle, state: tauri::State<'_, AudioReco
 }
 
 #[tauri::command]
-fn transcribe_whisper(model_path: String, audio_path: String, language: Option<String>) -> Result<String, String> {
+fn transcribe_whisper(
+    model_path: String,
+    audio_path: String,
+    language: Option<String>,
+) -> Result<String, String> {
     let model_exists = Path::new(&model_path).exists();
     if !model_exists {
         return Err("Whisper model not found".into());
@@ -975,7 +1024,8 @@ fn transcribe_whisper(model_path: String, audio_path: String, language: Option<S
     whisper_rs::convert_integer_to_float_audio(&samples, &mut audio).map_err(|e| e.to_string())?;
     if spec.channels == 2 {
         let mut mono_audio = vec![0.0f32; audio.len() / 2];
-        whisper_rs::convert_stereo_to_mono_audio(&audio, &mut mono_audio).map_err(|e| e.to_string())?;
+        whisper_rs::convert_stereo_to_mono_audio(&audio, &mut mono_audio)
+            .map_err(|e| e.to_string())?;
         audio = mono_audio;
     }
     if spec.sample_rate != 16_000 {
@@ -991,15 +1041,14 @@ fn transcribe_whisper(model_path: String, audio_path: String, language: Option<S
         params.set_n_threads(threads.get() as i32);
     }
 
-    let language_hint = language
-        .and_then(|value| {
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        });
+    let language_hint = language.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    });
     if let Some(ref lang) = language_hint {
         params.set_language(Some(lang));
     }
@@ -1043,7 +1092,13 @@ fn resample_linear(input: &[f32], input_rate: u32, target_rate: u32) -> Vec<f32>
 }
 
 #[tauri::command]
-fn log_ai_debug(context: String, message: String, provider: Option<String>, model: Option<String>, task_id: Option<String>) {
+fn log_ai_debug(
+    context: String,
+    message: String,
+    provider: Option<String>,
+    model: Option<String>,
+    task_id: Option<String>,
+) {
     println!(
         "[ai-debug] context={} provider={} model={} task={} message={}",
         context,
@@ -1140,7 +1195,8 @@ fn open_sqlite(app: &tauri::AppHandle) -> Result<Connection, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     conn.busy_timeout(Duration::from_millis(SQLITE_BUSY_TIMEOUT_MS))
         .map_err(|e| e.to_string())?;
-    conn.execute_batch(SQLITE_SCHEMA).map_err(|e| e.to_string())?;
+    conn.execute_batch(SQLITE_SCHEMA)
+        .map_err(|e| e.to_string())?;
     ensure_tasks_purged_at_column(&conn)?;
     ensure_tasks_order_column(&conn)?;
     ensure_tasks_area_column(&conn)?;
@@ -1173,7 +1229,8 @@ fn write_data_json_file(data_path: &Path, data: &Value) -> Result<(), String> {
     let content = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
     {
         let mut file = File::create(&tmp_path).map_err(|e| e.to_string())?;
-        file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+        file.write_all(content.as_bytes())
+            .map_err(|e| e.to_string())?;
         file.sync_all().map_err(|e| e.to_string())?;
     }
     if cfg!(windows) && data_path.exists() {
@@ -1196,7 +1253,8 @@ fn persist_data_snapshot_with_retries(app: &tauri::AppHandle, data: &Value) -> R
         match persist_data_snapshot(app, data) {
             Ok(()) => return Ok(()),
             Err(error) => {
-                let can_retry = is_retryable_storage_error(&error) && attempt + 1 < STORAGE_RETRY_ATTEMPTS;
+                let can_retry =
+                    is_retryable_storage_error(&error) && attempt + 1 < STORAGE_RETRY_ATTEMPTS;
                 if can_retry {
                     let delay = STORAGE_RETRY_BASE_DELAY_MS * (attempt as u64 + 1);
                     std::thread::sleep(Duration::from_millis(delay));
@@ -1223,7 +1281,12 @@ fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, Stri
     Ok(false)
 }
 
-fn ensure_column(conn: &Connection, table: &str, column: &str, column_sql: &str) -> Result<(), String> {
+fn ensure_column(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    column_sql: &str,
+) -> Result<(), String> {
     if has_column(conn, table, column)? {
         return Ok(());
     }
@@ -1297,8 +1360,11 @@ fn ensure_tasks_area_column(conn: &Connection) -> Result<(), String> {
         conn.execute("ALTER TABLE tasks ADD COLUMN areaId TEXT", [])
             .map_err(|e| e.to_string())?;
     }
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_area_id ON tasks(areaId)", [])
-        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tasks_area_id ON tasks(areaId)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1320,8 +1386,11 @@ fn ensure_tasks_section_column(conn: &Connection) -> Result<(), String> {
         conn.execute("ALTER TABLE tasks ADD COLUMN sectionId TEXT", [])
             .map_err(|e| e.to_string())?;
     }
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_section_id ON tasks(sectionId)", [])
-        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tasks_section_id ON tasks(sectionId)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1425,8 +1494,11 @@ fn ensure_fts_triggers(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
-    conn.execute("INSERT OR IGNORE INTO schema_migrations (version) VALUES (2)", [])
-        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations (version) VALUES (2)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1493,8 +1565,11 @@ fn ensure_fts_populated(conn: &Connection, force_rebuild: bool) -> Result<(), St
         )
         .unwrap_or(0);
     if force_rebuild || projects_fts_count == 0 || missing_projects > 0 || extra_projects > 0 {
-        conn.execute("INSERT INTO projects_fts(projects_fts) VALUES('delete-all')", [])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO projects_fts(projects_fts) VALUES('delete-all')",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute(
             "INSERT INTO projects_fts (id, title, supportNotes, tagIds, areaTitle)
              SELECT id, title, coalesce(supportNotes, ''), coalesce(tagIds, ''), coalesce(areaTitle, '') FROM projects",
@@ -1553,19 +1628,33 @@ fn build_fts_query(input: &str) -> Option<String> {
 fn row_to_task_value(row: &rusqlite::Row<'_>) -> Result<Value, rusqlite::Error> {
     let mut map = serde_json::Map::new();
     map.insert("id".to_string(), Value::String(row.get::<_, String>("id")?));
-    map.insert("title".to_string(), Value::String(row.get::<_, String>("title")?));
-    map.insert("status".to_string(), Value::String(row.get::<_, String>("status")?));
+    map.insert(
+        "title".to_string(),
+        Value::String(row.get::<_, String>("title")?),
+    );
+    map.insert(
+        "status".to_string(),
+        Value::String(row.get::<_, String>("status")?),
+    );
     if let Ok(val) = row.get::<_, Option<String>>("priority") {
-        if let Some(v) = val { map.insert("priority".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("priority".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("taskMode") {
-        if let Some(v) = val { map.insert("taskMode".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("taskMode".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("startTime") {
-        if let Some(v) = val { map.insert("startTime".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("startTime".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("dueDate") {
-        if let Some(v) = val { map.insert("dueDate".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("dueDate".to_string(), Value::String(v));
+        }
     }
     let recurrence_raw: Option<String> = row.get("recurrence")?;
     let recurrence_val = parse_json_value(recurrence_raw);
@@ -1573,7 +1662,9 @@ fn row_to_task_value(row: &rusqlite::Row<'_>) -> Result<Value, rusqlite::Error> 
         map.insert("recurrence".to_string(), recurrence_val);
     }
     if let Ok(val) = row.get::<_, Option<i64>>("pushCount") {
-        if let Some(v) = val { map.insert("pushCount".to_string(), Value::Number(v.into())); }
+        if let Some(v) = val {
+            map.insert("pushCount".to_string(), Value::Number(v.into()));
+        }
     }
     let tags_raw: Option<String> = row.get("tags")?;
     map.insert("tags".to_string(), parse_json_array(tags_raw));
@@ -1581,53 +1672,91 @@ fn row_to_task_value(row: &rusqlite::Row<'_>) -> Result<Value, rusqlite::Error> 
     map.insert("contexts".to_string(), parse_json_array(contexts_raw));
     let checklist_raw: Option<String> = row.get("checklist")?;
     let checklist_val = parse_json_value(checklist_raw);
-    if !checklist_val.is_null() { map.insert("checklist".to_string(), checklist_val); }
+    if !checklist_val.is_null() {
+        map.insert("checklist".to_string(), checklist_val);
+    }
     if let Ok(val) = row.get::<_, Option<String>>("description") {
-        if let Some(v) = val { map.insert("description".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("description".to_string(), Value::String(v));
+        }
     }
     let attachments_raw: Option<String> = row.get("attachments")?;
     let attachments_val = parse_json_value(attachments_raw);
-    if !attachments_val.is_null() { map.insert("attachments".to_string(), attachments_val); }
+    if !attachments_val.is_null() {
+        map.insert("attachments".to_string(), attachments_val);
+    }
     if let Ok(val) = row.get::<_, Option<String>>("location") {
-        if let Some(v) = val { map.insert("location".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("location".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("projectId") {
-        if let Some(v) = val { map.insert("projectId".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("projectId".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("sectionId") {
-        if let Some(v) = val { map.insert("sectionId".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("sectionId".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("areaId") {
-        if let Some(v) = val { map.insert("areaId".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("areaId".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<i64>>("orderNum") {
-        if let Some(v) = val { map.insert("orderNum".to_string(), Value::Number(v.into())); }
+        if let Some(v) = val {
+            map.insert("orderNum".to_string(), Value::Number(v.into()));
+        }
     }
     if let Ok(val) = row.get::<_, i64>("isFocusedToday") {
-        if val != 0 { map.insert("isFocusedToday".to_string(), Value::Bool(true)); }
+        if val != 0 {
+            map.insert("isFocusedToday".to_string(), Value::Bool(true));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("timeEstimate") {
-        if let Some(v) = val { map.insert("timeEstimate".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("timeEstimate".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("reviewAt") {
-        if let Some(v) = val { map.insert("reviewAt".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("reviewAt".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("completedAt") {
-        if let Some(v) = val { map.insert("completedAt".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("completedAt".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<i64>>("rev") {
-        if let Some(v) = val { map.insert("rev".to_string(), Value::Number(v.into())); }
+        if let Some(v) = val {
+            map.insert("rev".to_string(), Value::Number(v.into()));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("revBy") {
-        if let Some(v) = val { map.insert("revBy".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("revBy".to_string(), Value::String(v));
+        }
     }
-    map.insert("createdAt".to_string(), Value::String(row.get::<_, String>("createdAt")?));
-    map.insert("updatedAt".to_string(), Value::String(row.get::<_, String>("updatedAt")?));
+    map.insert(
+        "createdAt".to_string(),
+        Value::String(row.get::<_, String>("createdAt")?),
+    );
+    map.insert(
+        "updatedAt".to_string(),
+        Value::String(row.get::<_, String>("updatedAt")?),
+    );
     if let Ok(val) = row.get::<_, Option<String>>("deletedAt") {
-        if let Some(v) = val { map.insert("deletedAt".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("deletedAt".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("purgedAt") {
-        if let Some(v) = val { map.insert("purgedAt".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("purgedAt".to_string(), Value::String(v));
+        }
     }
     Ok(Value::Object(map))
 }
@@ -1635,45 +1764,82 @@ fn row_to_task_value(row: &rusqlite::Row<'_>) -> Result<Value, rusqlite::Error> 
 fn row_to_project_value(row: &rusqlite::Row<'_>) -> Result<Value, rusqlite::Error> {
     let mut map = serde_json::Map::new();
     map.insert("id".to_string(), Value::String(row.get::<_, String>("id")?));
-    map.insert("title".to_string(), Value::String(row.get::<_, String>("title")?));
-    map.insert("status".to_string(), Value::String(row.get::<_, String>("status")?));
-    map.insert("color".to_string(), Value::String(row.get::<_, String>("color")?));
+    map.insert(
+        "title".to_string(),
+        Value::String(row.get::<_, String>("title")?),
+    );
+    map.insert(
+        "status".to_string(),
+        Value::String(row.get::<_, String>("status")?),
+    );
+    map.insert(
+        "color".to_string(),
+        Value::String(row.get::<_, String>("color")?),
+    );
     if let Ok(val) = row.get::<_, Option<i64>>("orderNum") {
-        if let Some(v) = val { map.insert("order".to_string(), Value::Number(v.into())); }
+        if let Some(v) = val {
+            map.insert("order".to_string(), Value::Number(v.into()));
+        }
     }
     let tag_ids_raw: Option<String> = row.get("tagIds")?;
     map.insert("tagIds".to_string(), parse_json_array(tag_ids_raw));
     if let Ok(val) = row.get::<_, i64>("isSequential") {
-        if val != 0 { map.insert("isSequential".to_string(), Value::Bool(true)); }
+        if val != 0 {
+            map.insert("isSequential".to_string(), Value::Bool(true));
+        }
     }
     if let Ok(val) = row.get::<_, i64>("isFocused") {
-        if val != 0 { map.insert("isFocused".to_string(), Value::Bool(true)); }
+        if val != 0 {
+            map.insert("isFocused".to_string(), Value::Bool(true));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("supportNotes") {
-        if let Some(v) = val { map.insert("supportNotes".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("supportNotes".to_string(), Value::String(v));
+        }
     }
     let attachments_raw: Option<String> = row.get("attachments")?;
     let attachments_val = parse_json_value(attachments_raw);
-    if !attachments_val.is_null() { map.insert("attachments".to_string(), attachments_val); }
+    if !attachments_val.is_null() {
+        map.insert("attachments".to_string(), attachments_val);
+    }
     if let Ok(val) = row.get::<_, Option<String>>("reviewAt") {
-        if let Some(v) = val { map.insert("reviewAt".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("reviewAt".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("areaId") {
-        if let Some(v) = val { map.insert("areaId".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("areaId".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("areaTitle") {
-        if let Some(v) = val { map.insert("areaTitle".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("areaTitle".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<i64>>("rev") {
-        if let Some(v) = val { map.insert("rev".to_string(), Value::Number(v.into())); }
+        if let Some(v) = val {
+            map.insert("rev".to_string(), Value::Number(v.into()));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("revBy") {
-        if let Some(v) = val { map.insert("revBy".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("revBy".to_string(), Value::String(v));
+        }
     }
-    map.insert("createdAt".to_string(), Value::String(row.get::<_, String>("createdAt")?));
-    map.insert("updatedAt".to_string(), Value::String(row.get::<_, String>("updatedAt")?));
+    map.insert(
+        "createdAt".to_string(),
+        Value::String(row.get::<_, String>("createdAt")?),
+    );
+    map.insert(
+        "updatedAt".to_string(),
+        Value::String(row.get::<_, String>("updatedAt")?),
+    );
     if let Ok(val) = row.get::<_, Option<String>>("deletedAt") {
-        if let Some(v) = val { map.insert("deletedAt".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("deletedAt".to_string(), Value::String(v));
+        }
     }
     Ok(Value::Object(map))
 }
@@ -1681,40 +1847,73 @@ fn row_to_project_value(row: &rusqlite::Row<'_>) -> Result<Value, rusqlite::Erro
 fn row_to_section_value(row: &rusqlite::Row<'_>) -> Result<Value, rusqlite::Error> {
     let mut map = serde_json::Map::new();
     map.insert("id".to_string(), Value::String(row.get::<_, String>("id")?));
-    map.insert("projectId".to_string(), Value::String(row.get::<_, String>("projectId")?));
-    map.insert("title".to_string(), Value::String(row.get::<_, String>("title")?));
+    map.insert(
+        "projectId".to_string(),
+        Value::String(row.get::<_, String>("projectId")?),
+    );
+    map.insert(
+        "title".to_string(),
+        Value::String(row.get::<_, String>("title")?),
+    );
     if let Ok(val) = row.get::<_, Option<String>>("description") {
-        if let Some(v) = val { map.insert("description".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("description".to_string(), Value::String(v));
+        }
     }
     if let Ok(val) = row.get::<_, Option<i64>>("orderNum") {
-        if let Some(v) = val { map.insert("order".to_string(), Value::Number(v.into())); }
+        if let Some(v) = val {
+            map.insert("order".to_string(), Value::Number(v.into()));
+        }
     }
     if let Ok(val) = row.get::<_, i64>("isCollapsed") {
-        if val != 0 { map.insert("isCollapsed".to_string(), Value::Bool(true)); }
+        if val != 0 {
+            map.insert("isCollapsed".to_string(), Value::Bool(true));
+        }
     }
     if let Ok(val) = row.get::<_, Option<i64>>("rev") {
-        if let Some(v) = val { map.insert("rev".to_string(), Value::Number(v.into())); }
+        if let Some(v) = val {
+            map.insert("rev".to_string(), Value::Number(v.into()));
+        }
     }
     if let Ok(val) = row.get::<_, Option<String>>("revBy") {
-        if let Some(v) = val { map.insert("revBy".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("revBy".to_string(), Value::String(v));
+        }
     }
-    map.insert("createdAt".to_string(), Value::String(row.get::<_, String>("createdAt")?));
-    map.insert("updatedAt".to_string(), Value::String(row.get::<_, String>("updatedAt")?));
+    map.insert(
+        "createdAt".to_string(),
+        Value::String(row.get::<_, String>("createdAt")?),
+    );
+    map.insert(
+        "updatedAt".to_string(),
+        Value::String(row.get::<_, String>("updatedAt")?),
+    );
     if let Ok(val) = row.get::<_, Option<String>>("deletedAt") {
-        if let Some(v) = val { map.insert("deletedAt".to_string(), Value::String(v)); }
+        if let Some(v) = val {
+            map.insert("deletedAt".to_string(), Value::String(v));
+        }
     }
     Ok(Value::Object(map))
 }
 
 fn migrate_json_to_sqlite(conn: &mut Connection, data: &Value) -> Result<(), String> {
     let tx = conn.transaction().map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM tasks", []).map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM projects", []).map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM areas", []).map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM sections", []).map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM settings", []).map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM tasks", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM projects", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM areas", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM sections", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM settings", [])
+        .map_err(|e| e.to_string())?;
 
-    let tasks = data.get("tasks").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let tasks = data
+        .get("tasks")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     for task in tasks {
         let tags_json = json_str_or_default(task.get("tags"), "[]");
         let contexts_json = json_str_or_default(task.get("contexts"), "[]");
@@ -1758,7 +1957,11 @@ fn migrate_json_to_sqlite(conn: &mut Connection, data: &Value) -> Result<(), Str
         .map_err(|e| e.to_string())?;
     }
 
-    let projects = data.get("projects").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let projects = data
+        .get("projects")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     for project in projects {
         let tag_ids_json = json_str_or_default(project.get("tagIds"), "[]");
         let attachments_json = json_str(project.get("attachments"));
@@ -1788,7 +1991,11 @@ fn migrate_json_to_sqlite(conn: &mut Connection, data: &Value) -> Result<(), Str
         .map_err(|e| e.to_string())?;
     }
 
-    let areas = data.get("areas").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let areas = data
+        .get("areas")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     for area in areas {
         tx.execute(
             "INSERT OR REPLACE INTO areas (id, name, color, icon, orderNum, deletedAt, rev, revBy, createdAt, updatedAt) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -1808,7 +2015,11 @@ fn migrate_json_to_sqlite(conn: &mut Connection, data: &Value) -> Result<(), Str
         .map_err(|e| e.to_string())?;
     }
 
-    let sections = data.get("sections").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let sections = data
+        .get("sections")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     for section in sections {
         tx.execute(
             "INSERT OR REPLACE INTO sections (id, projectId, title, description, orderNum, isCollapsed, rev, revBy, createdAt, updatedAt, deletedAt) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
@@ -1881,28 +2092,48 @@ fn read_sqlite_data(conn: &Connection) -> Result<Value, String> {
         .query_map([], |row| {
             let mut map = serde_json::Map::new();
             map.insert("id".to_string(), Value::String(row.get::<_, String>("id")?));
-            map.insert("name".to_string(), Value::String(row.get::<_, String>("name")?));
+            map.insert(
+                "name".to_string(),
+                Value::String(row.get::<_, String>("name")?),
+            );
             if let Ok(val) = row.get::<_, Option<String>>("color") {
-                if let Some(v) = val { map.insert("color".to_string(), Value::String(v)); }
+                if let Some(v) = val {
+                    map.insert("color".to_string(), Value::String(v));
+                }
             }
             if let Ok(val) = row.get::<_, Option<String>>("icon") {
-                if let Some(v) = val { map.insert("icon".to_string(), Value::String(v)); }
+                if let Some(v) = val {
+                    map.insert("icon".to_string(), Value::String(v));
+                }
             }
-            map.insert("order".to_string(), Value::Number((row.get::<_, i64>("orderNum")?).into()));
+            map.insert(
+                "order".to_string(),
+                Value::Number((row.get::<_, i64>("orderNum")?).into()),
+            );
             if let Ok(val) = row.get::<_, Option<String>>("deletedAt") {
-                if let Some(v) = val { map.insert("deletedAt".to_string(), Value::String(v)); }
+                if let Some(v) = val {
+                    map.insert("deletedAt".to_string(), Value::String(v));
+                }
             }
             if let Ok(val) = row.get::<_, Option<i64>>("rev") {
-                if let Some(v) = val { map.insert("rev".to_string(), Value::Number(v.into())); }
+                if let Some(v) = val {
+                    map.insert("rev".to_string(), Value::Number(v.into()));
+                }
             }
             if let Ok(val) = row.get::<_, Option<String>>("revBy") {
-                if let Some(v) = val { map.insert("revBy".to_string(), Value::String(v)); }
+                if let Some(v) = val {
+                    map.insert("revBy".to_string(), Value::String(v));
+                }
             }
             if let Ok(val) = row.get::<_, Option<String>>("createdAt") {
-                if let Some(v) = val { map.insert("createdAt".to_string(), Value::String(v)); }
+                if let Some(v) = val {
+                    map.insert("createdAt".to_string(), Value::String(v));
+                }
             }
             if let Ok(val) = row.get::<_, Option<String>>("updatedAt") {
-                if let Some(v) = val { map.insert("updatedAt".to_string(), Value::String(v)); }
+                if let Some(v) = val {
+                    map.insert("updatedAt".to_string(), Value::String(v));
+                }
             }
             Ok(Value::Object(map))
         })
@@ -1913,10 +2144,15 @@ fn read_sqlite_data(conn: &Connection) -> Result<Value, String> {
     }
 
     let settings_raw: Option<String> = conn
-        .query_row("SELECT data FROM settings WHERE id = 1", [], |row| row.get(0))
+        .query_row("SELECT data FROM settings WHERE id = 1", [], |row| {
+            row.get(0)
+        })
         .optional()
         .map_err(|e| e.to_string())?;
-    let settings_val = parse_json_value(settings_raw).as_object().cloned().unwrap_or_default();
+    let settings_val = parse_json_value(settings_raw)
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
 
     Ok(Value::Object(
         serde_json::json!({
@@ -1954,19 +2190,18 @@ fn parse_toml_string_value(raw: &str) -> Option<String> {
     if let Some(stripped) = trimmed.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
         return Some(stripped.replace("\\\"", "\"").replace("\\\\", "\\"));
     }
-    if let Some(stripped) = trimmed.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+    if let Some(stripped) = trimmed
+        .strip_prefix('\'')
+        .and_then(|s| s.strip_suffix('\''))
+    {
         return Some(stripped.to_string());
     }
     None
 }
 
 fn parse_os_release_value(raw: &str) -> String {
-    parse_toml_string_value(raw).unwrap_or_else(|| {
-        raw.trim()
-            .trim_matches('"')
-            .trim_matches('\'')
-            .to_string()
-    })
+    parse_toml_string_value(raw)
+        .unwrap_or_else(|| raw.trim().trim_matches('"').trim_matches('\'').to_string())
 }
 
 fn serialize_toml_string_value(value: &str) -> String {
@@ -2063,7 +2298,11 @@ fn write_secrets_toml(path: &Path, config: &AppConfigToml) -> Result<(), String>
     write_config_toml_with_header(path, config, "# Mindwtr desktop secrets")
 }
 
-fn write_config_toml_with_header(path: &Path, config: &AppConfigToml, header: &str) -> Result<(), String> {
+fn write_config_toml_with_header(
+    path: &Path,
+    config: &AppConfigToml,
+    header: &str,
+) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -2071,40 +2310,76 @@ fn write_config_toml_with_header(path: &Path, config: &AppConfigToml, header: &s
     let mut lines: Vec<String> = Vec::new();
     lines.push(header.to_string());
     if let Some(sync_path) = &config.sync_path {
-        lines.push(format!("sync_path = {}", serialize_toml_string_value(sync_path)));
+        lines.push(format!(
+            "sync_path = {}",
+            serialize_toml_string_value(sync_path)
+        ));
     }
     if let Some(sync_backend) = &config.sync_backend {
-        lines.push(format!("sync_backend = {}", serialize_toml_string_value(sync_backend)));
+        lines.push(format!(
+            "sync_backend = {}",
+            serialize_toml_string_value(sync_backend)
+        ));
     }
     if let Some(webdav_url) = &config.webdav_url {
-        lines.push(format!("webdav_url = {}", serialize_toml_string_value(webdav_url)));
+        lines.push(format!(
+            "webdav_url = {}",
+            serialize_toml_string_value(webdav_url)
+        ));
     }
     if let Some(webdav_username) = &config.webdav_username {
-        lines.push(format!("webdav_username = {}", serialize_toml_string_value(webdav_username)));
+        lines.push(format!(
+            "webdav_username = {}",
+            serialize_toml_string_value(webdav_username)
+        ));
     }
     if let Some(webdav_password) = &config.webdav_password {
-        lines.push(format!("webdav_password = {}", serialize_toml_string_value(webdav_password)));
+        lines.push(format!(
+            "webdav_password = {}",
+            serialize_toml_string_value(webdav_password)
+        ));
     }
     if let Some(cloud_url) = &config.cloud_url {
-        lines.push(format!("cloud_url = {}", serialize_toml_string_value(cloud_url)));
+        lines.push(format!(
+            "cloud_url = {}",
+            serialize_toml_string_value(cloud_url)
+        ));
     }
     if let Some(cloud_token) = &config.cloud_token {
-        lines.push(format!("cloud_token = {}", serialize_toml_string_value(cloud_token)));
+        lines.push(format!(
+            "cloud_token = {}",
+            serialize_toml_string_value(cloud_token)
+        ));
     }
     if let Some(obsidian_config) = &config.obsidian_config {
-        lines.push(format!("obsidian_config = {}", serialize_toml_string_value(obsidian_config)));
+        lines.push(format!(
+            "obsidian_config = {}",
+            serialize_toml_string_value(obsidian_config)
+        ));
     }
     if let Some(external_calendars) = &config.external_calendars {
-        lines.push(format!("external_calendars = {}", serialize_toml_string_value(external_calendars)));
+        lines.push(format!(
+            "external_calendars = {}",
+            serialize_toml_string_value(external_calendars)
+        ));
     }
     if let Some(ai_key_openai) = &config.ai_key_openai {
-        lines.push(format!("ai_key_openai = {}", serialize_toml_string_value(ai_key_openai)));
+        lines.push(format!(
+            "ai_key_openai = {}",
+            serialize_toml_string_value(ai_key_openai)
+        ));
     }
     if let Some(ai_key_anthropic) = &config.ai_key_anthropic {
-        lines.push(format!("ai_key_anthropic = {}", serialize_toml_string_value(ai_key_anthropic)));
+        lines.push(format!(
+            "ai_key_anthropic = {}",
+            serialize_toml_string_value(ai_key_anthropic)
+        ));
     }
     if let Some(ai_key_gemini) = &config.ai_key_gemini {
-        lines.push(format!("ai_key_gemini = {}", serialize_toml_string_value(ai_key_gemini)));
+        lines.push(format!(
+            "ai_key_gemini = {}",
+            serialize_toml_string_value(ai_key_gemini)
+        ));
     }
     let content = format!("{}\n", lines.join("\n"));
     fs::write(path, content).map_err(|e| e.to_string())
@@ -2207,7 +2482,11 @@ fn config_has_values(config: &AppConfigToml) -> bool {
         || config.ai_key_gemini.is_some()
 }
 
-fn write_config_files(config_path: &Path, secrets_path: &Path, config: &AppConfigToml) -> Result<(), String> {
+fn write_config_files(
+    config_path: &Path,
+    secrets_path: &Path,
+    config: &AppConfigToml,
+) -> Result<(), String> {
     let (public_config, secrets_config) = split_config_for_secrets(config);
     write_config_toml(config_path, &public_config)?;
 
@@ -2274,7 +2553,11 @@ fn get_keyring_secret(app: &tauri::AppHandle, key: &str) -> Result<Option<String
     }
 }
 
-fn set_keyring_secret(app: &tauri::AppHandle, key: &str, value: Option<String>) -> Result<(), String> {
+fn set_keyring_secret(
+    app: &tauri::AppHandle,
+    key: &str,
+    value: Option<String>,
+) -> Result<(), String> {
     let entry = keyring_entry(app, key)?;
     match value {
         Some(value) if !value.trim().is_empty() => {
@@ -2349,10 +2632,7 @@ fn parse_query_string(query: &str) -> HashMap<String, String> {
             Some((key, value)) => (key, value),
             None => (part, ""),
         };
-        values.insert(
-            decode_query_component(key),
-            decode_query_component(value),
-        );
+        values.insert(decode_query_component(key), decode_query_component(value));
     }
     values
 }
@@ -2376,7 +2656,10 @@ fn write_oauth_http_response(
     Ok(())
 }
 
-fn wait_for_dropbox_auth_code(listener: &TcpListener, expected_state: &str) -> Result<String, String> {
+fn wait_for_dropbox_auth_code(
+    listener: &TcpListener,
+    expected_state: &str,
+) -> Result<String, String> {
     let deadline = Instant::now() + Duration::from_secs(DROPBOX_OAUTH_TIMEOUT_SECS);
     while Instant::now() < deadline {
         match listener.accept() {
@@ -2394,10 +2677,7 @@ fn wait_for_dropbox_auth_code(listener: &TcpListener, expected_state: &str) -> R
                     .lines()
                     .next()
                     .ok_or_else(|| "Invalid OAuth callback request".to_string())?;
-                let target = request_line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("/");
+                let target = request_line.split_whitespace().nth(1).unwrap_or("/");
                 if !target.starts_with(DROPBOX_REDIRECT_PATH) {
                     let _ = write_oauth_http_response(
                         &mut stream,
@@ -2407,10 +2687,7 @@ fn wait_for_dropbox_auth_code(listener: &TcpListener, expected_state: &str) -> R
                     continue;
                 }
 
-                let query = target
-                    .split_once('?')
-                    .map(|(_, query)| query)
-                    .unwrap_or("");
+                let query = target.split_once('?').map(|(_, query)| query).unwrap_or("");
                 let params = parse_query_string(query);
 
                 if let Some(error_value) = params.get("error") {
@@ -2530,16 +2807,8 @@ fn exchange_dropbox_auth_code(
     }
     let payload: DropboxTokenResponse = serde_json::from_str(&body)
         .map_err(|error| format!("Dropbox token exchange returned invalid JSON: {error}"))?;
-    let access_token = payload
-        .access_token
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let refresh_token = payload
-        .refresh_token
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    let access_token = payload.access_token.unwrap_or_default().trim().to_string();
+    let refresh_token = payload.refresh_token.unwrap_or_default().trim().to_string();
     let expires_in = payload
         .expires_in
         .filter(|value| *value > 0)
@@ -2555,10 +2824,7 @@ fn exchange_dropbox_auth_code(
     })
 }
 
-fn refresh_dropbox_token(
-    client_id: &str,
-    refresh_token: &str,
-) -> Result<(String, i64), String> {
+fn refresh_dropbox_token(client_id: &str, refresh_token: &str) -> Result<(String, i64), String> {
     let client = reqwest::blocking::Client::new();
     let response = client
         .post(DROPBOX_TOKEN_ENDPOINT)
@@ -2583,11 +2849,7 @@ fn refresh_dropbox_token(
     }
     let payload: DropboxTokenResponse = serde_json::from_str(&body)
         .map_err(|error| format!("Dropbox token refresh returned invalid JSON: {error}"))?;
-    let access_token = payload
-        .access_token
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    let access_token = payload.access_token.unwrap_or_default().trim().to_string();
     let expires_in = payload
         .expires_in
         .filter(|value| *value > 0)
@@ -2602,13 +2864,16 @@ fn read_dropbox_tokens(app: &tauri::AppHandle) -> Result<Option<DropboxTokenBund
     let Some(raw) = get_keyring_secret(app, KEYRING_DROPBOX_TOKENS)? else {
         return Ok(None);
     };
-    let parsed: DropboxTokenBundle = serde_json::from_str(&raw)
-        .map_err(|_| "Stored Dropbox token payload is invalid. Please reconnect Dropbox.".to_string())?;
+    let parsed: DropboxTokenBundle = serde_json::from_str(&raw).map_err(|_| {
+        "Stored Dropbox token payload is invalid. Please reconnect Dropbox.".to_string()
+    })?;
     if parsed.client_id.trim().is_empty()
         || parsed.access_token.trim().is_empty()
         || parsed.refresh_token.trim().is_empty()
     {
-        return Err("Stored Dropbox token payload is invalid. Please reconnect Dropbox.".to_string());
+        return Err(
+            "Stored Dropbox token payload is invalid. Please reconnect Dropbox.".to_string(),
+        );
     }
     Ok(Some(parsed))
 }
@@ -2629,10 +2894,12 @@ fn get_valid_dropbox_access_token(
     force_refresh: bool,
 ) -> Result<String, String> {
     let client_id = normalize_dropbox_client_id(client_id)?;
-    let mut tokens = read_dropbox_tokens(app)?
-        .ok_or_else(|| "Dropbox is not connected".to_string())?;
+    let mut tokens =
+        read_dropbox_tokens(app)?.ok_or_else(|| "Dropbox is not connected".to_string())?;
     if tokens.client_id != client_id {
-        return Err("Dropbox token was issued for a different app key. Reconnect Dropbox.".to_string());
+        return Err(
+            "Dropbox token was issued for a different app key. Reconnect Dropbox.".to_string(),
+        );
     }
     if !force_refresh && now_unix_ms() < tokens.expires_at - DROPBOX_TOKEN_REFRESH_SKEW_MS {
         return Ok(tokens.access_token);
@@ -2646,8 +2913,8 @@ fn get_valid_dropbox_access_token(
 
 fn run_dropbox_oauth(app: &tauri::AppHandle, client_id: &str) -> Result<(), String> {
     let normalized_client_id = normalize_dropbox_client_id(client_id)?;
-    let listener = TcpListener::bind((DROPBOX_REDIRECT_HOST, DROPBOX_REDIRECT_PORT))
-        .map_err(|error| {
+    let listener =
+        TcpListener::bind((DROPBOX_REDIRECT_HOST, DROPBOX_REDIRECT_PORT)).map_err(|error| {
             format!(
                 "Failed to start Dropbox OAuth callback listener on {}:{} ({error})",
                 DROPBOX_REDIRECT_HOST, DROPBOX_REDIRECT_PORT
@@ -2680,7 +2947,8 @@ fn run_dropbox_oauth(app: &tauri::AppHandle, client_id: &str) -> Result<(), Stri
         .map_err(|error| format!("Failed to open Dropbox authorization URL: {error}"))?;
 
     let code = wait_for_dropbox_auth_code(&listener, &state)?;
-    let tokens = exchange_dropbox_auth_code(&normalized_client_id, &code, &verifier, &redirect_uri)?;
+    let tokens =
+        exchange_dropbox_auth_code(&normalized_client_id, &code, &verifier, &redirect_uri)?;
     write_dropbox_tokens(app, &tokens)?;
     Ok(())
 }
@@ -2692,11 +2960,12 @@ fn bootstrap_storage_layout(app: &tauri::AppHandle) -> Result<(), String> {
     fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
 
     let legacy_config_path = get_legacy_config_json_path(app);
-    let legacy_config: LegacyAppConfigJson = if let Ok(content) = fs::read_to_string(&legacy_config_path) {
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        LegacyAppConfigJson::default()
-    };
+    let legacy_config: LegacyAppConfigJson =
+        if let Ok(content) = fs::read_to_string(&legacy_config_path) {
+            serde_json::from_str(&content).unwrap_or_default()
+        } else {
+            LegacyAppConfigJson::default()
+        };
 
     let config_path = get_config_path(app);
     if !config_path.exists() {
@@ -2734,8 +3003,11 @@ fn bootstrap_storage_layout(app: &tauri::AppHandle) -> Result<(), String> {
             "projects": [],
             "settings": {}
         });
-        fs::write(&data_path, serde_json::to_string_pretty(&initial_data).unwrap())
-            .map_err(|e| e.to_string())?;
+        fs::write(
+            &data_path,
+            serde_json::to_string_pretty(&initial_data).unwrap(),
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -2770,10 +3042,15 @@ async fn get_data(app: tauri::AppHandle) -> Result<Value, String> {
                     .unwrap_or(true);
                 if settings_empty && data_path.exists() {
                     if let Ok(json_value) = read_json_with_retries(&data_path, 2) {
-                        if let Some(json_settings) = json_value.get("settings").and_then(|v| v.as_object()) {
+                        if let Some(json_settings) =
+                            json_value.get("settings").and_then(|v| v.as_object())
+                        {
                             if !json_settings.is_empty() {
                                 if let Some(map) = value.as_object_mut() {
-                                    map.insert("settings".to_string(), Value::Object(json_settings.clone()));
+                                    map.insert(
+                                        "settings".to_string(),
+                                        Value::Object(json_settings.clone()),
+                                    );
                                 }
                             }
                         }
@@ -3004,7 +3281,10 @@ fn list_data_snapshots(app: tauri::AppHandle) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-fn restore_data_snapshot(app: tauri::AppHandle, snapshot_file_name: String) -> Result<bool, String> {
+fn restore_data_snapshot(
+    app: tauri::AppHandle,
+    snapshot_file_name: String,
+) -> Result<bool, String> {
     ensure_data_file(&app)?;
     let trimmed = snapshot_file_name.trim();
     if trimmed.is_empty() || trimmed.contains('/') || trimmed.contains('\\') {
@@ -3070,7 +3350,9 @@ fn query_tasks(app: tauri::AppHandle, options: TaskQueryOptions) -> Result<Vec<V
 
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map(params_from_iter(params.iter().map(|p| p.as_ref())), |row| row_to_task_value(row))
+        .query_map(params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+            row_to_task_value(row)
+        })
         .map_err(|e| e.to_string())?;
 
     let mut tasks: Vec<Value> = Vec::new();
@@ -3159,10 +3441,18 @@ fn get_ai_key(app: tauri::AppHandle, provider: String) -> Option<String> {
 }
 
 #[tauri::command]
-fn set_ai_key(app: tauri::AppHandle, provider: String, value: Option<String>) -> Result<(), String> {
+fn set_ai_key(
+    app: tauri::AppHandle,
+    provider: String,
+    value: Option<String>,
+) -> Result<(), String> {
     let next_value = value.and_then(|v| {
         let trimmed = v.trim().to_string();
-        if trimmed.is_empty() { None } else { Some(trimmed) }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     });
     let key_name = match provider.as_str() {
         "openai" => KEYRING_AI_OPENAI,
@@ -3309,7 +3599,10 @@ fn normalize_obsidian_scan_folders(scan_folders: Vec<String>) -> Vec<String> {
         let value = if trimmed.is_empty() || trimmed == "/" {
             "/".to_string()
         } else {
-            trimmed.trim_start_matches('/').trim_end_matches('/').to_string()
+            trimmed
+                .trim_start_matches('/')
+                .trim_end_matches('/')
+                .to_string()
         };
         if value.is_empty() || normalized.iter().any(|existing| existing == &value) {
             continue;
@@ -3324,12 +3617,14 @@ fn normalize_obsidian_scan_folders(scan_folders: Vec<String>) -> Vec<String> {
 }
 
 fn normalize_obsidian_config_payload(payload: ObsidianConfigPayload) -> ObsidianConfigPayload {
-    let vault_path = payload
-        .vault_path
-        .and_then(|value| {
-            let trimmed = value.trim().to_string();
-            if trimmed.is_empty() { None } else { Some(trimmed) }
-        });
+    let vault_path = payload.vault_path.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
     let vault_name = if !payload.vault_name.trim().is_empty() {
         payload.vault_name.trim().to_string()
     } else if let Some(path) = vault_path.as_ref() {
@@ -3342,12 +3637,14 @@ fn normalize_obsidian_config_payload(payload: ObsidianConfigPayload) -> Obsidian
     } else {
         String::new()
     };
-    let last_scanned_at = payload
-        .last_scanned_at
-        .and_then(|value| {
-            let trimmed = value.trim().to_string();
-            if trimmed.is_empty() { None } else { Some(trimmed) }
-        });
+    let last_scanned_at = payload.last_scanned_at.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
 
     ObsidianConfigPayload {
         enabled: payload.enabled && vault_path.is_some(),
@@ -3401,10 +3698,25 @@ fn set_obsidian_config(app: tauri::AppHandle, config: Value) -> Result<Value, St
     let mut current = read_config(&app);
     current.obsidian_config = Some(
         serde_json::to_string(&payload)
-            .map_err(|e| format!("Failed to encode Obsidian config: {e}"))?
+            .map_err(|e| format!("Failed to encode Obsidian config: {e}"))?,
     );
     write_config_files(&config_path, &get_secrets_path(&app), &current)?;
     serde_json::to_value(payload).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn check_obsidian_vault_marker(vault_path: String) -> Result<bool, String> {
+    let trimmed = vault_path.trim();
+    if trimmed.is_empty() {
+        return Ok(false);
+    }
+
+    let marker_path = Path::new(trimmed).join(".obsidian");
+    match fs::metadata(marker_path) {
+        Ok(metadata) => Ok(metadata.is_dir()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -3434,7 +3746,12 @@ fn get_webdav_config(app: tauri::AppHandle) -> Result<Value, String> {
 }
 
 #[tauri::command]
-fn set_webdav_config(app: tauri::AppHandle, url: String, username: String, password: String) -> Result<bool, String> {
+fn set_webdav_config(
+    app: tauri::AppHandle,
+    url: String,
+    username: String,
+    password: String,
+) -> Result<bool, String> {
     let url = url.trim().to_string();
     let config_path = get_config_path(&app);
     let mut config = read_config(&app);
@@ -3490,8 +3807,8 @@ fn webdav_get_json_blocking(app: &tauri::AppHandle) -> Result<Value, String> {
             None
         }
     }
-        .or(config.webdav_password.clone())
-        .ok_or_else(|| "WebDAV password not configured".to_string())?;
+    .or(config.webdav_password.clone())
+    .ok_or_else(|| "WebDAV password not configured".to_string())?;
 
     let client = reqwest::blocking::Client::new();
     let response = client
@@ -3503,7 +3820,7 @@ fn webdav_get_json_blocking(app: &tauri::AppHandle) -> Result<Value, String> {
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(Value::Null);
     }
-  
+
     if !response.status().is_success() {
         return Err(format!("WebDAV error: {}", response.status()));
     }
@@ -3540,8 +3857,8 @@ fn webdav_put_json_blocking(app: &tauri::AppHandle, data: &Value) -> Result<bool
             None
         }
     }
-        .or(config.webdav_password.clone())
-        .ok_or_else(|| "WebDAV password not configured".to_string())?;
+    .or(config.webdav_password.clone())
+    .ok_or_else(|| "WebDAV password not configured".to_string())?;
 
     let payload = serde_json::to_string_pretty(&data)
         .map_err(|e| format!("Failed to encode WebDAV payload: {e}"))?;
@@ -3574,7 +3891,7 @@ fn get_webdav_password(app: tauri::AppHandle) -> Result<String, String> {
         Ok(value) => value,
         Err(_) => None,
     }
-        .or(config.webdav_password);
+    .or(config.webdav_password);
     Ok(password.unwrap_or_default())
 }
 
@@ -3625,11 +3942,9 @@ fn get_dropbox_redirect_uri() -> String {
 fn is_dropbox_connected(app: tauri::AppHandle, client_id: String) -> Result<bool, String> {
     let normalized_client_id = normalize_dropbox_client_id(&client_id)?;
     match read_dropbox_tokens(&app) {
-        Ok(Some(tokens)) => Ok(
-            tokens.client_id == normalized_client_id
-                && !tokens.access_token.trim().is_empty()
-                && !tokens.refresh_token.trim().is_empty(),
-        ),
+        Ok(Some(tokens)) => Ok(tokens.client_id == normalized_client_id
+            && !tokens.access_token.trim().is_empty()
+            && !tokens.refresh_token.trim().is_empty()),
         Ok(None) => Ok(false),
         Err(_error) => {
             let _ = clear_dropbox_tokens(&app);
@@ -3640,9 +3955,10 @@ fn is_dropbox_connected(app: tauri::AppHandle, client_id: String) -> Result<bool
 
 #[tauri::command]
 async fn connect_dropbox(app: tauri::AppHandle, client_id: String) -> Result<bool, String> {
-    let oauth_result = tauri::async_runtime::spawn_blocking(move || run_dropbox_oauth(&app, &client_id))
-        .await
-        .map_err(|error| format!("Dropbox OAuth task failed: {error}"))?;
+    let oauth_result =
+        tauri::async_runtime::spawn_blocking(move || run_dropbox_oauth(&app, &client_id))
+            .await
+            .map_err(|error| format!("Dropbox OAuth task failed: {error}"))?;
     oauth_result?;
     Ok(true)
 }
@@ -3689,7 +4005,9 @@ fn parse_macos_eventkit_json(raw: *mut c_char) -> Result<Value, String> {
     // SAFETY: We have verified `raw` is non-null. The Objective-C bridge allocates
     // via `strdup()` so the pointer is valid until we free it. We copy the string
     // immediately and then free the original to avoid use-after-free.
-    let text = unsafe { CStr::from_ptr(raw) }.to_string_lossy().into_owned();
+    let text = unsafe { CStr::from_ptr(raw) }
+        .to_string_lossy()
+        .into_owned();
     unsafe { mindwtr_macos_calendar_free_string(raw) };
     serde_json::from_str::<Value>(&text)
         .map_err(|error| format!("Failed to parse EventKit bridge output: {error}"))
@@ -3699,9 +4017,8 @@ fn parse_macos_eventkit_json(raw: *mut c_char) -> Result<Value, String> {
 fn get_macos_calendar_permission_status() -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
-        let value = parse_macos_eventkit_json(unsafe {
-            mindwtr_macos_calendar_permission_status_json()
-        })?;
+        let value =
+            parse_macos_eventkit_json(unsafe { mindwtr_macos_calendar_permission_status_json() })?;
         let status = value
             .get("status")
             .and_then(|item| item.as_str())
@@ -3719,9 +4036,7 @@ async fn request_macos_calendar_permission() -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
         let value = tauri::async_runtime::spawn_blocking(|| {
-            parse_macos_eventkit_json(unsafe {
-                mindwtr_macos_calendar_request_permission_json()
-            })
+            parse_macos_eventkit_json(unsafe { mindwtr_macos_calendar_request_permission_json() })
         })
         .await
         .map_err(|error| format!("EventKit permission request task failed: {error}"))??;
@@ -3738,7 +4053,10 @@ async fn request_macos_calendar_permission() -> Result<String, String> {
 }
 
 #[tauri::command]
-fn get_macos_calendar_events(range_start: String, range_end: String) -> Result<MacOsCalendarReadResult, String> {
+fn get_macos_calendar_events(
+    range_start: String,
+    range_end: String,
+) -> Result<MacOsCalendarReadResult, String> {
     #[cfg(target_os = "macos")]
     {
         let start = CString::new(range_start.as_str())
@@ -3765,9 +4083,13 @@ fn get_macos_calendar_events(range_start: String, range_end: String) -> Result<M
 }
 
 #[tauri::command]
-fn get_external_calendars(app: tauri::AppHandle) -> Result<Vec<ExternalCalendarSubscription>, String> {
+fn get_external_calendars(
+    app: tauri::AppHandle,
+) -> Result<Vec<ExternalCalendarSubscription>, String> {
     let config = read_config(&app);
-    let raw = config.external_calendars.unwrap_or_else(|| "[]".to_string());
+    let raw = config
+        .external_calendars
+        .unwrap_or_else(|| "[]".to_string());
     let parsed: Vec<ExternalCalendarSubscription> = serde_json::from_str(&raw).unwrap_or_default();
     Ok(parsed
         .into_iter()
@@ -3784,7 +4106,10 @@ fn get_external_calendars(app: tauri::AppHandle) -> Result<Vec<ExternalCalendarS
 }
 
 #[tauri::command]
-fn set_external_calendars(app: tauri::AppHandle, calendars: Vec<ExternalCalendarSubscription>) -> Result<bool, String> {
+fn set_external_calendars(
+    app: tauri::AppHandle,
+    calendars: Vec<ExternalCalendarSubscription>,
+) -> Result<bool, String> {
     let config_path = get_config_path(&app);
     let mut config = read_config(&app);
     let is_valid_calendar_url = |raw: &str| {
@@ -3792,7 +4117,9 @@ fn set_external_calendars(app: tauri::AppHandle, calendars: Vec<ExternalCalendar
         if trimmed.is_empty() {
             return false;
         }
-        trimmed.starts_with("https://") || trimmed.starts_with("http://") || trimmed.starts_with("webcal://")
+        trimmed.starts_with("https://")
+            || trimmed.starts_with("http://")
+            || trimmed.starts_with("webcal://")
     };
     let sanitized: Vec<ExternalCalendarSubscription> = calendars
         .into_iter()
@@ -3826,7 +4153,6 @@ fn open_path(path: String) -> Result<bool, String> {
     open::that(normalized).map_err(|e| e.to_string())?;
     Ok(true)
 }
-
 
 // ---------------------------------------------------------------------------
 // iCloud Drive helpers
@@ -3893,9 +4219,16 @@ fn acquire_sync_lock(sync_dir: &Path) -> Result<PathBuf, String> {
         let _ = fs::remove_file(&lock_path);
     }
     // Write our PID + timestamp as the lock content for debugging.
-    let lock_content = format!("pid={} ts={}", std::process::id(),
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO).as_secs());
-    fs::write(&lock_path, lock_content.as_bytes()).map_err(|e| format!("Failed to acquire sync lock: {e}"))?;
+    let lock_content = format!(
+        "pid={} ts={}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or(Duration::ZERO)
+            .as_secs()
+    );
+    fs::write(&lock_path, lock_content.as_bytes())
+        .map_err(|e| format!("Failed to acquire sync lock: {e}"))?;
     Ok(lock_path)
 }
 
@@ -3981,7 +4314,7 @@ fn read_sync_file(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
         }
         return Err(msg);
     }
-    
+
     if !sync_file.exists() {
         if let Some(result) = read_seed_or_legacy_file() {
             return result;
@@ -4009,7 +4342,6 @@ fn read_sync_file(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     }
 }
 
-
 #[tauri::command]
 fn write_sync_file(app: tauri::AppHandle, data: Value) -> Result<bool, String> {
     let sync_path_str = get_sync_path(app)?;
@@ -4023,7 +4355,9 @@ fn write_sync_file(app: tauri::AppHandle, data: Value) -> Result<bool, String> {
 
     // Detect iCloud evicted target — writing over a placeholder can corrupt state.
     if is_icloud_evicted(&sync_file) {
-        log::warn!("Sync target is iCloud-evicted; writing directly to avoid corrupting placeholder.");
+        log::warn!(
+            "Sync target is iCloud-evicted; writing directly to avoid corrupting placeholder."
+        );
     }
 
     if let Some(parent) = sync_file.parent() {
@@ -4051,7 +4385,8 @@ fn write_sync_file(app: tauri::AppHandle, data: Value) -> Result<bool, String> {
         // Atomic-ish write: write to tmp then rename over the target.
         {
             let mut file = File::create(&tmp_file).map_err(|e| e.to_string())?;
-            file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+            file.write_all(content.as_bytes())
+                .map_err(|e| e.to_string())?;
             file.sync_all().map_err(|e| e.to_string())?;
         }
 
@@ -4065,7 +4400,10 @@ fn write_sync_file(app: tauri::AppHandle, data: Value) -> Result<bool, String> {
         match fs::rename(&tmp_file, &sync_file) {
             Ok(()) => Ok(true),
             Err(rename_err) => {
-                log::warn!("Atomic rename failed ({}), falling back to direct write", rename_err);
+                log::warn!(
+                    "Atomic rename failed ({}), falling back to direct write",
+                    rename_err
+                );
                 // Direct copy as fallback — less safe but avoids total failure.
                 match fs::copy(&tmp_file, &sync_file) {
                     Ok(_) => {
@@ -4107,7 +4445,8 @@ fn set_macos_activation_policy(app: tauri::AppHandle, accessory: bool) -> Result
         } else {
             tauri::ActivationPolicy::Regular
         };
-        app.set_activation_policy(policy).map_err(|e| e.to_string())?;
+        app.set_activation_policy(policy)
+            .map_err(|e| e.to_string())?;
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -4138,9 +4477,7 @@ fn parse_json_relaxed(raw: &str) -> Result<Value, serde_json::Error> {
 
     // 2) Lenient parse: parse the first JSON value and ignore any trailing bytes.
     // This makes sync resilient to "mid-write" files (e.g., Syncthing replacing data.json).
-    let start = sanitized
-        .find(|c| c == '{' || c == '[')
-        .unwrap_or(0);
+    let start = sanitized.find(|c| c == '{' || c == '[').unwrap_or(0);
     let mut de = serde_json::Deserializer::from_str(&sanitized[start..]);
     Value::deserialize(&mut de)
 }
@@ -4242,10 +4579,7 @@ fn is_flatpak() -> bool {
 
 fn diagnostics_enabled() -> bool {
     match env::var("MINDWTR_DIAGNOSTICS") {
-        Ok(value) => matches!(
-            value.to_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        ),
+        Ok(value) => matches!(value.to_lowercase().as_str(), "1" | "true" | "yes" | "on"),
         Err(_) => false,
     }
 }
@@ -4266,9 +4600,24 @@ pub fn run() {
     let builder = builder
         .menu(|handle| {
             let menu = Menu::default(handle)?;
-            if let Some(help_submenu) = menu.get(HELP_SUBMENU_ID).and_then(|item| item.as_submenu().cloned()) {
-                let docs_item = MenuItem::with_id(handle, MENU_HELP_DOCS_ID, "Mindwtr Help", true, None::<&str>)?;
-                let issues_item = MenuItem::with_id(handle, MENU_HELP_ISSUES_ID, "Report an Issue", true, None::<&str>)?;
+            if let Some(help_submenu) = menu
+                .get(HELP_SUBMENU_ID)
+                .and_then(|item| item.as_submenu().cloned())
+            {
+                let docs_item = MenuItem::with_id(
+                    handle,
+                    MENU_HELP_DOCS_ID,
+                    "Mindwtr Help",
+                    true,
+                    None::<&str>,
+                )?;
+                let issues_item = MenuItem::with_id(
+                    handle,
+                    MENU_HELP_ISSUES_ID,
+                    "Report an Issue",
+                    true,
+                    None::<&str>,
+                )?;
                 help_submenu.append_items(&[&docs_item, &issues_item])?;
                 let _ = help_submenu.set_as_help_menu_for_nsapp();
             }
@@ -4304,7 +4653,11 @@ pub fn run() {
                     let handle = window.app_handle().clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(Duration::from_secs(5));
-                        if handle.state::<CloseRequestHandled>().0.load(Ordering::SeqCst) {
+                        if handle
+                            .state::<CloseRequestHandled>()
+                            .0
+                            .load(Ordering::SeqCst)
+                        {
                             return;
                         }
                         if let Some(w) = handle.get_webview_window("main") {
@@ -4346,10 +4699,13 @@ pub fn run() {
             if !(cfg!(target_os = "linux") && is_flatpak()) && !is_windows_store {
                 // Build system tray with Quick Add entry. Never hard-fail startup here.
                 let tray_init_result: tauri::Result<()> = (|| {
-                    let quick_add_item = MenuItem::with_id(handle, "quick_add", "Quick Add", true, None::<&str>)?;
-                    let show_item = MenuItem::with_id(handle, "show", "Show Mindwtr", true, None::<&str>)?;
+                    let quick_add_item =
+                        MenuItem::with_id(handle, "quick_add", "Quick Add", true, None::<&str>)?;
+                    let show_item =
+                        MenuItem::with_id(handle, "show", "Show Mindwtr", true, None::<&str>)?;
                     let quit_item = MenuItem::with_id(handle, "quit", "Quit", true, None::<&str>)?;
-                    let tray_menu = Menu::with_items(handle, &[&quick_add_item, &show_item, &quit_item])?;
+                    let tray_menu =
+                        Menu::with_items(handle, &[&quick_add_item, &show_item, &quit_item])?;
 
                     let tray_icon = Image::from_bytes(include_bytes!("../icons/tray.png"))
                         .ok()
@@ -4360,23 +4716,28 @@ pub fn run() {
                             .icon(tray_icon)
                             .menu(&tray_menu)
                             .show_menu_on_left_click(false)
-                            .on_menu_event(move |app, event| {
-                                match event.id().as_ref() {
-                                    "quick_add" => {
-                                        show_main_and_emit(app);
-                                    }
-                                    "show" => {
-                                        show_main(app);
-                                    }
-                                    "quit" => {
-                                        app.exit(0);
-                                    }
-                                    _ => {}
+                            .on_menu_event(move |app, event| match event.id().as_ref() {
+                                "quick_add" => {
+                                    show_main_and_emit(app);
                                 }
+                                "show" => {
+                                    show_main(app);
+                                }
+                                "quit" => {
+                                    app.exit(0);
+                                }
+                                _ => {}
                             })
                             .on_tray_icon_event(|tray, event| {
-                                if let TrayIconEvent::Click { button, button_state, .. } = event {
-                                    if button == MouseButton::Left && button_state == MouseButtonState::Up {
+                                if let TrayIconEvent::Click {
+                                    button,
+                                    button_state,
+                                    ..
+                                } = event
+                                {
+                                    if button == MouseButton::Left
+                                        && button_state == MouseButtonState::Up
+                                    {
                                         show_main(tray.app_handle());
                                     }
                                 }
@@ -4407,7 +4768,7 @@ pub fn run() {
             ) {
                 log::warn!("Failed to register global quick add shortcut: {error}");
             }
-            
+
             if cfg!(debug_assertions) || diagnostics_enabled {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -4439,6 +4800,7 @@ pub fn run() {
             set_sync_backend,
             get_obsidian_config,
             set_obsidian_config,
+            check_obsidian_vault_marker,
             get_webdav_config,
             get_webdav_password,
             set_webdav_config,
@@ -4488,7 +4850,9 @@ fn show_main(app: &tauri::AppHandle) {
 
 fn show_main_and_emit(app: &tauri::AppHandle) {
     show_main(app);
-    app.state::<QuickAddPending>().0.store(true, Ordering::SeqCst);
+    app.state::<QuickAddPending>()
+        .0
+        .store(true, Ordering::SeqCst);
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("quick-add", ());
     } else {

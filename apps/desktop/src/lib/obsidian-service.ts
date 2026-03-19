@@ -98,8 +98,7 @@ export class ObsidianService {
         if (!trimmed) return null;
         if (!isTauriRuntime()) return null;
         try {
-            const { exists } = await import('@tauri-apps/plugin-fs');
-            return await exists(`${trimmed.replace(/[\\/]+$/, '')}/.obsidian`);
+            return await tauriInvoke<boolean>('check_obsidian_vault_marker', { vaultPath: trimmed });
         } catch (error) {
             reportError('Failed to check Obsidian vault marker', error);
             return null;
