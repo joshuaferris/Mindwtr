@@ -610,17 +610,17 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
         await deleteTask(task.id);
         if (!undoNotificationsEnabled) return;
         showToast(
-            'Task deleted',
+            t('list.taskDeleted') || 'Task deleted',
             'info',
             5000,
             {
-                label: 'Undo',
+                label: t('common.undo') || 'Undo',
                 onClick: () => {
                     void restoreTask(task.id);
                 },
             }
         );
-    }, [deleteTask, restoreTask, showToast, undoNotificationsEnabled]);
+    }, [deleteTask, restoreTask, showToast, t, undoNotificationsEnabled]);
 
     const deleteSelected = useCallback(() => {
         const task = filteredTasks[selectedIndex];
@@ -710,14 +710,14 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
             exitSelectionMode();
             if (undoNotificationsEnabled) {
                 const deletedMessage = taskIds.length === 1
-                    ? 'Task deleted'
-                    : `${taskIds.length} tasks deleted`;
+                    ? (t('list.taskDeleted') || 'Task deleted')
+                    : (t('list.tasksDeleted') || '{{count}} tasks deleted').replace('{{count}}', String(taskIds.length));
                 showToast(
                     deletedMessage,
                     'info',
                     5000,
                     {
-                        label: 'Undo',
+                        label: t('common.undo') || 'Undo',
                         onClick: () => {
                             taskIds.forEach((taskId) => {
                                 void restoreTask(taskId);
