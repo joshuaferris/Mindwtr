@@ -4,7 +4,7 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AGPL-3.0-only</project_license>
   <name>Mindwtr</name>
-  <summary>Local-first GTD task manager</summary>
+  <summary>Plan tasks and projects</summary>
   <developer id="tech.dongdongbh">
     <name>Dongda Li</name>
   </developer>
@@ -13,39 +13,29 @@
     <binary>mindwtr</binary>
   </provides>
   <description>
-    <p>A local-first GTD task manager, Mindwtr helps you capture tasks quickly, organize projects and areas, and stay on top of your commitments without locking your data into a proprietary cloud.</p>
-    <p>✨ Core Features:</p>
+    <p>Capture tasks, organize projects, and keep work moving with a simple personal system that keeps your data on your device.</p>
+    <p>Mindwtr helps you sort inbox items, review commitments, and plan next actions without requiring an account or locking you into a proprietary service.</p>
     <ul>
-      <li>Fast inbox capture for tasks, notes, and ideas</li>
-      <li>Projects, areas, sections, tags, and contexts to organize your work</li>
-      <li>Daily and weekly review workflows to keep your system current</li>
-      <li>Recurring tasks, due dates, start dates, and review dates</li>
-      <li>List, board, and calendar views for different planning styles</li>
-      <li>Attachments and Markdown notes for richer task details</li>
-      <li>Focus flags, reminders, and progress tracking for active work</li>
-      <li>Offline-first storage with readable local data files</li>
-    </ul>
-    <p>☁️ Sync and Portability:</p>
-    <ul>
-      <li>Local folder sync for simple backups and device transfers</li>
-      <li>WebDAV sync for private servers and NAS setups</li>
-      <li>Optional Dropbox and self-hosted cloud sync</li>
-      <li>Cross-platform desktop and mobile apps built around the same GTD model</li>
-      <li>Your data stays accessible without requiring an account</li>
+      <li>Capture tasks, notes, and ideas quickly</li>
+      <li>Organize work with projects, areas, sections, tags, and contexts</li>
+      <li>Review your lists daily or weekly to stay current</li>
+      <li>Plan with list, board, and calendar views</li>
+      <li>Add notes, reminders, and attachments to your work</li>
+      <li>Sync through local folders, WebDAV, Dropbox, or a self-hosted cloud</li>
     </ul>
   </description>
   <screenshots>
-    <screenshot type="default">
-      <caption>Inbox view in dark mode</caption>
-      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/v0.7.4/apps/desktop/screenshots/inbox_d.png</image>
+    <screenshot type="default" xml:lang="en">
+      <caption>Review tasks across your lists</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/review_light.png</image>
     </screenshot>
-    <screenshot>
-      <caption>Inbox view in light mode</caption>
-      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/v0.7.4/apps/desktop/screenshots/inbox_l.png</image>
+    <screenshot xml:lang="en">
+      <caption>Capture tasks quickly in Inbox</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/inbox_light.png</image>
     </screenshot>
-    <screenshot>
-      <caption>Sync and app settings</caption>
-      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/v0.7.4/apps/desktop/screenshots/setting.png</image>
+    <screenshot xml:lang="en">
+      <caption>Learn the workflow with the built-in guide</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/tutorial_light.png</image>
     </screenshot>
   </screenshots>
   <branding>
