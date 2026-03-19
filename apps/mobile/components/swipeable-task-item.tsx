@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { useTaskStore, Task, getChecklistProgress, getTaskAgeLabel, getTaskStaleness, getStatusColor, hasTimeComponent, safeFormatDate, safeParseDueDate, TaskStatus, Project, resolveTaskTextDirection } from '@mindwtr/core';
+import { useTaskStore, Task, getChecklistProgress, getTaskAgeLabel, getTaskStaleness, getStatusColor, hasTimeComponent, safeFormatDate, safeParseDueDate, TaskStatus, Project, resolveTaskTextDirection, shallow } from '@mindwtr/core';
 import { useLanguage } from '../contexts/language-context';
 import React, { useRef, useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { ArrowRight, Check, RotateCcw, Trash2 } from 'lucide-react-native';
@@ -62,12 +62,19 @@ export function SwipeableTaskItem({
     const swipeableRef = useRef<Swipeable>(null);
     const ignorePressUntil = useRef<number>(0);
     const { t, language } = useLanguage();
-    const updateTask = useTaskStore((state) => state.updateTask);
-    const projects = useTaskStore((state) => state.projects);
-    const areas = useTaskStore((state) => state.areas);
-    const settings = useTaskStore((state) => state.settings);
-    const focusedCount = useTaskStore((state) => state.getDerivedState().focusedCount);
-    const timeEstimatesEnabled = settings?.features?.timeEstimates === true;
+    const {
+        updateTask,
+        projects,
+        areas,
+        focusedCount,
+        timeEstimatesEnabled,
+    } = useTaskStore((state) => ({
+        updateTask: state.updateTask,
+        projects: state.projects,
+        areas: state.areas,
+        focusedCount: state.getDerivedState().focusedCount,
+        timeEstimatesEnabled: state.settings?.features?.timeEstimates === true,
+    }), shallow);
     const canShowFocusToggle = showFocusToggle
         && task.status !== 'done'
         && task.status !== 'reference'
@@ -90,9 +97,16 @@ export function SwipeableTaskItem({
         updateTask(task.id, updates);
     };
 
-    const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas]);
-    const project: Project | undefined = task.projectId ? projects.find(p => p.id === task.projectId) : undefined;
-    const projectColor = project?.areaId ? areaById.get(project.areaId)?.color : undefined;
+    const { project, projectColor } = useMemo((): { project: Project | undefined; projectColor: string | undefined } => {
+        const project = task.projectId ? projects.find((item) => item.id === task.projectId) : undefined;
+        const projectArea = project?.areaId
+            ? areas.find((area) => area.id === project.areaId)
+            : undefined;
+        return {
+            project,
+            projectColor: projectArea?.color,
+        };
+    }, [areas, projects, task.projectId]);
     const resolvedDirection = resolveTaskTextDirection(task);
     const textDirection = resolvedDirection === 'rtl' ? 'rtl' : 'ltr';
     const textAlign = resolvedDirection === 'rtl' ? 'right' : 'left';
@@ -191,7 +205,6 @@ export function SwipeableTaskItem({
         const hasTime = hasTimeComponent(task.dueDate);
         return safeFormatDate(due, hasTime ? 'Pp' : 'P');
     })();
-    const isStagnant = (task.pushCount ?? 0) > 3;
     const staleness = getTaskStaleness(task.createdAt);
     const showAge = task.status !== 'done' && task.status !== 'reference' && (staleness === 'stale' || staleness === 'very-stale');
 

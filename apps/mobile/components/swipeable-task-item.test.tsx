@@ -29,6 +29,7 @@ vi.mock('@mindwtr/core', () => {
 
   return {
     useTaskStore,
+    shallow: (value: unknown) => value,
     getChecklistProgress: () => null,
     getTaskAgeLabel: () => '',
     getTaskStaleness: () => 'fresh',
