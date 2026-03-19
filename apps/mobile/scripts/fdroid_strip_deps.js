@@ -4,30 +4,63 @@ const path = require('path');
 
 const pkgPath = path.join(__dirname, '..', 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+const enableExpoBuildFromSource =
+  process.env.FDROID_EXPO_BUILD_FROM_SOURCE === '1' ||
+  process.env.FDROID_EXPO_BUILD_FROM_SOURCE === 'true';
 
 const removeDeps = ['expo-dev-client'];
 let changed = false;
+const changes = [];
 
 for (const dep of removeDeps) {
   if (pkg.dependencies && dep in pkg.dependencies) {
     delete pkg.dependencies[dep];
     changed = true;
+    changes.push(`removed dependency ${dep}`);
   }
   if (pkg.devDependencies && dep in pkg.devDependencies) {
     delete pkg.devDependencies[dep];
     changed = true;
+    changes.push(`removed devDependency ${dep}`);
   }
 }
 
 if (pkg.dependencies && pkg.dependencies['@mindwtr/core'] === 'workspace:*') {
   pkg.dependencies['@mindwtr/core'] = 'file:../../packages/core';
   changed = true;
-  console.log('[fdroid] rewrote @mindwtr/core to file:../../packages/core for npm compatibility');
+  changes.push('rewrote @mindwtr/core to file:../../packages/core for npm compatibility');
+}
+
+if (enableExpoBuildFromSource) {
+  if (!pkg.expo || typeof pkg.expo !== 'object' || Array.isArray(pkg.expo)) {
+    pkg.expo = {};
+  }
+  if (!pkg.expo.autolinking || typeof pkg.expo.autolinking !== 'object' || Array.isArray(pkg.expo.autolinking)) {
+    pkg.expo.autolinking = {};
+  }
+  if (
+    !pkg.expo.autolinking.android ||
+    typeof pkg.expo.autolinking.android !== 'object' ||
+    Array.isArray(pkg.expo.autolinking.android)
+  ) {
+    pkg.expo.autolinking.android = {};
+  }
+
+  const existingBuildFromSource = Array.isArray(pkg.expo.autolinking.android.buildFromSource)
+    ? pkg.expo.autolinking.android.buildFromSource.filter((value) => typeof value === 'string')
+    : [];
+
+  if (!existingBuildFromSource.includes('.*')) {
+    pkg.expo.autolinking.android.buildFromSource = [...existingBuildFromSource, '.*'];
+    changed = true;
+    changes.push('enabled expo.autolinking.android.buildFromSource=[".*"]');
+  }
 }
 
 if (changed) {
   fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
-  console.log('[fdroid] stripped deps:', removeDeps.join(', '));
+  console.log('[fdroid] applied changes:');
+  changes.forEach((message) => console.log(`- ${message}`));
 } else {
   console.log('[fdroid] no deps to strip');
 }

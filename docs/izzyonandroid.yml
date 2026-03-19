@@ -14,6 +14,7 @@ notes:
   - Build with plain npm + Gradle; no Bun and no EAS required.
   - Use npm ci (not npm install) to enforce the committed lockfiles for reproducible dependency resolution.
   - FOSS mode strips non-free Expo dependencies via scripts/fdroid_prep.sh.
+  - F-Droid can additionally opt into Expo Android source builds with FDROID_EXPO_BUILD_FROM_SOURCE=1 when stricter scanner rules require it.
   - scripts/fdroid_prep.sh rewrites @mindwtr/core from workspace:* to file:../../packages/core for npm compatibility.
   - Install packages/core first because @mindwtr/core is a local package in this flow.
   - scripts/fdroid_prep.sh mutates apps/mobile/package.json; run from a clean checkout/CI workspace.
