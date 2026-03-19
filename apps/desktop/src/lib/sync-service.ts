@@ -1991,6 +1991,22 @@ export class SyncService {
         let networkWentOffline = false;
         let removeNetworkListener: (() => void) | null = null;
         const requestAbortController = new AbortController();
+        let preSyncedLocalData: AppData | null = null;
+        let wroteLocal = false;
+        const persistLocalDataWithTracking = async (data: AppData): Promise<void> => {
+            if (isTauriRuntimeEnv()) {
+                await persistLocalDataForSync(data);
+            } else {
+                await webStorage.saveData(data);
+            }
+            wroteLocal = true;
+        };
+        const persistPreSyncedLocalDataIfNeeded = async (): Promise<void> => {
+            if (!preSyncedLocalData || wroteLocal) return;
+            const inMemorySnapshot = getInMemoryAppDataSnapshot();
+            const reconciledData = mergeAppData(preSyncedLocalData, inMemorySnapshot);
+            await persistLocalDataWithTracking(reconciledData);
+        };
 
         SyncService.updateSyncStatus({
             inFlight: true,
@@ -2089,7 +2105,6 @@ export class SyncService {
             };
             const syncPath = backend === 'file' ? await SyncService.getSyncPath() : '';
             const fileBaseDir = backend === 'file' ? getFileSyncDir(syncPath, SYNC_FILE_NAME, LEGACY_SYNC_FILE_NAME) : '';
-            let preSyncedLocalData: AppData | null = null;
             let remoteDataForCompare: AppData | null = null;
             let webdavRemoteCorrupted = false;
             const ensureLocalSnapshotFresh = () => {
@@ -2289,11 +2304,7 @@ export class SyncService {
                 readRemote: readRemoteDataByBackend,
                 writeLocal: async (data) => {
                     ensureLocalSnapshotFresh();
-                    if (isTauriRuntimeEnv()) {
-                        await persistLocalDataForSync(data);
-                    } else {
-                        await webStorage.saveData(data);
-                    }
+                    await persistLocalDataWithTracking(data);
                 },
                 writeRemote: async (data) => {
                     ensureLocalSnapshotFresh();
@@ -2365,7 +2376,7 @@ export class SyncService {
                         if (!nextData) return;
                         ensureLocalSnapshotFresh();
                         mergedData = nextData;
-                        await persistLocalDataForSync(mergedData);
+                        await persistLocalDataWithTracking(mergedData);
                         await yieldToRenderer();
                     };
 
@@ -2417,7 +2428,7 @@ export class SyncService {
                 ensureLocalSnapshotFresh();
                 ensureNetworkStillAvailable();
                 mergedData = await cleanupOrphanedAttachments(mergedData, backend);
-                await persistLocalDataForSync(mergedData);
+                await persistLocalDataWithTracking(mergedData);
             }
 
             // 7. Refresh UI Store
@@ -2446,6 +2457,7 @@ export class SyncService {
 
         const resultPromise = runSync().catch(async (error) => {
             if (error instanceof LocalSyncAbort) {
+                await persistPreSyncedLocalDataIfNeeded();
                 return { success: true };
             }
             logSyncWarning('Sync failed', error);
