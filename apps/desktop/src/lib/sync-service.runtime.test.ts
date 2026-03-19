@@ -1,6 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppData } from '@mindwtr/core';
 
+type MockStoreState = {
+    _allTasks: AppData['tasks'];
+    _allProjects: AppData['projects'];
+    _allSections: AppData['sections'];
+    _allAreas: AppData['areas'];
+    lastDataChangeAt: number;
+    settings: AppData['settings'];
+    fetchData: ReturnType<typeof vi.fn>;
+    updateSettings: ReturnType<typeof vi.fn>;
+    setError: ReturnType<typeof vi.fn>;
+};
+
 const emptyStats = {
     tasks: { mergedTotal: 0, conflicts: 0, conflictIds: [], maxClockSkewMs: 0, timestampAdjustments: 0 },
     projects: { mergedTotal: 0, conflicts: 0, conflictIds: [], maxClockSkewMs: 0, timestampAdjustments: 0 },
@@ -72,7 +84,7 @@ const storeStateRef = vi.hoisted(() => ({
         fetchData: vi.fn(),
         updateSettings: vi.fn(),
         setError: vi.fn(),
-    },
+    } as MockStoreState,
 }));
 
 vi.mock('./runtime', () => ({

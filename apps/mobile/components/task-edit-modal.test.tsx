@@ -340,7 +340,11 @@ describe('TaskEditModal', () => {
       );
     });
 
-    const viewTab = tree!.root.findByType('TaskEditViewTab');
+    const viewTab = tree!.root.find((node) =>
+      typeof node.props.onProjectPress === 'function'
+      && typeof node.props.onContextPress === 'function'
+      && typeof node.props.onTagPress === 'function'
+    );
 
     act(() => {
       viewTab.props.onProjectPress('project-1');

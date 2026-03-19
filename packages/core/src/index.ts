@@ -1,6 +1,7 @@
 export * from './types';
 export * from './storage';
 export * from './store';
+export type { StoreActionResult, TaskStore } from './store-types';
 export * from './sync';
 export * from './sync-helpers';
 export * from './sync-client-helpers';
