@@ -3,7 +3,7 @@
  */
 
 import { reportError } from './report-error';
-import { isTauriRuntime } from './runtime';
+import { isFlatpakRuntime, isTauriRuntime } from './runtime';
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/dongdongbh/Mindwtr/releases/latest';
 const GITHUB_RELEASES_URL = 'https://github.com/dongdongbh/Mindwtr/releases/latest';
@@ -38,6 +38,8 @@ export type InstallSource =
     | 'flatpak'
     | 'snap'
     | 'appimage';
+
+const FLATPAK_INSTALL_SOURCE_PREFIX = 'flatpak:';
 
 export type UpdateSource =
     | 'github-release'
@@ -143,6 +145,12 @@ const loadTauriFetch = async (): Promise<FetchLike | null> => {
         cachedTauriFetch = null;
         return cachedTauriFetch;
     }
+    if (isFlatpakRuntime()) {
+        // Flatpak builds hit a plugin-http response-body IPC mismatch on update checks.
+        // These checks only need public HTTPS JSON endpoints, so browser fetch is safer here.
+        cachedTauriFetch = null;
+        return cachedTauriFetch;
+    }
     try {
         const mod: any = await import('@tauri-apps/plugin-http');
         cachedTauriFetch = typeof mod.fetch === 'function'
@@ -229,6 +237,9 @@ export function compareVersions(v1: string, v2: string): number {
 
 export function normalizeInstallSource(value: string | null | undefined): InstallSource {
     const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === 'flatpak' || normalized.startsWith(FLATPAK_INSTALL_SOURCE_PREFIX)) {
+        return 'flatpak';
+    }
     switch (normalized) {
         case 'direct':
             return 'direct';
@@ -255,8 +266,6 @@ export function normalizeInstallSource(value: string | null | undefined): Instal
             return 'apt';
         case 'rpm':
             return 'rpm';
-        case 'flatpak':
-            return 'flatpak';
         case 'snap':
             return 'snap';
         case 'appimage':
@@ -266,6 +275,15 @@ export function normalizeInstallSource(value: string | null | undefined): Instal
         default:
             return 'unknown';
     }
+}
+
+export function getFlatpakInstallChannel(value: string | null | undefined): string | null {
+    const raw = String(value ?? '').trim();
+    if (!raw) return null;
+    const normalized = raw.toLowerCase();
+    if (!normalized.startsWith(FLATPAK_INSTALL_SOURCE_PREFIX)) return null;
+    const branch = raw.slice(raw.indexOf(':') + 1).trim();
+    return branch || null;
 }
 
 const fetchGithubLatestRelease = async (): Promise<GitHubRelease> => {

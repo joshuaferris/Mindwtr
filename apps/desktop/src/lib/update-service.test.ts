@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { checkForUpdates } from './update-service';
+import { checkForUpdates, getFlatpakInstallChannel, normalizeInstallSource } from './update-service';
 
 const jsonResponse = (body: unknown, status = 200): Response =>
     new Response(JSON.stringify(body), {
@@ -144,5 +144,12 @@ describe('update-service channel selection', () => {
         expect(result.source).toBe('aur');
         expect(result.releaseUrl).toBe('https://aur.archlinux.org/packages/mindwtr-bin');
         expect(result.latestVersion).toBe('1.3.0');
+    });
+
+    it('normalizes flatpak branch installs while keeping the branch available for UI display', () => {
+        expect(normalizeInstallSource('flatpak:test')).toBe('flatpak');
+        expect(normalizeInstallSource('flatpak:master')).toBe('flatpak');
+        expect(getFlatpakInstallChannel('flatpak:test')).toBe('test');
+        expect(getFlatpakInstallChannel('flatpak:master')).toBe('master');
     });
 });

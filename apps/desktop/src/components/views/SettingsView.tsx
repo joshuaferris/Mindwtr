@@ -33,6 +33,7 @@ import {
     APP_STORE_LISTING_URL,
     checkForUpdates,
     compareVersions,
+    getFlatpakInstallChannel,
     HOMEBREW_CASK_URL,
     normalizeInstallSource,
     type UpdateInfo,
@@ -161,6 +162,7 @@ export function SettingsView() {
         }
     }, [isTauri]);
     const [installSource, setInstallSource] = useState<InstallSource>('unknown');
+    const [installChannel, setInstallChannel] = useState<string | null>(null);
     const windowDecorationsEnabled = settings?.window?.decorations !== false;
     const closeBehavior = settings?.window?.closeBehavior ?? 'ask';
     const trayVisible = settings?.window?.showTray !== false;
@@ -216,6 +218,7 @@ export function SettingsView() {
     useEffect(() => {
         if (!isTauri) {
             setInstallSource('github-release');
+            setInstallChannel(null);
             return;
         }
         let cancelled = false;
@@ -226,12 +229,15 @@ export function SettingsView() {
                     () => getInstallSourceOrFallback('unknown')
                 );
                 const source = normalizeInstallSource(rawSource);
+                const channel = getFlatpakInstallChannel(rawSource);
                 if (!cancelled) {
                     setInstallSource(source);
+                    setInstallChannel(channel);
                 }
             } catch (error) {
                 if (!cancelled) {
                     setInstallSource('unknown');
+                    setInstallChannel(null);
                 }
                 reportError('Failed to detect install source', error);
             }
@@ -863,6 +869,12 @@ export function SettingsView() {
         }
     }, [page, t]);
 
+    const installChannelDisplay = useMemo(() => {
+        if (installSource !== 'flatpak') return null;
+        if (!installChannel) return 'Flatpak';
+        return `Flatpak (${installChannel})`;
+    }, [installChannel, installSource]);
+
     const navItems = useMemo<Array<{
         id: SettingsPage;
         icon: ComponentType<{ className?: string }>;
@@ -1205,6 +1217,7 @@ export function SettingsView() {
                 <SettingsAboutPage
                     t={t}
                     appVersion={appVersion}
+                    installChannel={installChannelDisplay}
                     onOpenLink={openLink}
                     onCheckUpdates={handleCheckUpdates}
                     isCheckingUpdate={isCheckingUpdate}

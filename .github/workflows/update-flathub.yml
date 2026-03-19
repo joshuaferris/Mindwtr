@@ -40,15 +40,20 @@ jobs:
         run: |
           scripts/ci/resolve-release-version.sh "$INPUT_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Require stable release tag
+      - name: Classify release tag
+        id: stability
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           if [[ "$TAG" == *-* ]]; then
-            echo "Stable Flathub automation skips prerelease tags: $TAG" >&2
-            exit 1
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "message=Stable Flathub automation skips prerelease tags: $TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "message=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Verify Flathub token
+        if: steps.stability.outputs.skip != 'true'
         env:
           FLATHUB_REPO_TOKEN: ${{ secrets.FLATHUB_REPO_TOKEN }}
         run: |
@@ -58,6 +63,7 @@ jobs:
           fi
 
       - name: Checkout Flathub repo
+        if: steps.stability.outputs.skip != 'true'
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           repository: flathub/tech.dongdongbh.mindwtr
@@ -65,7 +71,30 @@ jobs:
           token: ${{ secrets.FLATHUB_REPO_TOKEN }}
           path: flathub
 
+      - name: Prepare Flathub branch
+        id: branch
+        if: steps.stability.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.version }}"
+          BRANCH="automation/update-v${VERSION}"
+
+          cd flathub
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$BRANCH"
+            git switch -C "$BRANCH" "origin/$BRANCH"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            git switch -c "$BRANCH"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
       - name: Checkout flatpak-builder-tools
+        if: steps.stability.outputs.skip != 'true'
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           repository: flatpak/flatpak-builder-tools
@@ -73,6 +102,7 @@ jobs:
           path: flatpak-builder-tools
 
       - name: Install Flatpak generator dependencies
+        if: steps.stability.outputs.skip != 'true'
         run: |
           python3 -m pip install --user --upgrade pip
           python3 -m pip install --user aiohttp tomlkit pipx
@@ -80,14 +110,131 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Update Flathub checkout
+        if: steps.stability.outputs.skip != 'true'
         run: |
           scripts/ci/update-flathub-checkout.sh \
             "${{ steps.version.outputs.tag }}" \
             "$GITHUB_WORKSPACE/flathub" \
             "$GITHUB_WORKSPACE/flatpak-builder-tools"
 
+      - name: Validate generated Flathub sources
+        if: steps.stability.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+
+          worktree_dir="$(mktemp -d)"
+          cache_root="$(mktemp -d)"
+
+          cleanup() {
+            git worktree remove --force "$worktree_dir" >/dev/null 2>&1 || true
+            rm -rf "$worktree_dir" "$cache_root"
+          }
+
+          trap cleanup EXIT
+
+          git worktree add --force --detach "$worktree_dir" "${{ steps.version.outputs.tag }}" >/dev/null
+
+          python3 - "$GITHUB_WORKSPACE/flathub/tech.dongdongbh.mindwtr.node-sources.json" "$cache_root" <<'PY'
+          import base64
+          import io
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import tarfile
+          import urllib.request
+          import sys
+
+          node_sources_path = pathlib.Path(sys.argv[1])
+          cache_root = pathlib.Path(sys.argv[2])
+          host_arch = "x86_64"
+
+          entries = json.loads(node_sources_path.read_text())
+
+          def should_skip(entry: dict) -> bool:
+              arches = entry.get("only-arches")
+              return bool(arches and host_arch not in arches)
+
+          def extract_archive(payload: bytes, dest_dir: pathlib.Path, strip_components: int) -> None:
+              with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+                  for member in archive.getmembers():
+                      parts = pathlib.PurePosixPath(member.name).parts[strip_components:]
+                      if not parts:
+                          continue
+
+                      target = dest_dir.joinpath(*parts)
+                      if member.isdir():
+                          target.mkdir(parents=True, exist_ok=True)
+                          continue
+
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      extracted = archive.extractfile(member)
+                      if extracted is None:
+                          continue
+
+                      target.write_bytes(extracted.read())
+                      mode = member.mode & 0o777
+                      target.chmod(mode if mode else 0o644)
+
+          for entry in entries:
+              if should_skip(entry):
+                  continue
+
+              dest_dir = cache_root / entry.get("dest", "")
+              dest_dir.mkdir(parents=True, exist_ok=True)
+
+              if entry["type"] == "inline":
+                  raw = base64.b64decode(entry["contents"]) if entry.get("base64") else entry["contents"].encode()
+                  (dest_dir / entry["dest-filename"]).write_bytes(raw)
+                  continue
+
+              if entry["type"] == "script":
+                  script_path = dest_dir / entry["dest-filename"]
+                  script_path.write_text("\n".join(entry["commands"]) + "\n")
+                  script_path.chmod(0o755)
+                  continue
+
+              if entry["type"] == "shell":
+                  for command in entry["commands"]:
+                      subprocess.run(
+                          command,
+                          check=True,
+                          shell=True,
+                          executable="/bin/bash",
+                          cwd=dest_dir,
+                          env=os.environ,
+                      )
+                  continue
+
+              if entry["type"] not in {"file", "archive"}:
+                  raise SystemExit(f"Unsupported source type: {entry['type']}")
+
+              with urllib.request.urlopen(entry["url"]) as response:
+                  payload = response.read()
+
+              if entry["type"] == "archive":
+                  extract_archive(payload, dest_dir, entry["strip-components"])
+                  continue
+
+              strip_components = entry.get("strip-components")
+              if strip_components is None:
+                  (dest_dir / entry["dest-filename"]).write_bytes(payload)
+                  continue
+
+              extract_archive(payload, dest_dir, strip_components)
+          PY
+
+          npm_config_cache="$cache_root/flatpak-node/npm-cache" \
+          XDG_CACHE_HOME="$cache_root/flatpak-node/cache" \
+          npm_config_offline=true \
+          npm_config_audit=false \
+          npm_config_fund=false \
+          npm_config_update_notifier=false \
+          npm ci --prefix="$worktree_dir/apps/desktop" --offline --legacy-peer-deps --workspaces=false
+
       - name: Create or update Flathub PR
         id: pr
+        if: steps.stability.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.FLATHUB_REPO_TOKEN }}
         run: |
@@ -95,33 +242,10 @@ jobs:
 
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ steps.version.outputs.tag }}"
-          BRANCH="automation/update-v${VERSION}"
+          BRANCH="${{ steps.branch.outputs.branch }}"
           REPO="flathub/tech.dongdongbh.mindwtr"
 
           cd flathub
-
-          if git diff --quiet; then
-            echo "No Flathub changes to propose."
-            echo "url=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          git config --local user.name "GitHub Actions"
-          git config --local user.email "actions@github.com"
-          git checkout -B "$BRANCH"
-          git add \
-            tech.dongdongbh.mindwtr.yml \
-            tech.dongdongbh.mindwtr.node-sources.json \
-            tech.dongdongbh.mindwtr.cargo-sources.json
-
-          if git diff --cached --quiet; then
-            echo "No staged Flathub changes to commit."
-            echo "url=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          git commit -m "Update to ${TAG}"
-          git push --force-with-lease origin "$BRANCH"
 
           existing_pr_url="$(gh pr list \
             --repo "$REPO" \
@@ -130,6 +254,32 @@ jobs:
             --state open \
             --json url \
             --jq '.[0].url // ""')"
+
+          if git diff --quiet; then
+            echo "No Flathub changes to propose."
+            echo "url=${existing_pr_url}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config --local user.name "GitHub Actions"
+          git config --local user.email "actions@github.com"
+          git add \
+            tech.dongdongbh.mindwtr.yml \
+            tech.dongdongbh.mindwtr.node-sources.json \
+            tech.dongdongbh.mindwtr.cargo-sources.json
+
+          if git diff --cached --quiet; then
+            echo "No staged Flathub changes to commit."
+            echo "url=${existing_pr_url}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "Update to ${TAG}"
+          if [ "${{ steps.branch.outputs.exists }}" = "true" ]; then
+            git push origin "$BRANCH"
+          else
+            git push --set-upstream origin "$BRANCH"
+          fi
 
           if [ -n "$existing_pr_url" ]; then
             echo "Updated existing PR: $existing_pr_url"
@@ -154,7 +304,9 @@ jobs:
           echo "### Flathub Update" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Tag: ${{ steps.version.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "${{ steps.pr.outputs.url }}" ]; then
+          if [ "${{ steps.stability.outputs.skip }}" = "true" ]; then
+            echo "- Skipped: ${{ steps.stability.outputs.message }}" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "${{ steps.pr.outputs.url }}" ]; then
             echo "- PR: ${{ steps.pr.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "- PR: no changes were needed" >> "$GITHUB_STEP_SUMMARY"

@@ -4,6 +4,7 @@ import { cn } from '../../../lib/utils';
 
 type Labels = {
     version: string;
+    installChannel: string;
     developer: string;
     license: string;
     website: string;
@@ -18,6 +19,7 @@ type Labels = {
 type SettingsAboutPageProps = {
     t: Labels;
     appVersion: string;
+    installChannel?: string | null;
     onOpenLink: (url: string) => void;
     onCheckUpdates: () => void;
     isCheckingUpdate: boolean;
@@ -29,6 +31,7 @@ type SettingsAboutPageProps = {
 export function SettingsAboutPage({
     t,
     appVersion,
+    installChannel,
     onOpenLink,
     onCheckUpdates,
     isCheckingUpdate,
@@ -43,6 +46,15 @@ export function SettingsAboutPage({
                 <span className="text-muted-foreground">{t.version}</span>
                 <span className="font-mono bg-muted px-2 py-1 rounded text-sm">v{appVersion}</span>
             </div>
+            {installChannel && (
+                <>
+                    <div className="border-t border-border/50"></div>
+                    <div className="flex justify-between items-center gap-4">
+                        <span className="text-muted-foreground">{t.installChannel}</span>
+                        <span className="font-mono bg-muted px-2 py-1 rounded text-sm">{installChannel}</span>
+                    </div>
+                </>
+            )}
             <div className="border-t border-border/50"></div>
             <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">{t.documentation}</span>

@@ -55,6 +55,9 @@ const getDesktopOsMajor = (platform: string): string => {
 
 const normalizeDesktopChannel = (value: string | null | undefined): string => {
     const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'flatpak' || normalized.startsWith('flatpak:')) {
+        return 'flatpak';
+    }
     switch (normalized) {
         case 'mac-app-store':
         case 'app-store':
@@ -77,7 +80,6 @@ const normalizeDesktopChannel = (value: string | null | undefined): string => {
         case 'aur-source':
         case 'apt':
         case 'rpm':
-        case 'flatpak':
         case 'snap':
         case 'appimage':
         case 'direct':

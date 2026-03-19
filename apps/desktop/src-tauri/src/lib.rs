@@ -737,6 +737,9 @@ fn detect_install_source() -> String {
     #[cfg(target_os = "linux")]
     {
         if is_flatpak() {
+            if let Some(channel) = flatpak_install_channel() {
+                return format!("flatpak:{channel}");
+            }
             return "flatpak".to_string();
         }
         if env::var_os("SNAP").is_some() || env::var_os("SNAP_NAME").is_some() {
@@ -4206,6 +4209,31 @@ fn is_niri_session() -> bool {
         return session.to_lowercase().contains("niri");
     }
     false
+}
+
+fn flatpak_install_channel() -> Option<String> {
+    let contents = fs::read_to_string("/.flatpak-info").ok()?;
+    let mut in_instance = false;
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with(';') {
+            continue;
+        }
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_instance = trimmed.eq_ignore_ascii_case("[Instance]");
+            continue;
+        }
+        if !in_instance {
+            continue;
+        }
+        if let Some(branch) = trimmed.strip_prefix("branch=") {
+            let value = branch.trim().to_lowercase();
+            if !value.is_empty() {
+                return Some(value);
+            }
+        }
+    }
+    None
 }
 
 fn is_flatpak() -> bool {
