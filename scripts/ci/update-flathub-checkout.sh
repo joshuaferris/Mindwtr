@@ -85,10 +85,53 @@ python3 - "${worktree_dir}/apps/desktop/package-lock.json" <<'PY'
 import json
 import pathlib
 import sys
+import urllib.parse
+import urllib.request
 
 lock_path = pathlib.Path(sys.argv[1])
 lock = json.loads(lock_path.read_text())
 missing = []
+changed = False
+dist_cache = {}
+
+
+def package_name_from_path(package_path: str) -> str | None:
+    parts = pathlib.PurePosixPath(package_path).parts
+    last_name = None
+    i = 0
+    while i < len(parts):
+        if parts[i] != "node_modules":
+            i += 1
+            continue
+        i += 1
+        if i >= len(parts):
+            break
+        name = parts[i]
+        if name.startswith("@") and i + 1 < len(parts):
+            name = f"{name}/{parts[i + 1]}"
+            i += 1
+        last_name = name
+        i += 1
+    return last_name
+
+
+def fetch_dist(package_name: str, version: str) -> dict[str, str | None]:
+    key = (package_name, version)
+    cached = dist_cache.get(key)
+    if cached is not None:
+        return cached
+
+    encoded_name = urllib.parse.quote(package_name, safe="")
+    encoded_version = urllib.parse.quote(version, safe="")
+    url = f"https://registry.npmjs.org/{encoded_name}/{encoded_version}"
+    with urllib.request.urlopen(url) as response:
+        payload = json.load(response)
+    dist = payload.get("dist") or {}
+    resolved = dist.get("tarball")
+    integrity = dist.get("integrity")
+    cached = {"resolved": resolved, "integrity": integrity}
+    dist_cache[key] = cached
+    return cached
 
 for package_path, meta in lock.get("packages", {}).items():
     if not isinstance(meta, dict):
@@ -97,12 +140,28 @@ for package_path, meta in lock.get("packages", {}).items():
         continue
     resolved = meta.get("resolved")
     integrity = meta.get("integrity")
+    if not resolved or not integrity:
+        package_name = package_name_from_path(package_path)
+        version = meta.get("version")
+        if package_name and version:
+            dist = fetch_dist(package_name, version)
+            if not resolved and dist.get("resolved"):
+                meta["resolved"] = dist["resolved"]
+                resolved = meta["resolved"]
+                changed = True
+            if not integrity and dist.get("integrity"):
+                meta["integrity"] = dist["integrity"]
+                integrity = meta["integrity"]
+                changed = True
     if not resolved and not integrity:
         missing.append((package_path, "resolved and integrity"))
     elif resolved and not integrity:
         missing.append((package_path, "integrity"))
     elif integrity and not resolved:
         missing.append((package_path, "resolved"))
+
+if changed:
+    lock_path.write_text(json.dumps(lock, indent=2) + "\n")
 
 if missing:
     details = "\n".join(
