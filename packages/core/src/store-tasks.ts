@@ -623,6 +623,24 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
      */
     batchUpdateTasks: async (updatesList: Array<{ id: string; updates: Partial<Task> }>) => {
         if (updatesList.length === 0) return actionOk();
+        const state = get();
+        const existingTaskIds = new Set(state._allTasks.map((task) => task.id));
+        const missingIds = updatesList
+            .map((update) => update.id)
+            .filter((id, index, ids) => !existingTaskIds.has(id) && ids.indexOf(id) === index);
+        if (missingIds.length > 0) {
+            const message = `Tasks not found: ${missingIds.join(', ')}`;
+            set({ error: message });
+            return actionFail(message);
+        }
+        for (const { updates } of updatesList) {
+            if (!Object.prototype.hasOwnProperty.call(updates, 'projectId')) continue;
+            const projectValidation = validateExistingProjectId(updates.projectId, state._allProjects);
+            if (!projectValidation.ok) {
+                set({ error: projectValidation.error });
+                return actionFail(projectValidation.error);
+            }
+        }
         const changeAt = Date.now();
         const now = new Date().toISOString();
         const updatesById = new Map(updatesList.map((u) => [u.id, u.updates]));

@@ -1036,6 +1036,33 @@ describe('TaskStore', () => {
             expect(updatedAreaTask.orderNum).toBe(1);
         });
 
+        it('fails batch updates when any task id is missing', async () => {
+            const { addTask, batchUpdateTasks } = useTaskStore.getState();
+            await addTask('Existing Task', { status: 'next' });
+            const task = useTaskStore.getState()._allTasks.find((item) => item.title === 'Existing Task')!;
+
+            const result = await batchUpdateTasks([
+                { id: task.id, updates: { title: 'Should not apply' } },
+                { id: 'missing-task', updates: { title: 'Missing' } },
+            ]);
+
+            expect(result).toEqual({ success: false, error: 'Tasks not found: missing-task' });
+            expect(useTaskStore.getState()._allTasks.find((item) => item.id === task.id)?.title).toBe('Existing Task');
+        });
+
+        it('fails batch updates when the target project is missing', async () => {
+            const { addTask, batchUpdateTasks } = useTaskStore.getState();
+            await addTask('Existing Task', { status: 'next' });
+            const task = useTaskStore.getState()._allTasks.find((item) => item.title === 'Existing Task')!;
+
+            const result = await batchUpdateTasks([
+                { id: task.id, updates: { projectId: 'missing-project' } },
+            ]);
+
+            expect(result).toEqual({ success: false, error: 'Project not found' });
+            expect(useTaskStore.getState()._allTasks.find((item) => item.id === task.id)?.projectId).toBeUndefined();
+        });
+
         it('should clear sectionId when deleting a project', async () => {
             const { addProject, addSection, addTask, deleteProject } = useTaskStore.getState();
             const project = await addProject('Delete Project', '#333333');
