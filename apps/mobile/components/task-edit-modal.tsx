@@ -1284,9 +1284,10 @@ function TaskEditModalInner({
     );
     const basicFields = useMemo(
         () => filterVisibleFields(orderFields(
-            ['status', ...taskEditorOrder.filter((fieldId) =>
-                !TASK_EDITOR_FIXED_FIELDS.includes(fieldId) && sectionAssignments[fieldId] === 'basic'
-            )]
+            taskEditorOrder.filter((fieldId) => {
+                if (TASK_EDITOR_FIXED_FIELDS.includes(fieldId)) return true;
+                return sectionAssignments[fieldId] === 'basic';
+            })
         )),
         [filterVisibleFields, orderFields, sectionAssignments, taskEditorOrder]
     );
