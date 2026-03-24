@@ -340,6 +340,8 @@ You can help in several ways:
 - ☁️ Expand native iCloud/CloudKit sync to macOS desktop
 - 🗣️ iOS Reminders Inbox import (Siri capture -> Mindwtr Inbox)
 - ✉️ Email to Inbox
+- 📥 Todoist import
+- 🕒 Natural language input using `chrono-node`
 
 ## Documentation
 
