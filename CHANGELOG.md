@@ -2,6 +2,16 @@
 
 All notable changes to Mindwtr will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Cloud auth**: Prevented auth-failure rate limiting from collapsing unrelated clients into a shared bucket when proxy headers are not trusted.
+- **Docker deploys**: Require explicit cloud auth tokens, pin Bun image tags, add compose resource limits, and harden container health checks.
+- **Desktop sync**: Pause blur-triggered sync during task edits, always release offline listeners after sync failures, and guard native system-theme watcher cleanup.
+- **Core merge**: Preserve ordering between two clamped future timestamps and lock current SQLite project-delete cascade behavior with regression coverage.
+- **Mobile reliability**: Restored the task editor project field, hardened Android/OpenAI speech-to-text flows, and cleared stale mobile sync conflict stats after later sync errors.
+- **MCP**: Cap `quickAdd` input length and align add-task quick-add validation with trimmed input handling.
+
 ## [0.7.4] - 2026-03-16
 
 ### Added
