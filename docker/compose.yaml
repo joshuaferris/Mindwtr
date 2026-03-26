@@ -7,6 +7,8 @@ services:
     container_name: mindwtr-cloud
     hostname: mindwtr-cloud
     restart: always
+    cpus: "1.0"
+    mem_limit: 512m
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8787/health >/dev/null || exit 1"]
       interval: 1m30s
@@ -28,5 +30,7 @@ services:
     container_name: mindwtr-app
     hostname: mindwtr-app
     restart: always
+    cpus: "1.0"
+    mem_limit: 512m
     ports:
       - 5173:5173
