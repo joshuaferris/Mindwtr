@@ -297,6 +297,61 @@ describeSqlite('SqliteAdapter', () => {
         expect(cleared.areas).toHaveLength(0);
     });
 
+    it('keeps task references consistent when a project row is hard-deleted', async () => {
+        const now = new Date().toISOString();
+        await adapter.saveData({
+            tasks: [
+                {
+                    id: 'task-hard-delete-1',
+                    title: 'Task in deleted project',
+                    status: 'next',
+                    projectId: 'proj-hard-delete-1',
+                    sectionId: 'section-hard-delete-1',
+                    createdAt: now,
+                    updatedAt: now,
+                },
+            ],
+            projects: [
+                {
+                    id: 'proj-hard-delete-1',
+                    title: 'Project to delete',
+                    status: 'active',
+                    color: '#2563EB',
+                    order: 0,
+                    createdAt: now,
+                    updatedAt: now,
+                },
+            ],
+            sections: [
+                {
+                    id: 'section-hard-delete-1',
+                    projectId: 'proj-hard-delete-1',
+                    title: 'Section to delete',
+                    order: 0,
+                    createdAt: now,
+                    updatedAt: now,
+                },
+            ],
+            areas: [],
+            settings: {},
+        });
+
+        runSql(db, 'DELETE FROM projects WHERE id = ?', ['proj-hard-delete-1']);
+
+        const taskRow = getSql<{ projectId: string | null; sectionId: string | null }>(
+            db,
+            'SELECT projectId, sectionId FROM tasks WHERE id = ?',
+            ['task-hard-delete-1']
+        );
+        const remainingSections = allSql<{ id: string }>(db, 'SELECT id FROM sections');
+
+        expect(taskRow).toEqual({
+            projectId: null,
+            sectionId: null,
+        });
+        expect(remainingSections).toHaveLength(0);
+    });
+
     it('returns lightweight search results for FTS queries', async () => {
         const allMock = vi
             .fn()
