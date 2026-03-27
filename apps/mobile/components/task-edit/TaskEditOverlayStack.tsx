@@ -123,7 +123,7 @@ export function TaskEditOverlayStack(props: TaskEditOverlayStackProps) {
                 tc={tc}
                 t={t}
                 onClose={() => props.setShowProjectPicker(false)}
-                onSelectProject={(projectId: string) => {
+                onSelectProject={(projectId?: string) => {
                     setEditedTask((prev: any) => ({
                         ...prev,
                         projectId,
@@ -131,17 +131,13 @@ export function TaskEditOverlayStack(props: TaskEditOverlayStackProps) {
                         sectionId: projectId && prev.projectId === projectId ? prev.sectionId : undefined,
                     }));
                 }}
-                onAddProject={async (title: string) => {
-                    const created = await props.addProject(title, props.DEFAULT_PROJECT_COLOR, props.projectFilterAreaId ? { areaId: props.projectFilterAreaId } : undefined);
-                    if (created?.id) {
-                        setEditedTask((prev: any) => ({
-                            ...prev,
-                            projectId: created.id,
-                            areaId: undefined,
-                            sectionId: undefined,
-                        }));
-                    }
-                }}
+                onCreateProject={(title: string) => (
+                    props.addProject(
+                        title,
+                        props.DEFAULT_PROJECT_COLOR,
+                        props.projectFilterAreaId ? { areaId: props.projectFilterAreaId } : undefined,
+                    )
+                )}
             />
             <TaskEditSectionPicker
                 visible={showSectionPicker}
@@ -150,17 +146,10 @@ export function TaskEditOverlayStack(props: TaskEditOverlayStackProps) {
                 tc={tc}
                 t={t}
                 onClose={() => props.setShowSectionPicker(false)}
-                onSelectSection={(sectionId: string) => {
+                onSelectSection={(sectionId?: string) => {
                     setEditedTask((prev: any) => ({ ...prev, sectionId }));
                 }}
-                onAddSection={async (title: string) => {
-                    const projectId = sectionPickerProjectId;
-                    if (!projectId) return;
-                    const created = await props.addSection(projectId, title);
-                    if (created?.id) {
-                        setEditedTask((prev: any) => ({ ...prev, sectionId: created.id }));
-                    }
-                }}
+                onCreateSection={(projectId: string, title: string) => props.addSection(projectId, title)}
             />
             <TaskEditAreaPicker
                 visible={showAreaPicker}
@@ -171,12 +160,7 @@ export function TaskEditOverlayStack(props: TaskEditOverlayStackProps) {
                 onSelectArea={(areaId: string | undefined) => {
                     setEditedTask((prev: any) => ({ ...prev, areaId }));
                 }}
-                onAddArea={async (name: string) => {
-                    const created = await props.addArea(name);
-                    if (created?.id) {
-                        setEditedTask((prev: any) => ({ ...prev, areaId: created.id }));
-                    }
-                }}
+                onCreateArea={(name: string) => props.addArea(name)}
             />
             <AIResponseModal
                 visible={Boolean(aiModal)}

@@ -1,14 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
-import type { Task, TaskStatus } from '@mindwtr/core';
+import type { StoreActionResult, Task, TaskStatus } from '@mindwtr/core';
 import { logError } from '../lib/app-log';
 import { getBulkActionFailureMessage } from './task-list-utils';
 
 type UseTaskListSelectionParams = {
-  batchDeleteTasks: (ids: string[]) => Promise<void>;
-  batchMoveTasks: (ids: string[], status: TaskStatus) => Promise<void>;
-  batchUpdateTasks: (updates: { id: string; updates: Partial<Task> }[]) => Promise<void>;
-  restoreTask: (id: string) => Promise<void>;
+  batchDeleteTasks: (ids: string[]) => Promise<void | StoreActionResult>;
+  batchMoveTasks: (ids: string[], status: TaskStatus) => Promise<void | StoreActionResult>;
+  batchUpdateTasks: (updates: { id: string; updates: Partial<Task> }[]) => Promise<void | StoreActionResult>;
+  restoreTask: (id: string) => Promise<void | StoreActionResult>;
   t: (key: string) => string;
   tasksById: Record<string, Task>;
 };

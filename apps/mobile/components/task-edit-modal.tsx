@@ -740,7 +740,7 @@ function TaskEditModalInner({
         return safeParseDate(editedTask.dueDate ?? task?.dueDate) ?? new Date();
     }, [editedTask.dueDate, task?.dueDate]);
     const monthlyWeekdayCode = WEEKDAY_ORDER[monthlyAnchorDate.getDay()];
-    const monthlyPattern = useMemo(() => {
+    const monthlyPattern = useMemo<'date' | 'custom'>(() => {
         if (recurrenceRuleValue !== 'monthly') return 'date';
         const parsed = parseRRuleString(recurrenceRRuleValue);
         const hasLast = parsed.byDay?.some((day) => String(day).startsWith('-1'));
@@ -1224,6 +1224,8 @@ function TaskEditModalInner({
         descriptionDraftRef,
         downloadAttachment,
         editedTask,
+        formatDate,
+        formatDueDate,
         frequentContextSuggestions,
         frequentTagSuggestions,
         getSafePickerDateValue,

@@ -1,7 +1,9 @@
 import React from 'react';
 import { Keyboard, Platform, Pressable, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
+    type Attachment,
+    type Area,
     buildRRuleString,
     generateUUID,
     getAttachmentDisplayTitle,
@@ -9,18 +11,110 @@ import {
     parseRRuleString,
     RecurrenceRule,
     resolveAutoTextDirection,
+    type Project,
+    type Section,
     safeFormatDate,
     safeParseDate,
+    type Task,
     TaskEditorFieldId,
+    type TaskPriority,
     TaskStatus,
+    type TimeEstimate,
+    type RecurrenceWeekday,
     type RecurrenceStrategy,
 } from '@mindwtr/core';
+import type { ThemeColors } from '@/hooks/use-theme-colors';
 
 import { MarkdownText } from '../markdown-text';
+import { buildRecurrenceValue } from './recurrence-utils';
+import type { SetEditedTask } from './use-task-edit-state';
+
+type ShowDatePickerMode = 'start' | 'start-time' | 'due' | 'due-time' | 'review' | null;
+
+type PickerOption<T extends string> = {
+    value: T | '';
+    label: string;
+};
+
+type WeekdayButton = {
+    key: RecurrenceWeekday;
+    label: string;
+};
 
 type TaskEditFieldRendererProps = {
     fieldId: TaskEditorFieldId;
-    [key: string]: any;
+    addFileAttachment: () => void | Promise<void>;
+    addImageAttachment: () => void | Promise<void>;
+    applyContextSuggestion: (token: string) => void;
+    applyTagSuggestion: (token: string) => void;
+    areas: Area[];
+    availableStatusOptions: TaskStatus[];
+    commitContextDraft: () => void;
+    commitTagDraft: () => void;
+    contextInputDraft: string;
+    contextTokenSuggestions: string[];
+    customWeekdays: RecurrenceWeekday[];
+    dailyInterval: number;
+    descriptionDebounceRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+    descriptionDraft: string;
+    descriptionDraftRef: React.MutableRefObject<string>;
+    downloadAttachment: (attachment: Attachment) => void | Promise<void>;
+    editedTask: Partial<Task>;
+    formatDate: (dateStr?: string) => string;
+    formatDueDate: (dateStr?: string) => string;
+    frequentContextSuggestions: string[];
+    frequentTagSuggestions: string[];
+    getSafePickerDateValue: (dateStr?: string) => Date;
+    handleInputFocus: (targetInput?: number | string) => void;
+    handleResetChecklist: () => void;
+    language: string;
+    monthlyPattern: 'date' | 'custom';
+    onDateChange: (event: DateTimePickerEvent, selectedDate?: Date) => void;
+    openAttachment: (attachment: Attachment) => void | Promise<void>;
+    openCustomRecurrence: () => void;
+    pendingDueDate: Date | null;
+    pendingStartDate: Date | null;
+    prioritiesEnabled: boolean;
+    priorityOptions: TaskPriority[];
+    projects: Project[];
+    projectSections: Section[];
+    recurrenceOptions: PickerOption<RecurrenceRule>[];
+    recurrenceRRuleValue: string;
+    recurrenceRuleValue: RecurrenceRule | '';
+    recurrenceStrategyValue: RecurrenceStrategy;
+    recurrenceWeekdayButtons: WeekdayButton[];
+    removeAttachment: (attachmentId: string) => void | Promise<void>;
+    resetCopilotDraft: () => void;
+    selectedContextTokens: Set<string>;
+    selectedTagTokens: Set<string>;
+    setCustomWeekdays: React.Dispatch<React.SetStateAction<RecurrenceWeekday[]>>;
+    setDescriptionDraft: React.Dispatch<React.SetStateAction<string>>;
+    setEditedTask: SetEditedTask;
+    setIsContextInputFocused: React.Dispatch<React.SetStateAction<boolean>>;
+    setIsTagInputFocused: React.Dispatch<React.SetStateAction<boolean>>;
+    setLinkInputTouched: React.Dispatch<React.SetStateAction<boolean>>;
+    setLinkModalVisible: React.Dispatch<React.SetStateAction<boolean>>;
+    setShowAreaPicker: React.Dispatch<React.SetStateAction<boolean>>;
+    setShowDatePicker: React.Dispatch<React.SetStateAction<ShowDatePickerMode>>;
+    setShowDescriptionPreview: React.Dispatch<React.SetStateAction<boolean>>;
+    setShowProjectPicker: React.Dispatch<React.SetStateAction<boolean>>;
+    setShowSectionPicker: React.Dispatch<React.SetStateAction<boolean>>;
+    showDatePicker: ShowDatePickerMode;
+    showDescriptionPreview: boolean;
+    styles: Record<string, any>;
+    tagInputDraft: string;
+    tagTokenSuggestions: string[];
+    task: Task | null;
+    t: (key: string) => string;
+    tc: ThemeColors;
+    timeEstimateOptions: PickerOption<TimeEstimate>[];
+    timeEstimatesEnabled: boolean;
+    titleDraft: string;
+    toggleQuickContextToken: (token: string) => void;
+    toggleQuickTagToken: (token: string) => void;
+    updateContextInput: (text: string) => void;
+    updateTagInput: (text: string) => void;
+    visibleAttachments: Attachment[];
 };
 
 export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
@@ -40,6 +134,8 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
         descriptionDraftRef,
         downloadAttachment,
         editedTask,
+        formatDate,
+        formatDueDate,
         frequentContextSuggestions,
         frequentTagSuggestions,
         getSafePickerDateValue,
@@ -125,6 +221,21 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
         styles.quickTokenText,
         { color: active ? '#fff' : tc.secondaryText },
     ]);
+    const formatStartDateTime = (dateStr?: string) => {
+        if (!dateStr) return t('common.notSet');
+        const parsed = safeParseDate(dateStr);
+        if (!parsed) return t('common.notSet');
+        if (!hasTimeComponent(dateStr)) {
+            return parsed.toLocaleDateString();
+        }
+        return parsed.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
     const openDatePicker = (mode: NonNullable<typeof showDatePicker>) => {
         Keyboard.dismiss();
         setShowDatePicker(mode);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import type { ThemeColors } from '@/hooks/use-theme-colors';
 
 const getOrdinalTranslationKey = (value: '1' | '2' | '3' | '4' | '-1'): 'first' | 'second' | 'third' | 'fourth' | 'last' => {
     if (value === '-1') return 'last';
@@ -26,7 +27,7 @@ type TaskEditCustomRecurrenceModalProps = {
     setCustomWeekday: (value: string) => void;
     styles: Record<string, any>;
     t: (key: string) => string;
-    tc: Record<string, string>;
+    tc: ThemeColors;
     visible: boolean;
 };
 

@@ -1,12 +1,13 @@
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import type { ThemeColors } from '@/hooks/use-theme-colors';
 
 type TaskEditModalErrorBoundaryProps = {
     children: React.ReactNode;
     onClose: () => void;
     taskId?: string;
     t: (key: string) => string;
-    tc: Record<string, string>;
+    tc: ThemeColors;
 };
 
 type TaskEditModalErrorBoundaryState = {
