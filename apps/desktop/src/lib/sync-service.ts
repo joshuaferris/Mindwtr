@@ -25,6 +25,7 @@ import {
     CLOCK_SKEW_THRESHOLD_MS,
     appendSyncHistory,
     cloneAppData,
+    formatSyncErrorMessage,
     LocalSyncAbort,
     getInMemoryAppDataSnapshot,
     shouldRunAttachmentCleanup,
@@ -1363,7 +1364,7 @@ export class SyncService {
             }
             logSyncWarning('Sync failed', error);
             const now = new Date().toISOString();
-            const safeMessage = sanitizeLogMessage(String(error));
+            const safeMessage = formatSyncErrorMessage(error, backend);
             let logHint = '';
             try {
                 const logPath = await logSyncError(error, {

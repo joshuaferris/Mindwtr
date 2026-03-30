@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { getFileSyncDir, isSyncFilePath, normalizeSyncBackend } from './sync-service-utils';
+import {
+    formatSyncErrorMessage,
+    getFileSyncDir,
+    isLikelyOfflineSyncError,
+    isSyncFilePath,
+    normalizeSyncBackend,
+    sanitizeSyncErrorMessage,
+} from './sync-service-utils';
 
 describe('sync-service-utils', () => {
     it('normalizes sync backend values', () => {
@@ -22,5 +29,35 @@ describe('sync-service-utils', () => {
         expect(getFileSyncDir('/storage/folder/data.json')).toBe('/storage/folder');
         expect(getFileSyncDir('/storage/folder/mindwtr-sync.json')).toBe('/storage/folder');
         expect(getFileSyncDir('/storage/folder/')).toBe('/storage/folder');
+    });
+
+    it('redacts credentials from sync error messages', () => {
+        const sanitized = sanitizeSyncErrorMessage('Authorization: Bearer abc123 password=hunter2 sk-test-1234567890');
+
+        expect(sanitized).not.toContain('abc123');
+        expect(sanitized).not.toContain('hunter2');
+        expect(sanitized).not.toContain('sk-test-1234567890');
+        expect(sanitized).toContain('[redacted]');
+    });
+
+    it('formats readonly file sync errors with actionable guidance', () => {
+        const message = formatSyncErrorMessage(new Error("File '/tmp/data.json' is not writable"), 'file');
+
+        expect(message).toContain('Sync file is not writable');
+        expect(message).toContain('Re-select the sync folder');
+    });
+
+    it('formats webdav auth and rate limit errors', () => {
+        const unauthorized = formatSyncErrorMessage(Object.assign(new Error('HTTP 401'), { status: 401 }), 'webdav');
+        const rateLimited = formatSyncErrorMessage(Object.assign(new Error('HTTP 429'), { status: 429 }), 'webdav');
+
+        expect(unauthorized).toContain('WebDAV unauthorized (401)');
+        expect(rateLimited).toContain('WebDAV rate limited');
+    });
+
+    it('detects likely offline sync errors', () => {
+        expect(isLikelyOfflineSyncError('Sync paused: offline state detected')).toBe(true);
+        expect(isLikelyOfflineSyncError('TypeError: Network request failed')).toBe(true);
+        expect(isLikelyOfflineSyncError('WebDAV unauthorized (401)')).toBe(false);
     });
 });
