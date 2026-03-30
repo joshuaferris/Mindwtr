@@ -13,6 +13,7 @@ import {
     isValidTimestamp,
     normalizeAppData,
     normalizeProjectForSyncMerge,
+    repairMergedSyncReferences,
     normalizeRevisionMetadata,
     normalizeTaskForSyncMerge,
     validateMergedSyncData,
@@ -556,13 +557,13 @@ export function mergeAppDataWithStats(local: AppData, incoming: AppData): MergeR
     const areasResult = mergeAreas(localNormalized.areas, incomingNormalized.areas, nowIso);
 
     return {
-        data: {
+        data: repairMergedSyncReferences({
             tasks: tasksResult.merged,
             projects: projectsResult.merged,
             sections: sectionsResult.merged,
             areas: areasResult.merged,
             settings: mergeSettingsForSync(localNormalized.settings, incomingNormalized.settings),
-        },
+        }, nowIso),
         stats: {
             tasks: tasksResult.stats,
             projects: projectsResult.stats,

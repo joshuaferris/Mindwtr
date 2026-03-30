@@ -148,6 +148,73 @@ describe('Sync Logic', () => {
             expect(attachment?.cloudKey).toBe('attachments/att-double-encoded.txt');
         });
 
+        it('detaches live tasks and tombstones stale sections when their project is deleted', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-02-01T00:00:00.000Z'));
+            try {
+                const local = mockAppData([], [
+                    createMockProject('project-deleted', '2024-01-03T00:00:00.000Z', '2024-01-03T00:00:00.000Z'),
+                ]);
+                const incomingSection: Section = createMockSection(
+                    'section-stale',
+                    'project-deleted',
+                    '2024-01-02T00:00:00.000Z'
+                );
+                const incomingTask: Task = {
+                    ...createMockTask('task-stale', '2024-01-04T00:00:00.000Z'),
+                    projectId: 'project-deleted',
+                    sectionId: 'section-stale',
+                };
+
+                const merged = mergeAppData(local, mockAppData([incomingTask], [], [incomingSection]));
+                const repairedSection = merged.sections.find((section) => section.id === 'section-stale');
+
+                expect(repairedSection?.deletedAt).toBe('2026-02-01T00:00:00.000Z');
+                expect(repairedSection?.updatedAt).toBe('2026-02-01T00:00:00.000Z');
+                expect(merged.tasks[0].projectId).toBeUndefined();
+                expect(merged.tasks[0].sectionId).toBeUndefined();
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        it('clears deleted area references from merged projects and tasks', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-02-02T00:00:00.000Z'));
+            try {
+                const local: AppData = {
+                    tasks: [],
+                    projects: [],
+                    sections: [],
+                    areas: [
+                        createMockArea('area-deleted', '2024-01-03T00:00:00.000Z', '2024-01-03T00:00:00.000Z'),
+                    ],
+                    settings: {},
+                };
+                const incomingProject: Project = {
+                    ...createMockProject('project-1', '2024-01-04T00:00:00.000Z'),
+                    areaId: 'area-deleted',
+                };
+                const incomingTask: Task = {
+                    ...createMockTask('task-1', '2024-01-04T00:00:00.000Z'),
+                    areaId: 'area-deleted',
+                };
+
+                const merged = mergeAppData(local, {
+                    tasks: [incomingTask],
+                    projects: [incomingProject],
+                    sections: [],
+                    areas: [],
+                    settings: {},
+                });
+
+                expect(merged.projects[0].areaId).toBeUndefined();
+                expect(merged.tasks[0].areaId).toBeUndefined();
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
         it('marks attachment as available when local URI exists without localStatus', () => {
             const localAttachment: Attachment = {
                 id: 'att-available',

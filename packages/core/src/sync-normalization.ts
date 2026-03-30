@@ -104,6 +104,129 @@ export const normalizeProjectForSyncMerge = (project: Project): Project => {
     };
 };
 
+const hasDeletedAt = (value: { deletedAt?: string } | undefined): boolean => Boolean(value?.deletedAt);
+
+export const repairMergedSyncReferences = (data: AppData, nowIso: string): AppData => {
+    const liveAreaIds = new Set(
+        data.areas
+            .filter((area) => !hasDeletedAt(area))
+            .map((area) => area.id)
+    );
+    const deletedAreaIds = new Set(
+        data.areas
+            .filter((area) => hasDeletedAt(area))
+            .map((area) => area.id)
+    );
+
+    const repairedProjects = data.projects.map((project) => {
+        if (hasDeletedAt(project)) return project;
+        const areaId = normalizeOptionalString(project.areaId);
+        if (!areaId || liveAreaIds.has(areaId)) {
+            return areaId === project.areaId && project.areaTitle === normalizeOptionalString(project.areaTitle)
+                ? project
+                : {
+                    ...project,
+                    areaId,
+                    areaTitle: normalizeOptionalString(project.areaTitle),
+                };
+        }
+        return {
+            ...project,
+            areaId: undefined,
+            areaTitle: undefined,
+            updatedAt: nowIso,
+        };
+    });
+
+    const liveProjectIds = new Set(
+        repairedProjects
+            .filter((project) => !hasDeletedAt(project))
+            .map((project) => project.id)
+    );
+    const deletedProjectIds = new Set(
+        repairedProjects
+            .filter((project) => hasDeletedAt(project))
+            .map((project) => project.id)
+    );
+
+    const repairedSections = data.sections.map((section) => {
+        if (hasDeletedAt(section) || liveProjectIds.has(section.projectId) || !deletedProjectIds.has(section.projectId)) {
+            return section;
+        }
+        return {
+            ...section,
+            deletedAt: nowIso,
+            updatedAt: nowIso,
+        };
+    });
+
+    const liveSections = new Map(
+        repairedSections
+            .filter((section) => !hasDeletedAt(section) && liveProjectIds.has(section.projectId))
+            .map((section) => [section.id, section] as const)
+    );
+
+    const repairedTasks = data.tasks.map((task) => {
+        if (hasDeletedAt(task)) return task;
+        const originalProjectId = normalizeOptionalString(task.projectId);
+        const originalSectionId = normalizeOptionalString(task.sectionId);
+        const originalAreaId = normalizeOptionalString(task.areaId);
+        let nextProjectId = originalProjectId;
+        let nextSectionId = originalSectionId;
+        let nextAreaId = originalAreaId;
+        let changed = false;
+
+        if (nextProjectId && deletedProjectIds.has(nextProjectId)) {
+            nextProjectId = undefined;
+            nextSectionId = undefined;
+            changed = true;
+        }
+
+        if (nextSectionId) {
+            const section = liveSections.get(nextSectionId);
+            if (!section) {
+                nextSectionId = undefined;
+                changed = true;
+            } else if (!nextProjectId) {
+                nextProjectId = section.projectId;
+                nextAreaId = undefined;
+                changed = true;
+            } else if (section.projectId !== nextProjectId) {
+                nextSectionId = undefined;
+                changed = true;
+            }
+        }
+
+        if (nextAreaId && (nextProjectId || deletedAreaIds.has(nextAreaId))) {
+            nextAreaId = undefined;
+            changed = true;
+        }
+
+        if (!changed) return task;
+
+        return {
+            ...task,
+            projectId: nextProjectId,
+            sectionId: nextSectionId,
+            areaId: nextAreaId,
+            ...(originalProjectId && !nextProjectId
+                ? {
+                    order: undefined,
+                    orderNum: undefined,
+                }
+                : {}),
+            updatedAt: nowIso,
+        };
+    });
+
+    return {
+        ...data,
+        tasks: repairedTasks,
+        projects: repairedProjects,
+        sections: repairedSections,
+    };
+};
+
 const validateRevisionFields = (
     item: Record<string, unknown>,
     label: string,
@@ -201,6 +324,77 @@ export const validateMergedSyncData = (data: AppData): string[] => {
             validateRevisionFields(area, 'areas', index, errors);
         }
     }
+
+    const deletedAreaIds = new Set(
+        Array.isArray(data.areas)
+            ? data.areas.filter((area) => isObjectRecord(area) && isNonEmptyString(area.deletedAt)).map((area) => String(area.id))
+            : []
+    );
+    const deletedProjectIds = new Set(
+        Array.isArray(data.projects)
+            ? data.projects.filter((project) => isObjectRecord(project) && isNonEmptyString(project.deletedAt)).map((project) => String(project.id))
+            : []
+    );
+    const liveSections = new Map(
+        Array.isArray(data.sections)
+            ? data.sections
+                .filter((section) => isObjectRecord(section) && !isNonEmptyString(section.deletedAt))
+                .map((section) => [String(section.id), section] as const)
+            : []
+    );
+    const deletedSectionIds = new Set(
+        Array.isArray(data.sections)
+            ? data.sections
+                .filter((section) => isObjectRecord(section) && isNonEmptyString(section.deletedAt))
+                .map((section) => String(section.id))
+            : []
+    );
+
+    if (Array.isArray(data.projects)) {
+        data.projects.forEach((project, index) => {
+            if (!isObjectRecord(project) || isNonEmptyString(project.deletedAt)) return;
+            if (isNonEmptyString(project.areaId) && deletedAreaIds.has(project.areaId)) {
+                errors.push(`projects[${index}].areaId must not reference a deleted area`);
+            }
+        });
+    }
+
+    if (Array.isArray(data.sections)) {
+        data.sections.forEach((section, index) => {
+            if (!isObjectRecord(section) || isNonEmptyString(section.deletedAt)) return;
+            if (deletedProjectIds.has(String(section.projectId))) {
+                errors.push(`sections[${index}].projectId must not reference a deleted project`);
+            }
+        });
+    }
+
+    if (Array.isArray(data.tasks)) {
+        data.tasks.forEach((task, index) => {
+            if (!isObjectRecord(task) || isNonEmptyString(task.deletedAt)) return;
+            if (isNonEmptyString(task.projectId) && deletedProjectIds.has(task.projectId)) {
+                errors.push(`tasks[${index}].projectId must not reference a deleted project`);
+            }
+            if (isNonEmptyString(task.areaId) && deletedAreaIds.has(task.areaId)) {
+                errors.push(`tasks[${index}].areaId must not reference a deleted area`);
+            }
+            if (isNonEmptyString(task.sectionId)) {
+                if (deletedSectionIds.has(task.sectionId)) {
+                    errors.push(`tasks[${index}].sectionId must not reference a deleted section`);
+                    return;
+                }
+                const section = liveSections.get(task.sectionId);
+                if (!section) return;
+                if (!isNonEmptyString(task.projectId)) {
+                    errors.push(`tasks[${index}].projectId is required when sectionId is present`);
+                    return;
+                }
+                if (String(section.projectId) !== task.projectId) {
+                    errors.push(`tasks[${index}].sectionId must belong to the same projectId`);
+                }
+            }
+        });
+    }
+
     return errors;
 };
 
