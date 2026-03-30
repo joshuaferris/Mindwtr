@@ -100,6 +100,35 @@ describe('TaskStore', () => {
         expect(useTaskStore.getState().tasks).toHaveLength(0);
     });
 
+    it('rejects adding a task with a missing areaId', async () => {
+        const result = await useTaskStore.getState().addTask('Broken Area Task', {
+            areaId: 'missing-area',
+        });
+
+        expect(result).toEqual({ success: false, error: 'Area not found' });
+        expect(useTaskStore.getState().tasks).toHaveLength(0);
+    });
+
+    it('infers projectId from a valid section when adding a task', async () => {
+        const { addProject, addSection, addTask } = useTaskStore.getState();
+        const project = await addProject('Section Project', '#123456');
+        expect(project).not.toBeNull();
+        if (!project) return;
+        const section = await addSection(project.id, 'Phase 1');
+        expect(section).not.toBeNull();
+        if (!section) return;
+
+        const result = await addTask('Section Scoped Task', {
+            sectionId: section.id,
+            status: 'next',
+        });
+
+        expect(result.success).toBe(true);
+        const task = useTaskStore.getState()._allTasks.find((item) => item.id === result.id)!;
+        expect(task.projectId).toBe(project.id);
+        expect(task.sectionId).toBe(section.id);
+    });
+
     it('rejects updating a task to a missing projectId', async () => {
         const { addTask, updateTask } = useTaskStore.getState();
         await addTask('Task to Reassign');
@@ -109,6 +138,32 @@ describe('TaskStore', () => {
 
         expect(result).toEqual({ success: false, error: 'Project not found' });
         expect(useTaskStore.getState()._allTasks.find((task) => task.id === taskId)?.projectId).toBeUndefined();
+    });
+
+    it('rejects assigning a task to a section from another project', async () => {
+        const { addProject, addSection, addTask, updateTask } = useTaskStore.getState();
+        const projectA = await addProject('Project A', '#111111');
+        const projectB = await addProject('Project B', '#222222');
+        expect(projectA).not.toBeNull();
+        expect(projectB).not.toBeNull();
+        if (!projectA || !projectB) return;
+        const sectionA = await addSection(projectA.id, 'Section A');
+        expect(sectionA).not.toBeNull();
+        if (!sectionA) return;
+
+        const addResult = await addTask('Cross Project Task', { projectId: projectB.id, status: 'next' });
+        expect(addResult.success).toBe(true);
+        if (!addResult.id) return;
+
+        const result = await updateTask(addResult.id, {
+            projectId: projectB.id,
+            sectionId: sectionA.id,
+        });
+
+        expect(result).toEqual({ success: false, error: 'Section does not belong to project' });
+        const task = useTaskStore.getState()._allTasks.find((item) => item.id === addResult.id)!;
+        expect(task.projectId).toBe(projectB.id);
+        expect(task.sectionId).toBeUndefined();
     });
 
     it('should clear action fields when a task becomes reference', () => {
@@ -998,12 +1053,15 @@ describe('TaskStore', () => {
         });
 
         it('should normalize project changes in batch updates', async () => {
-            const { addProject, addSection, addTask, batchUpdateTasks } = useTaskStore.getState();
+            const { addProject, addSection, addTask, batchUpdateTasks, addArea } = useTaskStore.getState();
             const projectA = await addProject('Project A', '#111111');
             const projectB = await addProject('Project B', '#222222');
             expect(projectA).not.toBeNull();
             expect(projectB).not.toBeNull();
             if (!projectA || !projectB) return;
+            const area = await addArea('Area 1');
+            expect(area).not.toBeNull();
+            if (!area) return;
 
             const sectionA = await addSection(projectA.id, 'Section A');
             if (!sectionA) return;
@@ -1014,7 +1072,7 @@ describe('TaskStore', () => {
                 status: 'next',
             });
             await addTask('Area scoped', {
-                areaId: 'area-1',
+                areaId: area.id,
                 status: 'next',
             });
 
@@ -1049,6 +1107,20 @@ describe('TaskStore', () => {
             ]);
 
             expect(result).toEqual({ success: false, error: 'Tasks not found: missing-task' });
+            expect(useTaskStore.getState()._allTasks.find((item) => item.id === task.id)?.title).toBe('Existing Task');
+        });
+
+        it('fails batch updates when task ids are duplicated', async () => {
+            const { addTask, batchUpdateTasks } = useTaskStore.getState();
+            await addTask('Existing Task', { status: 'next' });
+            const task = useTaskStore.getState()._allTasks.find((item) => item.title === 'Existing Task')!;
+
+            const result = await batchUpdateTasks([
+                { id: task.id, updates: { title: 'First change' } },
+                { id: task.id, updates: { title: 'Second change' } },
+            ]);
+
+            expect(result).toEqual({ success: false, error: `Duplicate task ids in batch update: ${task.id}` });
             expect(useTaskStore.getState()._allTasks.find((item) => item.id === task.id)?.title).toBe('Existing Task');
         });
 

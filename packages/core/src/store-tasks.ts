@@ -51,9 +51,11 @@ type TaskActionContext = {
 
 const actionOk = (extra?: Omit<StoreActionResult, 'success'>): StoreActionResult => ({ success: true, ...extra });
 const actionFail = (error: string): StoreActionResult => ({ success: false, error });
-const normalizeProjectIdInput = (value: unknown): string | undefined => (
+const hasOwnField = (value: object, field: PropertyKey): boolean => Object.prototype.hasOwnProperty.call(value, field);
+const normalizeOptionalReferenceId = (value: unknown): string | undefined => (
     typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
 );
+const normalizeProjectIdInput = normalizeOptionalReferenceId;
 
 const validateExistingProjectId = (
     projectId: unknown,
@@ -68,6 +70,140 @@ const validateExistingProjectId = (
         return { ok: true, projectId: normalizedProjectId };
     }
     return { ok: false, error: 'Project not found' };
+};
+
+const validateExistingAreaId = (
+    areaId: unknown,
+    allAreas: AppData['areas']
+): { ok: true; areaId?: string } | { ok: false; error: string } => {
+    const normalizedAreaId = normalizeOptionalReferenceId(areaId);
+    if (!normalizedAreaId) {
+        return { ok: true, areaId: undefined };
+    }
+    const exists = allAreas.some((area) => area.id === normalizedAreaId && !area.deletedAt);
+    if (exists) {
+        return { ok: true, areaId: normalizedAreaId };
+    }
+    return { ok: false, error: 'Area not found' };
+};
+
+const resolveTaskContainerAssignment = ({
+    projectId,
+    sectionId,
+    areaId,
+    allProjects,
+    allSections,
+    allAreas,
+}: {
+    projectId: unknown;
+    sectionId: unknown;
+    areaId: unknown;
+    allProjects: AppData['projects'];
+    allSections: AppData['sections'];
+    allAreas: AppData['areas'];
+}):
+    | { ok: true; projectId?: string; sectionId?: string; areaId?: string }
+    | { ok: false; error: string } => {
+    const projectValidation = validateExistingProjectId(projectId, allProjects);
+    if (!projectValidation.ok) return projectValidation;
+
+    let resolvedProjectId = projectValidation.projectId;
+    const resolvedSectionId = normalizeOptionalReferenceId(sectionId);
+    if (resolvedSectionId) {
+        const section = allSections.find((candidate) => candidate.id === resolvedSectionId && !candidate.deletedAt);
+        if (!section) {
+            return { ok: false, error: 'Section not found' };
+        }
+        const liveProjectExists = allProjects.some((candidate) => candidate.id === section.projectId && !candidate.deletedAt);
+        if (!liveProjectExists) {
+            return { ok: false, error: 'Section not found' };
+        }
+        if (resolvedProjectId && section.projectId !== resolvedProjectId) {
+            return { ok: false, error: 'Section does not belong to project' };
+        }
+        resolvedProjectId = section.projectId;
+    }
+
+    if (resolvedProjectId) {
+        return {
+            ok: true,
+            projectId: resolvedProjectId,
+            sectionId: resolvedSectionId,
+            areaId: undefined,
+        };
+    }
+
+    const areaValidation = validateExistingAreaId(areaId, allAreas);
+    if (!areaValidation.ok) return areaValidation;
+
+    return {
+        ok: true,
+        projectId: undefined,
+        sectionId: undefined,
+        areaId: areaValidation.areaId,
+    };
+};
+
+const prepareTaskUpdatesForStore = ({
+    task,
+    updates,
+    allTasks,
+    allProjects,
+    allSections,
+    allAreas,
+    lastDataChangeAt,
+}: {
+    task: Task;
+    updates: Partial<Task>;
+    allTasks: Task[];
+    allProjects: AppData['projects'];
+    allSections: AppData['sections'];
+    allAreas: AppData['areas'];
+    lastDataChangeAt: number;
+}): { ok: true; updates: Partial<Task> } | { ok: false; error: string } => {
+    const resolveEffectiveContainer = (candidateUpdates: Partial<Task>) => resolveTaskContainerAssignment({
+        projectId: hasOwnField(candidateUpdates, 'projectId') ? candidateUpdates.projectId : task.projectId,
+        sectionId: hasOwnField(candidateUpdates, 'sectionId') ? candidateUpdates.sectionId : task.sectionId,
+        areaId: hasOwnField(candidateUpdates, 'areaId') ? candidateUpdates.areaId : task.areaId,
+        allProjects,
+        allSections,
+        allAreas,
+    });
+
+    let adjustedUpdates = normalizeTaskUpdateForStore({
+        task,
+        updates,
+        allTasks,
+        lastDataChangeAt,
+    });
+
+    const firstResolution = resolveEffectiveContainer(adjustedUpdates);
+    if (!firstResolution.ok) return firstResolution;
+
+    adjustedUpdates = normalizeTaskUpdateForStore({
+        task,
+        updates: {
+            ...adjustedUpdates,
+            projectId: firstResolution.projectId,
+            sectionId: firstResolution.sectionId,
+            areaId: firstResolution.areaId,
+        },
+        allTasks,
+        lastDataChangeAt,
+    });
+
+    const finalResolution = resolveEffectiveContainer(adjustedUpdates);
+    if (!finalResolution.ok) return finalResolution;
+
+    return {
+        ok: true,
+        updates: {
+            ...adjustedUpdates,
+            projectId: finalResolution.projectId,
+            sectionId: finalResolution.sectionId,
+            areaId: finalResolution.areaId,
+        },
+    };
 };
 
 const normalizeTaskUpdateForStore = ({
@@ -160,17 +296,25 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
             set({ error: message });
             return actionFail(message);
         }
-        const projectValidation = validateExistingProjectId(initialProps?.projectId, get()._allProjects);
-        if (!projectValidation.ok) {
-            set({ error: projectValidation.error });
-            return actionFail(projectValidation.error);
+        const currentState = get();
+        const containerResolution = resolveTaskContainerAssignment({
+            projectId: initialProps?.projectId,
+            sectionId: initialProps?.sectionId,
+            areaId: initialProps?.areaId,
+            allProjects: currentState._allProjects,
+            allSections: currentState._allSections,
+            allAreas: currentState._allAreas,
+        });
+        if (!containerResolution.ok) {
+            set({ error: containerResolution.error });
+            return actionFail(containerResolution.error);
         }
         const resolvedStatus = (initialProps?.status ?? 'inbox') as TaskStatus;
         const hasTaskOrder = Object.prototype.hasOwnProperty.call(initialProps ?? {}, 'order')
             || Object.prototype.hasOwnProperty.call(initialProps ?? {}, 'orderNum');
-        const resolvedProjectId = projectValidation.projectId;
-        const resolvedSectionId = resolvedProjectId ? initialProps?.sectionId : undefined;
-        const resolvedAreaId = resolvedProjectId ? undefined : initialProps?.areaId;
+        const resolvedProjectId = containerResolution.projectId;
+        const resolvedSectionId = containerResolution.sectionId;
+        const resolvedAreaId = containerResolution.areaId;
         const referenceClears = resolvedStatus === 'reference'
             ? getReferenceTaskFieldClears()
             : {};
@@ -235,24 +379,31 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
     updateTask: async (id: string, updates: Partial<Task>) => {
         const changeAt = Date.now();
         const now = new Date().toISOString();
-        let normalizedUpdates = updates;
-        if (Object.prototype.hasOwnProperty.call(updates, 'projectId')) {
-            const projectValidation = validateExistingProjectId(updates.projectId, get()._allProjects);
-            if (!projectValidation.ok) {
-                set({ error: projectValidation.error });
-                return actionFail(projectValidation.error);
-            }
-            normalizedUpdates = {
-                ...updates,
-                projectId: projectValidation.projectId,
-            };
+        const currentState = get();
+        const existingTask = currentState._allTasks.find((task) => task.id === id);
+        if (!existingTask) {
+            const message = 'Task not found';
+            console.warn(`[mindwtr] updateTask skipped: ${id} was not found`);
+            set({ error: message });
+            return actionFail(message);
+        }
+        const preparedUpdates = prepareTaskUpdatesForStore({
+            task: existingTask,
+            updates,
+            allTasks: currentState._allTasks,
+            allProjects: currentState._allProjects,
+            allSections: currentState._allSections,
+            allAreas: currentState._allAreas,
+            lastDataChangeAt: currentState.lastDataChangeAt,
+        });
+        if (!preparedUpdates.ok) {
+            set({ error: preparedUpdates.error });
+            return actionFail(preparedUpdates.error);
         }
         let snapshot: AppData | null = null;
-        let missingTask = false;
         set((state) => {
             const oldTask = state._allTasks.find((t) => t.id === id);
             if (!oldTask) {
-                missingTask = true;
                 return state;
             }
             const deviceState = ensureDeviceId(state.settings);
@@ -260,16 +411,10 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
                 rev: normalizeRevision(oldTask.rev) + 1,
                 revBy: deviceState.deviceId,
             };
-            const adjustedUpdates = normalizeTaskUpdateForStore({
-                task: oldTask,
-                updates: normalizedUpdates,
-                allTasks: state._allTasks,
-                lastDataChangeAt: state.lastDataChangeAt,
-            });
 
             const { updatedTask, nextRecurringTask } = applyTaskUpdates(
                 oldTask,
-                { ...adjustedUpdates, ...nextRevision },
+                { ...preparedUpdates.updates, ...nextRevision },
                 now
             );
 
@@ -295,13 +440,6 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
                 ...(deviceState.updated ? { settings: deviceState.settings } : {}),
             };
         });
-
-        if (missingTask) {
-            const message = 'Task not found';
-            console.warn(`[mindwtr] updateTask skipped: ${id} was not found`);
-            set({ error: message });
-            return actionFail(message);
-        }
 
         if (snapshot) {
             debouncedSave(snapshot, (msg) => set({ error: msg }));
@@ -626,6 +764,16 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
     batchUpdateTasks: async (updatesList: Array<{ id: string; updates: Partial<Task> }>) => {
         if (updatesList.length === 0) return actionOk();
         const state = get();
+        const duplicateIds = Array.from(new Set(
+            updatesList
+                .map((update) => update.id)
+                .filter((id, index, ids) => ids.indexOf(id) !== index)
+        ));
+        if (duplicateIds.length > 0) {
+            const message = `Duplicate task ids in batch update: ${duplicateIds.join(', ')}`;
+            set({ error: message });
+            return actionFail(message);
+        }
         const existingTaskIds = new Set(state._allTasks.map((task) => task.id));
         const missingIds = updatesList
             .map((update) => update.id)
@@ -635,17 +783,28 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
             set({ error: message });
             return actionFail(message);
         }
-        for (const { updates } of updatesList) {
-            if (!Object.prototype.hasOwnProperty.call(updates, 'projectId')) continue;
-            const projectValidation = validateExistingProjectId(updates.projectId, state._allProjects);
-            if (!projectValidation.ok) {
-                set({ error: projectValidation.error });
-                return actionFail(projectValidation.error);
+        const tasksById = new Map(state._allTasks.map((task) => [task.id, task] as const));
+        const preparedUpdatesById = new Map<string, Partial<Task>>();
+        for (const { id, updates } of updatesList) {
+            const task = tasksById.get(id);
+            if (!task) continue;
+            const preparedUpdates = prepareTaskUpdatesForStore({
+                task,
+                updates,
+                allTasks: state._allTasks,
+                allProjects: state._allProjects,
+                allSections: state._allSections,
+                allAreas: state._allAreas,
+                lastDataChangeAt: state.lastDataChangeAt,
+            });
+            if (!preparedUpdates.ok) {
+                set({ error: preparedUpdates.error });
+                return actionFail(preparedUpdates.error);
             }
+            preparedUpdatesById.set(id, preparedUpdates.updates);
         }
         const changeAt = Date.now();
         const now = new Date().toISOString();
-        const updatesById = new Map(updatesList.map((u) => [u.id, u.updates]));
         let snapshot: AppData | null = null;
 
         set((state) => {
@@ -655,11 +814,11 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
             const newAllTasksBase = [...state._allTasks];
             for (let index = 0; index < state._allTasks.length; index += 1) {
                 const task = newAllTasksBase[index];
-                const updates = updatesById.get(task.id);
-                if (!updates) continue;
+                const preparedUpdates = preparedUpdatesById.get(task.id);
+                if (!preparedUpdates) continue;
                 const adjustedUpdates = normalizeTaskUpdateForStore({
                     task,
-                    updates,
+                    updates: preparedUpdates,
                     allTasks: newAllTasksBase,
                     lastDataChangeAt: state.lastDataChangeAt,
                 });
