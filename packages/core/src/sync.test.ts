@@ -148,6 +148,82 @@ describe('Sync Logic', () => {
             expect(attachment?.cloudKey).toBe('attachments/att-double-encoded.txt');
         });
 
+        it('blocks deeply nested encoded traversal segments in attachment uris', () => {
+            const localAttachment: Attachment = {
+                id: 'att-deep-encoded',
+                kind: 'file',
+                title: 'doc.txt',
+                uri: '/local/doc.txt',
+                localStatus: 'available',
+                createdAt: '2023-01-01T00:00:00.000Z',
+                updatedAt: '2023-01-02T00:00:00.000Z',
+            };
+            let nestedTraversal = '../secret.txt';
+            for (let index = 0; index < 10; index += 1) {
+                nestedTraversal = encodeURIComponent(nestedTraversal);
+            }
+            const incomingAttachment: Attachment = {
+                id: 'att-deep-encoded',
+                kind: 'file',
+                title: 'doc.txt',
+                uri: `/incoming/${nestedTraversal}`,
+                cloudKey: 'attachments/att-deep-encoded.txt',
+                createdAt: '2023-01-01T00:00:00.000Z',
+                updatedAt: '2023-01-03T00:00:00.000Z',
+            };
+
+            const localTask: Task = {
+                ...createMockTask('1', '2023-01-02'),
+                attachments: [localAttachment],
+            };
+            const incomingTask: Task = {
+                ...createMockTask('1', '2023-01-03'),
+                attachments: [incomingAttachment],
+            };
+
+            const merged = mergeAppData(mockAppData([localTask]), mockAppData([incomingTask]));
+            const attachment = merged.tasks[0].attachments?.find((item) => item.id === 'att-deep-encoded');
+
+            expect(attachment?.uri).toBe('/local/doc.txt');
+            expect(attachment?.cloudKey).toBe('attachments/att-deep-encoded.txt');
+        });
+
+        it('blocks traversal segments in file uris', () => {
+            const localAttachment: Attachment = {
+                id: 'att-file-uri',
+                kind: 'file',
+                title: 'doc.txt',
+                uri: '/local/doc.txt',
+                localStatus: 'available',
+                createdAt: '2023-01-01T00:00:00.000Z',
+                updatedAt: '2023-01-02T00:00:00.000Z',
+            };
+            const incomingAttachment: Attachment = {
+                id: 'att-file-uri',
+                kind: 'file',
+                title: 'doc.txt',
+                uri: 'file:///../secret.txt',
+                cloudKey: 'attachments/att-file-uri.txt',
+                createdAt: '2023-01-01T00:00:00.000Z',
+                updatedAt: '2023-01-03T00:00:00.000Z',
+            };
+
+            const localTask: Task = {
+                ...createMockTask('1', '2023-01-02'),
+                attachments: [localAttachment],
+            };
+            const incomingTask: Task = {
+                ...createMockTask('1', '2023-01-03'),
+                attachments: [incomingAttachment],
+            };
+
+            const merged = mergeAppData(mockAppData([localTask]), mockAppData([incomingTask]));
+            const attachment = merged.tasks[0].attachments?.find((item) => item.id === 'att-file-uri');
+
+            expect(attachment?.uri).toBe('/local/doc.txt');
+            expect(attachment?.cloudKey).toBe('attachments/att-file-uri.txt');
+        });
+
         it('detaches live tasks and tombstones stale sections when their project is deleted', () => {
             vi.useFakeTimers();
             vi.setSystemTime(new Date('2026-02-01T00:00:00.000Z'));

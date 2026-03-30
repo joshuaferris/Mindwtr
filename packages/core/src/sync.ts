@@ -88,6 +88,8 @@ function createEmptyEntityStats(localTotal: number, incomingTotal: number): Enti
 const CONFLICT_SAMPLE_LIMIT = 5;
 const CONFLICT_DIFF_KEY_LIMIT = 8;
 const DELETE_VS_LIVE_AMBIGUOUS_WINDOW_MS = 5 * 1000;
+const ATTACHMENT_URI_DECODE_LIMIT = 32;
+const ATTACHMENT_TRAVERSAL_SEGMENT_PATTERN = /(^|[\\/])\.\.([\\/]|$)/;
 
 type ComparisonNormalizer<T> = (item: T) => unknown;
 
@@ -129,18 +131,45 @@ const getMergeTimestampComparison = (
 
 const containsAttachmentTraversalSegment = (value: string): boolean => {
     const candidates = new Set<string>([value]);
-    let current = value;
-    for (let depth = 0; depth < 8; depth += 1) {
+    const queue: string[] = [value];
+
+    const enqueueCandidate = (candidate: string) => {
+        if (!candidate || candidates.has(candidate)) return;
+        candidates.add(candidate);
+        queue.push(candidate);
+    };
+
+    for (let index = 0; index < queue.length && index < ATTACHMENT_URI_DECODE_LIMIT; index += 1) {
+        const current = queue[index];
         try {
             const decoded = decodeURIComponent(current);
-            if (decoded === current) break;
-            candidates.add(decoded);
-            current = decoded;
+            if (decoded !== current) {
+                enqueueCandidate(decoded);
+            }
         } catch {
-            break;
+            // Ignore malformed URI segments and keep evaluating other candidates.
+        }
+
+        const trimmed = current.trim();
+        if (trimmed.startsWith('//')) {
+            try {
+                enqueueCandidate(new URL(`file:${trimmed}`).pathname);
+            } catch {
+                // Ignore URL parse failures and keep evaluating the raw candidate.
+            }
+            continue;
+        }
+
+        if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(trimmed)) {
+            try {
+                enqueueCandidate(new URL(trimmed).pathname);
+            } catch {
+                // Ignore URL parse failures and keep evaluating the raw candidate.
+            }
         }
     }
-    return Array.from(candidates).some((candidate) => /(^|[\\/])\.\.([\\/]|$)/.test(candidate));
+
+    return Array.from(candidates).some((candidate) => ATTACHMENT_TRAVERSAL_SEGMENT_PATTERN.test(candidate));
 };
 
 const sanitizeMergedAttachmentUri = (value: unknown): string | undefined => {
