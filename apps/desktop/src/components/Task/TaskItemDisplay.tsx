@@ -443,74 +443,6 @@ export function TaskItemDisplay({
                             {task.title}
                         </div>
                     </button>
-                    {task.description && (
-                        <div
-                            className={cn(
-                                "font-normal text-muted-foreground mt-1 w-full break-words",
-                                dense ? "text-xs" : "text-sm",
-                                isRtl && "text-right"
-                            )}
-                            dir={resolvedDirection}
-                        >
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                disallowedElements={['img']}
-                                components={{
-                                    a: ({ className, ...props }: any) => (
-                                        <a
-                                            className={cn("text-primary underline hover:text-primary/80", className)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            {...props}
-                                        />
-                                    ),
-                                    ul: ({ className, ...props }: any) => (
-                                        <ul className={cn("list-disc pl-4 py-1 space-y-0.5", className)} {...props} />
-                                    ),
-                                    ol: ({ className, ...props }: any) => (
-                                        <ol className={cn("list-decimal pl-4 py-1 space-y-0.5", className)} {...props} />
-                                    ),
-                                    li: ({ className, ...props }: any) => (
-                                        <li className={cn("pl-1", className)} {...props} />
-                                    ),
-                                    p: ({ className, children, ...props }: any) => (
-                                        <p className={cn("mb-1 last:mb-0 leading-relaxed", className)} {...props}>
-                                            {children}
-                                        </p>
-                                    ),
-                                    code: ({ className, ...props }: any) => (
-                                        <code className={cn("bg-muted px-1 py-0.5 rounded text-[0.9em] font-mono", className)} {...props} />
-                                    ),
-                                    pre: ({ className, ...props }: any) => (
-                                        <pre className={cn("bg-muted p-2 rounded-md overflow-x-auto my-1", className)} {...props} />
-                                    ),
-                                    blockquote: ({ className, ...props }: any) => (
-                                        <blockquote className={cn("border-l-2 border-primary/50 pl-3 italic my-1 text-muted-foreground/80", className)} {...props} />
-                                    ),
-                                    table: ({ className, ...props }: any) => (
-                                        <div className="overflow-x-auto my-2">
-                                            <table className={cn("min-w-full divide-y divide-border", className)} {...props} />
-                                        </div>
-                                    ),
-                                    th: ({ className, ...props }: any) => (
-                                        <th className={cn("px-2 py-1 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/50", className)} {...props} />
-                                    ),
-                                    td: ({ className, ...props }: any) => (
-                                        <td className={cn("px-2 py-1 text-sm border-b border-border/50", className)} {...props} />
-                                    ),
-                                    // Handle task lists (GFM)
-                                    input: ({ type, ...props }: any) => {
-                                        if (type === 'checkbox') {
-                                            return <input type="checkbox" className="mr-2 accent-primary" {...props} />;
-                                        }
-                                        return <input type={type} {...props} />;
-                                    }
-                                }}
-                            >
-                                {task.description}
-                            </ReactMarkdown>
-                        </div>
-                    )}
                     {showCompactMeta && hasMetadata && renderMetadataRow(cn(
                         "gap-2 text-muted-foreground",
                         dense ? "mt-0.5" : "mt-1",
@@ -519,6 +451,74 @@ export function TaskItemDisplay({
 
                     {isViewOpen && (
                         <div onClick={(e) => e.stopPropagation()}>
+                            {task.description && (
+                                <div
+                                    className={cn(
+                                        "font-normal text-muted-foreground mt-1 w-full break-words",
+                                        dense ? "text-xs" : "text-sm",
+                                        isRtl && "text-right"
+                                    )}
+                                    dir={resolvedDirection}
+                                >
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        disallowedElements={['img']}
+                                        components={{
+                                            a: ({ className, ...props }: any) => (
+                                                <a
+                                                    className={cn("text-primary underline hover:text-primary/80", className)}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    {...props}
+                                                />
+                                            ),
+                                            ul: ({ className, ...props }: any) => (
+                                                <ul className={cn("list-disc pl-4 py-1 space-y-0.5", className)} {...props} />
+                                            ),
+                                            ol: ({ className, ...props }: any) => (
+                                                <ol className={cn("list-decimal pl-4 py-1 space-y-0.5", className)} {...props} />
+                                            ),
+                                            li: ({ className, ...props }: any) => (
+                                                <li className={cn("pl-1", className)} {...props} />
+                                            ),
+                                            p: ({ className, children, ...props }: any) => (
+                                                <p className={cn("mb-1 last:mb-0 leading-relaxed", className)} {...props}>
+                                                    {children}
+                                                </p>
+                                            ),
+                                            code: ({ className, ...props }: any) => (
+                                                <code className={cn("bg-muted px-1 py-0.5 rounded text-[0.9em] font-mono", className)} {...props} />
+                                            ),
+                                            pre: ({ className, ...props }: any) => (
+                                                <pre className={cn("bg-muted p-2 rounded-md overflow-x-auto my-1", className)} {...props} />
+                                            ),
+                                            blockquote: ({ className, ...props }: any) => (
+                                                <blockquote className={cn("border-l-2 border-primary/50 pl-3 italic my-1 text-muted-foreground/80", className)} {...props} />
+                                            ),
+                                            table: ({ className, ...props }: any) => (
+                                                <div className="overflow-x-auto my-2">
+                                                    <table className={cn("min-w-full divide-y divide-border", className)} {...props} />
+                                                </div>
+                                            ),
+                                            th: ({ className, ...props }: any) => (
+                                                <th className={cn("px-2 py-1 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/50", className)} {...props} />
+                                            ),
+                                            td: ({ className, ...props }: any) => (
+                                                <td className={cn("px-2 py-1 text-sm border-b border-border/50", className)} {...props} />
+                                            ),
+                                            // Handle task lists (GFM)
+                                            input: ({ type, ...props }: any) => {
+                                                if (type === 'checkbox') {
+                                                    return <input type="checkbox" className="mr-2 accent-primary" {...props} />;
+                                                }
+                                                return <input type={type} {...props} />;
+                                            }
+                                        }}
+                                    >
+                                        {task.description}
+                                    </ReactMarkdown>
+                                </div>
+                            )}
                             {visibleAttachments.length > 0 && (
                                 <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground">
                                     <Paperclip className="w-3 h-3" aria-hidden="true" />

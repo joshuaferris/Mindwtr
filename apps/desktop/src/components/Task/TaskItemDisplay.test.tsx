@@ -44,4 +44,67 @@ describe('TaskItemDisplay', () => {
 
         expect(getByText('2周前')).toBeInTheDocument();
     });
+
+    it('only renders the task description when the row is expanded', () => {
+        const taskWithDescription: Task = {
+            ...baseTask,
+            description: 'Expanded task note',
+        };
+
+        const { queryByText, rerender } = render(
+            <TaskItemDisplay
+                task={taskWithDescription}
+                language="en"
+                selectionMode={false}
+                isViewOpen={false}
+                actions={{
+                    onToggleView: vi.fn(),
+                    onEdit: vi.fn(),
+                    onDelete: vi.fn(),
+                    onDuplicate: vi.fn(),
+                    onStatusChange: vi.fn(),
+                    openAttachment: vi.fn(),
+                }}
+                visibleAttachments={[]}
+                recurrenceRule=""
+                recurrenceStrategy="strict"
+                prioritiesEnabled={false}
+                timeEstimatesEnabled={false}
+                isStagnant={false}
+                showQuickDone={false}
+                readOnly={false}
+                t={(key: string) => key}
+            />
+        );
+
+        expect(queryByText('Expanded task note')).not.toBeInTheDocument();
+
+        rerender(
+            <TaskItemDisplay
+                task={taskWithDescription}
+                language="en"
+                selectionMode={false}
+                isViewOpen
+                actions={{
+                    onToggleView: vi.fn(),
+                    onEdit: vi.fn(),
+                    onDelete: vi.fn(),
+                    onDuplicate: vi.fn(),
+                    onStatusChange: vi.fn(),
+                    openAttachment: vi.fn(),
+                }}
+                visibleAttachments={[]}
+                recurrenceRule=""
+                recurrenceStrategy="strict"
+                prioritiesEnabled={false}
+                timeEstimatesEnabled={false}
+                isStagnant={false}
+                showQuickDone={false}
+                readOnly={false}
+                t={(key: string) => key}
+            />
+        );
+
+        expect(queryByText('Expanded task note')).toBeInTheDocument();
+    });
 });
