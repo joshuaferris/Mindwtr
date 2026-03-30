@@ -15,6 +15,8 @@ Mindwtr is a Bun monorepo with:
 - Mobile app (`apps/mobile`): Expo + React Native
 - Shared core package (`packages/core`): state models, storage adapters, and shared logic
 
+If you contribute with coding agents or automation, read [AGENTS.md](../AGENTS.md) first for repo-specific workflow and safety notes.
+
 ## Before you begin
 
 ### 1) Follow our community standards

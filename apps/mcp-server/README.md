@@ -274,12 +274,20 @@ Any MCP-compatible client can work as long as it can launch a **stdio** server w
 | ------------------------- | -------------------------- |
 | `mindwtr.list_tasks`      | `mindwtr_list_tasks`       |
 | `mindwtr.list_projects`   | `mindwtr_list_projects`    |
+| `mindwtr.get_project`     | `mindwtr_get_project`      |
 | `mindwtr.get_task`        | `mindwtr_get_task`         |
+| `mindwtr.list_areas`      | `mindwtr_list_areas`       |
 | `mindwtr.add_task`        | `mindwtr_add_task`         |
 | `mindwtr.update_task`     | `mindwtr_update_task`      |
 | `mindwtr.complete_task`   | `mindwtr_complete_task`    |
 | `mindwtr.delete_task`     | `mindwtr_delete_task`      |
 | `mindwtr.restore_task`    | `mindwtr_restore_task`     |
+| `mindwtr.add_project`     | `mindwtr_add_project`      |
+| `mindwtr.update_project`  | `mindwtr_update_project`   |
+| `mindwtr.delete_project`  | `mindwtr_delete_project`   |
+| `mindwtr.add_area`        | `mindwtr_add_area`         |
+| `mindwtr.update_area`     | `mindwtr_update_area`      |
+| `mindwtr.delete_area`     | `mindwtr_delete_area`      |
 
 **Upgrade action:** find and replace `mindwtr.` with `mindwtr_` in any MCP client configs, system prompts, scripts, or automations that reference these tool names. No other changes are required.
 
@@ -288,8 +296,12 @@ Any MCP-compatible client can work as long as it can launch a **stdio** server w
 ## Tools
 
 - `mindwtr_list_tasks`
-  - Input: `{ status?: "inbox"|"next"|"waiting"|"someday"|"done"|"archived"|"all", projectId?, limit?, offset?, search?, includeDeleted? }`
+  - Input: `{ status?, projectId?, includeDeleted?, limit?, offset?, search?, dueDateFrom?, dueDateTo?, sortBy?, sortOrder? }`
 - `mindwtr_list_projects`
+  - Input: `{}`
+- `mindwtr_get_project`
+  - Input: `{ id, includeDeleted? }`
+- `mindwtr_list_areas`
   - Input: `{}`
 - `mindwtr_get_task`
   - Input: `{ id, includeDeleted? }`
@@ -303,8 +315,20 @@ Any MCP-compatible client can work as long as it can launch a **stdio** server w
   - Input: `{ id }`
 - `mindwtr_restore_task` **(requires `--write`)**
   - Input: `{ id }`
+- `mindwtr_add_project` **(requires `--write`)**
+  - Input: `{ title, color?, status?, areaId?, isSequential?, isFocused?, reviewAt?, supportNotes? }`
+- `mindwtr_update_project` **(requires `--write`)**
+  - Input: `{ id, title?, color?, status?, areaId?, isSequential?, isFocused?, reviewAt?, supportNotes? }`
+- `mindwtr_delete_project` **(requires `--write`)**
+  - Input: `{ id }`
+- `mindwtr_add_area` **(requires `--write`)**
+  - Input: `{ name, color?, icon? }`
+- `mindwtr_update_area` **(requires `--write`)**
+  - Input: `{ id, name?, color?, icon? }`
+- `mindwtr_delete_area` **(requires `--write`)**
+  - Input: `{ id }`
 
-All tools return JSON text payloads with the resulting task(s).
+All tools return JSON text payloads with the resulting task, project, area, or collection payload.
 
 ---
 
@@ -333,6 +357,14 @@ Then test:
 - `mindwtr_get_task` (use returned task id)
 - `mindwtr_restore_task` (after delete, restore the task)
 - `mindwtr_list_projects`
+- `mindwtr_get_project` (use returned project id)
+- `mindwtr_list_areas`
+- `mindwtr_add_project`
+- `mindwtr_update_project`
+- `mindwtr_delete_project`
+- `mindwtr_add_area`
+- `mindwtr_update_area`
+- `mindwtr_delete_area`
 - `mindwtr_list_tasks` with `dueDateFrom`, `dueDateTo`, `sortBy`, `sortOrder`
 
 If the list returns tasks and add/complete works, the server is healthy.

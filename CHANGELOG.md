@@ -4,6 +4,18 @@ All notable changes to Mindwtr will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Project UX**: Unified the project details panel and collapsed project metadata by default.
+- **Refactors**: Split sync, settings, project, task edit, attachment-sync, and cloud server modules to keep large files manageable.
+- **Docs**: Refreshed MCP server documentation, contribution guidance, and context hierarchy notes.
+
+### Fixed
+- **Sync safety**: Ignored revision-only conflict noise, made pending remote-write cleanup explicit, repaired deleted parent references during merge, and hardened attachment URI sanitization.
+- **Store integrity**: Validated task project/section/area references and surfaced save queue overflow details with dropped-version telemetry.
+- **Capture & timers**: Allowed URL note values in quick add, stopped desktop audio capture via audio-context suspension, and restored mobile pomodoro session persistence.
+- **Desktop polish**: Improved project task drag targeting, autosizing task descriptions, and agenda/focus virtualization behavior.
+- **Mobile reliability**: Kept auto-sync active after layout updates and repaired post-split regressions.
+
 ## [0.7.7] - 2026-03-26
 
 ### Fixed

@@ -4,6 +4,8 @@ Mindwtr provides an optional **MCP (Model Context Protocol)** server. This allow
 
 This is a **local stdio** server (no HTTP). MCP clients launch it as a subprocess and talk over JSON‑RPC on stdin/stdout.
 
+> Canonical reference: [apps/mcp-server/README.md](https://github.com/dongdongbh/Mindwtr/blob/main/apps/mcp-server/README.md). Keep this page aligned with that file when MCP tools or schemas change.
+
 ---
 
 ## Requirements
@@ -136,12 +138,20 @@ node apps/mcp-server/dist/index.js --db "/path/to/mindwtr.db"
 | ------------------------- | -------------------------- |
 | `mindwtr.list_tasks`      | `mindwtr_list_tasks`       |
 | `mindwtr.list_projects`   | `mindwtr_list_projects`    |
+| `mindwtr.get_project`     | `mindwtr_get_project`      |
 | `mindwtr.get_task`        | `mindwtr_get_task`         |
+| `mindwtr.list_areas`      | `mindwtr_list_areas`       |
 | `mindwtr.add_task`        | `mindwtr_add_task`         |
 | `mindwtr.update_task`     | `mindwtr_update_task`      |
 | `mindwtr.complete_task`   | `mindwtr_complete_task`    |
 | `mindwtr.delete_task`     | `mindwtr_delete_task`      |
 | `mindwtr.restore_task`    | `mindwtr_restore_task`     |
+| `mindwtr.add_project`     | `mindwtr_add_project`      |
+| `mindwtr.update_project`  | `mindwtr_update_project`   |
+| `mindwtr.delete_project`  | `mindwtr_delete_project`   |
+| `mindwtr.add_area`        | `mindwtr_add_area`         |
+| `mindwtr.update_area`     | `mindwtr_update_area`      |
+| `mindwtr.delete_area`     | `mindwtr_delete_area`      |
 
 **Upgrade action:** find and replace `mindwtr.` with `mindwtr_` in any MCP client configs, system prompts, scripts, or automations that reference these tool names. No other changes are required.
 
@@ -156,17 +166,27 @@ Only `--write` is supported for write access (no alternate aliases).
 | ----------------------- | -------------------- | ------------------ |
 | `mindwtr_list_tasks`    | List tasks           | No                 |
 | `mindwtr_list_projects` | List projects        | No                 |
+| `mindwtr_get_project`   | Fetch one project    | No                 |
+| `mindwtr_list_areas`    | List areas           | No                 |
 | `mindwtr_get_task`      | Fetch one task by ID | No                 |
 | `mindwtr_add_task`      | Create task          | Yes                |
 | `mindwtr_update_task`   | Update task          | Yes                |
 | `mindwtr_complete_task` | Mark done            | Yes                |
 | `mindwtr_delete_task`   | Soft-delete task     | Yes                |
 | `mindwtr_restore_task`  | Restore task         | Yes                |
+| `mindwtr_add_project`   | Create project       | Yes                |
+| `mindwtr_update_project`| Update project       | Yes                |
+| `mindwtr_delete_project`| Soft-delete project  | Yes                |
+| `mindwtr_add_area`      | Create area          | Yes                |
+| `mindwtr_update_area`   | Update area          | Yes                |
+| `mindwtr_delete_area`   | Soft-delete area     | Yes                |
 
 ### Read Tools
 
 - **`mindwtr_list_tasks`**: List tasks with filters (status, project, date range, search).
 - **`mindwtr_list_projects`**: List all projects.
+- **`mindwtr_get_project`**: Get details of a specific project by ID.
+- **`mindwtr_list_areas`**: List all areas.
 - **`mindwtr_get_task`**: Get details of a specific task by ID.
 
 ### Write Tools (Requires `--write`)
@@ -176,6 +196,12 @@ Only `--write` is supported for write access (no alternate aliases).
 - **`mindwtr_complete_task`**: Mark a task as done.
 - **`mindwtr_delete_task`**: Soft-delete a task.
 - **`mindwtr_restore_task`**: Restore a soft-deleted task.
+- **`mindwtr_add_project`**: Create a new project.
+- **`mindwtr_update_project`**: Update a project.
+- **`mindwtr_delete_project`**: Soft-delete a project.
+- **`mindwtr_add_area`**: Create a new area.
+- **`mindwtr_update_area`**: Update an area.
+- **`mindwtr_delete_area`**: Soft-delete an area.
 
 ## Permission Matrix
 
@@ -185,12 +211,20 @@ Use this matrix when deciding whether to run the server in read-only mode or wit
 | ----------------------- | -------------------- | ------------------- | -------------- | -------------- |
 | `mindwtr_list_tasks`    | Task rows (filtered) | None                | Allowed        | Allowed        |
 | `mindwtr_list_projects` | Project rows         | None                | Allowed        | Allowed        |
+| `mindwtr_get_project`   | Single project by ID | None                | Allowed        | Allowed        |
+| `mindwtr_list_areas`    | Area rows            | None                | Allowed        | Allowed        |
 | `mindwtr_get_task`      | Single task by ID    | None                | Allowed        | Allowed        |
 | `mindwtr_add_task`      | Task table           | Insert              | Denied         | Allowed        |
 | `mindwtr_update_task`   | Task table           | Update              | Denied         | Allowed        |
 | `mindwtr_complete_task` | Task table           | Update status       | Denied         | Allowed        |
 | `mindwtr_delete_task`   | Task table           | Soft-delete         | Denied         | Allowed        |
 | `mindwtr_restore_task`  | Task table           | Restore soft-delete | Denied         | Allowed        |
+| `mindwtr_add_project`   | Project table        | Insert              | Denied         | Allowed        |
+| `mindwtr_update_project`| Project table        | Update              | Denied         | Allowed        |
+| `mindwtr_delete_project`| Project table        | Soft-delete         | Denied         | Allowed        |
+| `mindwtr_add_area`      | Area table           | Insert              | Denied         | Allowed        |
+| `mindwtr_update_area`   | Area table           | Update              | Denied         | Allowed        |
+| `mindwtr_delete_area`   | Area table           | Soft-delete         | Denied         | Allowed        |
 
 Practical guidance:
 
@@ -253,7 +287,7 @@ If you need more than 500 tasks, page with `limit` + `offset` instead of expecti
 
 **Input fields**
 
-- `status`: `inbox | next | waiting | someday | done | archived`
+- `status`: `inbox | next | waiting | someday | reference | done | archived | all`
 - `projectId`: string
 - `includeDeleted`: boolean
 - `limit`: number
@@ -306,6 +340,38 @@ If you need more than 500 tasks, page with `limit` + `offset` instead of expecti
       "id": "project-uuid",
       "title": "Mindwtr",
       "status": "active"
+    }
+  ]
+}
+```
+
+### `mindwtr_get_project`
+
+**Input fields**
+
+- `id`: string (project UUID)
+- `includeDeleted`: boolean (optional)
+
+**Example**
+
+```json
+{ "id": "project-uuid" }
+```
+
+### `mindwtr_list_areas`
+
+**Input fields**
+
+- none
+
+**Response**
+
+```json
+{
+  "areas": [
+    {
+      "id": "area-uuid",
+      "name": "Work"
     }
   ]
 }
@@ -386,6 +452,53 @@ If you need more than 500 tasks, page with `limit` + `offset` instead of expecti
 **Input fields**
 
 - `id`: string (task UUID)
+
+### `mindwtr_add_project` (write)
+
+**Input fields**
+
+- `title`: string
+- `color`: string (optional)
+- `status`: `active | someday | waiting | archived` (optional)
+- `areaId`: string or `null`
+- `isSequential`: boolean (optional)
+- `isFocused`: boolean (optional)
+- `reviewAt`: ISO string or `null`
+- `supportNotes`: string or `null`
+
+### `mindwtr_update_project` (write)
+
+**Input fields**
+
+- `id`: string (project UUID)
+- `title`, `color`, `status`, `areaId`, `isSequential`, `isFocused`, `reviewAt`, `supportNotes`
+
+### `mindwtr_delete_project` (write)
+
+**Input fields**
+
+- `id`: string (project UUID)
+
+### `mindwtr_add_area` (write)
+
+**Input fields**
+
+- `name`: string
+- `color`: string (optional)
+- `icon`: string (optional)
+
+### `mindwtr_update_area` (write)
+
+**Input fields**
+
+- `id`: string (area UUID)
+- `name`, `color`, `icon`
+
+### `mindwtr_delete_area` (write)
+
+**Input fields**
+
+- `id`: string (area UUID)
 
 ---
 
