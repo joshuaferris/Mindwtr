@@ -967,7 +967,7 @@ describe('cloud server api', () => {
         expect((persisted.projects as Array<{ id: string }>).some((project) => project.id === 'broken-project')).toBe(true);
     });
 
-    test('keeps newer live update over older delete during /v1/data merge', async () => {
+    test('prefers delete over a nearby live update during /v1/data merge', async () => {
         const base = { projects: [], sections: [], areas: [], settings: {} };
         const taskId = 'merge-race-live-wins';
 
@@ -1017,11 +1017,11 @@ describe('cloud server api', () => {
         const body = await getResponse.json();
         const mergedTask = (body.tasks as Array<{ id: string; updatedAt: string; deletedAt?: string }>).find((task) => task.id === taskId);
         expect(mergedTask).toBeTruthy();
-        expect(mergedTask?.deletedAt).toBeUndefined();
-        expect(mergedTask?.updatedAt).toBe('2026-01-01T00:00:00.100Z');
+        expect(mergedTask?.deletedAt).toBe('2026-01-01T00:00:00.000Z');
+        expect(mergedTask?.updatedAt).toBe('2026-01-01T00:00:00.000Z');
     });
 
-    test('keeps the live record when delete is only slightly newer during /v1/data merge', async () => {
+    test('keeps the delete when the live update is only slightly older during /v1/data merge', async () => {
         const base = { projects: [], sections: [], areas: [], settings: {} };
         const taskId = 'merge-race-delete-wins';
 
@@ -1071,7 +1071,7 @@ describe('cloud server api', () => {
         const body = await getResponse.json();
         const mergedTask = (body.tasks as Array<{ id: string; updatedAt: string; deletedAt?: string }>).find((task) => task.id === taskId);
         expect(mergedTask).toBeTruthy();
-        expect(mergedTask?.deletedAt).toBeUndefined();
-        expect(mergedTask?.updatedAt).toBe('2026-01-01T00:00:00.000Z');
+        expect(mergedTask?.deletedAt).toBe('2026-01-01T00:00:00.100Z');
+        expect(mergedTask?.updatedAt).toBe('2026-01-01T00:00:00.100Z');
     });
 });
