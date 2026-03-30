@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { getHeaderTitle } from '@react-navigation/elements';
-import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { Stack } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -63,7 +62,7 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        header: ({ navigation, route, options, back }: NativeStackHeaderProps) => (
+        header: ({ navigation, route, options, back }) => (
           <DrawerHeader
             backgroundColor={tc.cardBg}
             borderColor={tc.border}
