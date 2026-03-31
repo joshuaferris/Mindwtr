@@ -32,7 +32,6 @@ import { ToastHost } from './ToastHost';
 import { AREA_FILTER_ALL, resolveAreaFilter, taskMatchesAreaFilter } from '../lib/area-filter';
 import { SyncService } from '../lib/sync-service';
 import { SidebarAreaFilter } from './ui/SidebarAreaFilter';
-import { useKeybindings } from '../contexts/keybinding-context';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -64,7 +63,6 @@ export function Layout({ children, currentView, onViewChange }: LayoutProps) {
         setError: state.setError,
     }), shallow);
     const { t } = useLanguage();
-    const { openHelp } = useKeybindings();
     const isCollapsed = settings?.sidebarCollapsed ?? false;
     const isFocusMode = useUiStore((state) => state.isFocusMode);
     const isObsidianEnabled = useObsidianStore((state) => state.config.enabled);
@@ -315,18 +313,6 @@ export function Layout({ children, currentView, onViewChange }: LayoutProps) {
                         </>
                     )}
                 </button>
-
-                {!isCollapsed && (
-                    <button
-                        onClick={openHelp}
-                        className="w-full flex items-center gap-3 px-3 py-2 mb-4 rounded-md text-xs font-medium transition-colors border border-border bg-card hover:bg-accent text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/40"
-                        title="Keyboard shortcuts"
-                    >
-                        <HelpCircle className="w-4 h-4" />
-                        <span className="flex-1 text-left">Keyboard shortcuts</span>
-                        <span className="text-[11px] opacity-60">?</span>
-                    </button>
-                )}
 
                 <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                     {savedSearches.length > 0 && (
