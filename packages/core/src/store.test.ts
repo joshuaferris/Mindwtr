@@ -696,6 +696,38 @@ describe('TaskStore', () => {
         expect(restored?.status).toBe('archived');
     });
 
+    it('purges deleted tasks without rebuilding the visible task slice', async () => {
+        const archivedTask = {
+            id: 'archived-visible',
+            title: 'Archived Visible Task',
+            status: 'archived' as const,
+            tags: [],
+            contexts: [],
+            createdAt: '2026-04-01T00:00:00.000Z',
+            updatedAt: '2026-04-01T00:00:00.000Z',
+        };
+        const deletedTask = {
+            id: 'deleted-task',
+            title: 'Deleted Task',
+            status: 'inbox' as const,
+            tags: [],
+            contexts: [],
+            createdAt: '2026-04-01T00:00:00.000Z',
+            updatedAt: '2026-04-01T00:00:00.000Z',
+            deletedAt: '2026-04-01T00:00:00.000Z',
+        };
+
+        useTaskStore.setState({
+            tasks: [archivedTask],
+            _allTasks: [archivedTask, deletedTask],
+        });
+
+        await useTaskStore.getState().purgeDeletedTasks();
+
+        expect(useTaskStore.getState().tasks).toEqual([archivedTask]);
+        expect(useTaskStore.getState()._allTasks.find((task) => task.id === deletedTask.id)?.purgedAt).toBeTruthy();
+    });
+
     it('should coalesce saves and allow immediate flush', async () => {
         const { addTask } = useTaskStore.getState();
 

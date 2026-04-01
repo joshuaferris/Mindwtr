@@ -603,13 +603,12 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
                     }
                     : task
             );
-            const newVisibleTasks = newAllTasks.filter((task) => !task.deletedAt && task.status !== 'archived');
             snapshot = buildSaveSnapshot(state, {
                 tasks: newAllTasks,
                 ...(deviceState.updated ? { settings: deviceState.settings } : {}),
             });
             return {
-                tasks: newVisibleTasks,
+                tasks: state.tasks,
                 _allTasks: newAllTasks,
                 lastDataChangeAt: changeAt,
                 ...(deviceState.updated ? { settings: deviceState.settings } : {}),
