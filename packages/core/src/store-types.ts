@@ -78,6 +78,8 @@ export interface TaskStore {
     updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
     /** Delete a project */
     deleteProject: (id: string) => Promise<void>;
+    /** Restore a soft-deleted project and its cascaded children */
+    restoreProject: (id: string) => Promise<StoreActionResult>;
     /** Duplicate a project with its sections/tasks (fresh task state) */
     duplicateProject: (id: string) => Promise<Project | null>;
     /** Toggle focus status of a project (max 5) */
@@ -98,6 +100,8 @@ export interface TaskStore {
     updateArea: (id: string, updates: Partial<Area>) => Promise<void>;
     /** Delete an area and clear areaId on child projects/tasks */
     deleteArea: (id: string) => Promise<void>;
+    /** Restore a soft-deleted area */
+    restoreArea: (id: string) => Promise<StoreActionResult>;
     /** Reorder areas by id list */
     reorderAreas: (orderedIds: string[]) => Promise<void>;
     /** Reorder projects within a specific area by id list */

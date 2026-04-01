@@ -882,6 +882,21 @@ describe('TaskStore', () => {
         expect(updatedTask.areaId).toBeUndefined();
     });
 
+    it('restores a deleted area explicitly', async () => {
+        const { addArea, deleteArea, restoreArea } = useTaskStore.getState();
+        const area = await addArea('Work');
+        expect(area).not.toBeNull();
+        if (!area) return;
+
+        await deleteArea(area.id);
+
+        const result = await restoreArea(area.id);
+        expect(result).toEqual({ success: true });
+
+        const restored = useTaskStore.getState().areas.find((item) => item.id === area.id);
+        expect(restored?.deletedAt).toBeUndefined();
+    });
+
     it('propagates area color updates to linked projects', async () => {
         const { addArea, addProject, updateArea } = useTaskStore.getState();
         const area = await addArea('Work', { color: '#3b82f6' });
@@ -1179,8 +1194,8 @@ describe('TaskStore', () => {
             expect(useTaskStore.getState()._allTasks.find((item) => item.id === task.id)?.projectId).toBeUndefined();
         });
 
-        it('should clear sectionId when deleting a project', async () => {
-            const { addProject, addSection, addTask, deleteProject } = useTaskStore.getState();
+        it('preserves deleted project task section ids so a project can be restored intact', async () => {
+            const { addProject, addSection, addTask, deleteProject, restoreProject } = useTaskStore.getState();
             const project = await addProject('Delete Project', '#333333');
             expect(project).not.toBeNull();
             if (!project) return;
@@ -1195,9 +1210,48 @@ describe('TaskStore', () => {
             const deletedTask = useTaskStore.getState()._allTasks.find((item) => item.id === task.id)!;
             const deletedSection = useTaskStore.getState()._allSections.find((item) => item.id === section.id)!;
             expect(deletedTask.deletedAt).toBeTruthy();
-            expect(deletedTask.sectionId).toBeUndefined();
+            expect(deletedTask.sectionId).toBe(section.id);
             expect(deletedSection.deletedAt).toBeTruthy();
             expect(useTaskStore.getState().sections.find((item) => item.id === section.id)).toBeUndefined();
+
+            const restoreResult = await restoreProject(project.id);
+            expect(restoreResult).toEqual({ success: true });
+
+            const restoredTask = useTaskStore.getState()._allTasks.find((item) => item.id === task.id)!;
+            const restoredSection = useTaskStore.getState()._allSections.find((item) => item.id === section.id)!;
+            expect(restoredTask.deletedAt).toBeUndefined();
+            expect(restoredTask.sectionId).toBe(section.id);
+            expect(restoredSection.deletedAt).toBeUndefined();
+        });
+
+        it('restores only project children deleted by the project cascade', async () => {
+            const { addProject, addSection, addTask, deleteTask, deleteProject, restoreProject } = useTaskStore.getState();
+            const project = await addProject('Cascade Restore', '#444444');
+            expect(project).not.toBeNull();
+            if (!project) return;
+            const section = await addSection(project.id, 'Section');
+            expect(section).not.toBeNull();
+            if (!section) return;
+
+            await addTask('Keep Deleted', { projectId: project.id, sectionId: section.id, status: 'next' });
+            await addTask('Restore Me', { projectId: project.id, sectionId: section.id, status: 'next' });
+            const deletedTask = useTaskStore.getState()._allTasks.find((item) => item.title === 'Keep Deleted')!;
+            const restoredTask = useTaskStore.getState()._allTasks.find((item) => item.title === 'Restore Me')!;
+
+            vi.useFakeTimers();
+            try {
+                await deleteTask(deletedTask.id);
+                vi.setSystemTime(new Date('2026-04-01T12:00:01.000Z'));
+                await deleteProject(project.id);
+                await restoreProject(project.id);
+            } finally {
+                vi.useRealTimers();
+            }
+
+            const finalDeletedTask = useTaskStore.getState()._allTasks.find((item) => item.id === deletedTask.id)!;
+            const finalRestoredTask = useTaskStore.getState()._allTasks.find((item) => item.id === restoredTask.id)!;
+            expect(finalDeletedTask.deletedAt).toBeTruthy();
+            expect(finalRestoredTask.deletedAt).toBeUndefined();
         });
     });
 });

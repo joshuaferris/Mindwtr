@@ -1,5 +1,5 @@
 import type { AppData, Area, Project, Section, Task, TaskStatus } from './types';
-import type { TaskStore } from './store-types';
+import type { StoreActionResult, TaskStore } from './store-types';
 import { buildSaveSnapshot, ensureDeviceId, getTaskOrder, normalizeRevision, normalizeTagId } from './store-helpers';
 import { generateUUID as uuidv4 } from './uuid';
 import { clearDerivedCache } from './store-settings';
@@ -9,6 +9,7 @@ type ProjectActions = Pick<
     | 'addProject'
     | 'updateProject'
     | 'deleteProject'
+    | 'restoreProject'
     | 'duplicateProject'
     | 'toggleProjectFocus'
     | 'addSection'
@@ -17,6 +18,7 @@ type ProjectActions = Pick<
     | 'addArea'
     | 'updateArea'
     | 'deleteArea'
+    | 'restoreArea'
     | 'reorderAreas'
     | 'reorderProjects'
     | 'reorderProjectTasks'
@@ -31,6 +33,9 @@ type ProjectActionContext = {
     get: () => TaskStore;
     debouncedSave: (data: AppData, onError?: (msg: string) => void) => void;
 };
+
+const actionOk = (extra?: Omit<StoreActionResult, 'success'>): StoreActionResult => ({ success: true, ...extra });
+const actionFail = (error: string): StoreActionResult => ({ success: false, error });
 
 export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionContext): ProjectActions => ({
     /**
@@ -265,14 +270,13 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
                     }
                     : section
             );
-            // Also soft-delete tasks that belonged to this project
+            // Keep section ids on tombstones so project restore can recover the original structure.
             const newAllTasks = state._allTasks.map(task =>
                 task.projectId === id && !task.deletedAt
                     ? {
                         ...task,
                         deletedAt: now,
                         updatedAt: now,
-                        sectionId: undefined,
                         rev: normalizeRevision(task.rev) + 1,
                         revBy: deviceState.deviceId,
                     }
@@ -309,6 +313,101 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
         if (snapshot) {
             debouncedSave(snapshot, (msg) => set({ error: msg }));
         }
+    },
+
+    restoreProject: async (id: string) => {
+        const changeAt = Date.now();
+        const now = new Date().toISOString();
+        let snapshot: AppData | null = null;
+        let missingProject = false;
+        set((state) => {
+            const target = state._allProjects.find((project) => project.id === id);
+            if (!target) {
+                missingProject = true;
+                return state;
+            }
+            if (!target.deletedAt) {
+                return state;
+            }
+            const deviceState = ensureDeviceId(state.settings);
+            const cascadeDeletedAt = target.deletedAt;
+            // Only revive sections/tasks deleted by this project deletion cascade.
+            // Items deleted earlier keep their older deletedAt and remain tombstoned.
+            const restoredArea = target.areaId
+                ? state._allAreas.find((area) => area.id === target.areaId && !area.deletedAt)
+                : undefined;
+            const restoredProject: Project = {
+                ...target,
+                deletedAt: undefined,
+                areaId: restoredArea ? target.areaId : undefined,
+                areaTitle: restoredArea
+                    ? (typeof target.areaTitle === 'string' && target.areaTitle.trim().length > 0
+                        ? target.areaTitle
+                        : restoredArea.name)
+                    : undefined,
+                updatedAt: now,
+                rev: normalizeRevision(target.rev) + 1,
+                revBy: deviceState.deviceId,
+            };
+            const newAllProjects = state._allProjects.map((project) =>
+                project.id === id ? restoredProject : project
+            );
+            const newAllSections = state._allSections.map((section) => (
+                section.projectId === id && section.deletedAt === cascadeDeletedAt
+                    ? {
+                        ...section,
+                        deletedAt: undefined,
+                        updatedAt: now,
+                        rev: normalizeRevision(section.rev) + 1,
+                        revBy: deviceState.deviceId,
+                    }
+                    : section
+            ));
+            const restoredSectionIds = new Set(
+                newAllSections
+                    .filter((section) => section.projectId === id && !section.deletedAt)
+                    .map((section) => section.id)
+            );
+            const newAllTasks = state._allTasks.map((task) => (
+                task.projectId === id && task.deletedAt === cascadeDeletedAt
+                    ? {
+                        ...task,
+                        deletedAt: undefined,
+                        purgedAt: undefined,
+                        sectionId: task.sectionId && restoredSectionIds.has(task.sectionId)
+                            ? task.sectionId
+                            : undefined,
+                        updatedAt: now,
+                        rev: normalizeRevision(task.rev) + 1,
+                        revBy: deviceState.deviceId,
+                    }
+                    : task
+            ));
+            const newVisibleProjects = newAllProjects.filter((project) => !project.deletedAt);
+            const newVisibleSections = newAllSections.filter((section) => !section.deletedAt);
+            const newVisibleTasks = newAllTasks.filter((task) => !task.deletedAt && task.status !== 'archived');
+            clearDerivedCache();
+            snapshot = buildSaveSnapshot(state, {
+                tasks: newAllTasks,
+                projects: newAllProjects,
+                sections: newAllSections,
+                ...(deviceState.updated ? { settings: deviceState.settings } : {}),
+            });
+            return {
+                projects: newVisibleProjects,
+                sections: newVisibleSections,
+                tasks: newVisibleTasks,
+                _allProjects: newAllProjects,
+                _allSections: newAllSections,
+                _allTasks: newAllTasks,
+                lastDataChangeAt: changeAt,
+                ...(deviceState.updated ? { settings: deviceState.settings } : {}),
+            };
+        });
+        if (snapshot) {
+            debouncedSave(snapshot, (msg) => set({ error: msg }));
+        }
+        return missingProject ? actionFail('Project not found') : actionOk();
     },
 
     /**
@@ -892,6 +991,53 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
         if (snapshot) {
             debouncedSave(snapshot, (msg) => set({ error: msg }));
         }
+    },
+
+    restoreArea: async (id: string) => {
+        const changeAt = Date.now();
+        const now = new Date().toISOString();
+        let snapshot: AppData | null = null;
+        let missingArea = false;
+        set((state) => {
+            const area = state._allAreas.find((item) => item.id === id);
+            if (!area) {
+                missingArea = true;
+                return state;
+            }
+            if (!area.deletedAt) {
+                return state;
+            }
+            const deviceState = ensureDeviceId(state.settings);
+            const newAllAreas = state._allAreas
+                .map((item) => (
+                    item.id === id
+                        ? {
+                            ...item,
+                            deletedAt: undefined,
+                            updatedAt: now,
+                            rev: normalizeRevision(item.rev) + 1,
+                            revBy: deviceState.deviceId,
+                        }
+                        : item
+                ))
+                .sort((a, b) => a.order - b.order);
+            const newVisibleAreas = newAllAreas.filter((item) => !item.deletedAt);
+            clearDerivedCache();
+            snapshot = buildSaveSnapshot(state, {
+                areas: newAllAreas,
+                ...(deviceState.updated ? { settings: deviceState.settings } : {}),
+            });
+            return {
+                areas: newVisibleAreas,
+                _allAreas: newAllAreas,
+                lastDataChangeAt: changeAt,
+                ...(deviceState.updated ? { settings: deviceState.settings } : {}),
+            };
+        });
+        if (snapshot) {
+            debouncedSave(snapshot, (msg) => set({ error: msg }));
+        }
+        return missingArea ? actionFail('Area not found') : actionOk();
     },
 
     reorderAreas: async (orderedIds: string[]) => {
