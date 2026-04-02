@@ -137,6 +137,16 @@ export function SwipeableTaskItem({
     const checklistUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingChecklist = useRef<{ taskId: string; checklist: Task['checklist'] } | null>(null);
     const checklistTaskIdRef = useRef(task.id);
+    const clearChecklistTimer = useCallback(() => {
+        if (checklistUpdateTimer.current) {
+            clearTimeout(checklistUpdateTimer.current);
+            checklistUpdateTimer.current = null;
+        }
+    }, []);
+    const cancelPendingChecklist = useCallback(() => {
+        clearChecklistTimer();
+        pendingChecklist.current = null;
+    }, [clearChecklistTimer]);
 
     const flushPendingChecklist = useCallback(() => {
         const pending = pendingChecklist.current;
@@ -169,21 +179,22 @@ export function SwipeableTaskItem({
         if (checklistTaskIdRef.current !== task.id) {
             flushPendingChecklist();
             checklistTaskIdRef.current = task.id;
-            if (checklistUpdateTimer.current) {
-                clearTimeout(checklistUpdateTimer.current);
-                checklistUpdateTimer.current = null;
-            }
+            clearChecklistTimer();
         }
-    }, [task.id, flushPendingChecklist]);
+    }, [task.id, clearChecklistTimer, flushPendingChecklist]);
+
+    useEffect(() => {
+        if (task.deletedAt) {
+            cancelPendingChecklist();
+        }
+    }, [task.deletedAt, cancelPendingChecklist]);
 
     useEffect(() => {
         return () => {
-            if (checklistUpdateTimer.current) {
-                clearTimeout(checklistUpdateTimer.current);
-            }
+            clearChecklistTimer();
             flushPendingChecklist();
         };
-    }, [flushPendingChecklist]);
+    }, [clearChecklistTimer, flushPendingChecklist]);
 
     const checklistProgress = useMemo(
         () => getChecklistProgress({ ...task, checklist: localChecklist }),
@@ -408,6 +419,7 @@ export function SwipeableTaskItem({
                     style: 'destructive',
                     onPress: () => {
                         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
+                        cancelPendingChecklist();
                         onDelete();
                     },
                 },
@@ -575,9 +587,7 @@ export function SwipeableTaskItem({
                                             );
                                             setLocalChecklist(newList);
                                             pendingChecklist.current = { taskId, checklist: newList };
-                                            if (checklistUpdateTimer.current) {
-                                                clearTimeout(checklistUpdateTimer.current);
-                                            }
+                                            clearChecklistTimer();
                                             checklistUpdateTimer.current = setTimeout(() => {
                                                 const pending = pendingChecklist.current;
                                                 if (!pending || pending.taskId !== taskId) return;
@@ -587,6 +597,8 @@ export function SwipeableTaskItem({
                                         }}
                                         style={styles.checklistItem}
                                         accessibilityRole="button"
+                                        accessibilityLabel={item.title}
+                                        accessibilityState={{ checked: item.isCompleted }}
                                     >
                                         <Text
                                             style={[

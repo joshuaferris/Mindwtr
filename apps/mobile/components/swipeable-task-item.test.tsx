@@ -5,8 +5,9 @@ import { Alert } from 'react-native';
 
 import { SwipeableTaskItem } from './swipeable-task-item';
 
-const { updateTask, storeState } = vi.hoisted(() => ({
+const { updateTask, getChecklistProgress, storeState } = vi.hoisted(() => ({
   updateTask: vi.fn(),
+  getChecklistProgress: vi.fn(() => null),
   storeState: {
     updateTask: vi.fn(),
     projects: [] as any[],
@@ -33,7 +34,7 @@ vi.mock('@mindwtr/core', () => {
   return {
     useTaskStore,
     shallow: (value: unknown) => value,
-    getChecklistProgress: () => null,
+    getChecklistProgress,
     getTaskAgeLabel: () => '',
     getTaskStaleness: () => 'fresh',
     getStatusColor: () => ({ bg: '#111111', border: '#222222', text: '#333333' }),
@@ -90,6 +91,8 @@ describe('SwipeableTaskItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storeState.projects = [];
+    storeState.tasks = [];
+    getChecklistProgress.mockReturnValue(null);
   });
 
   it('confirms deletion before invoking onDelete', () => {
@@ -252,5 +255,84 @@ describe('SwipeableTaskItem', () => {
 
     expect(onStatusChange).toHaveBeenCalledWith('next');
     expect(hapticsMocks.notificationAsync).toHaveBeenCalledWith('success');
+  });
+
+  it('cancels pending checklist flushes when deleting a task', () => {
+    vi.useFakeTimers();
+    const alertSpy = vi.spyOn(Alert, 'alert');
+    const onDelete = vi.fn();
+    const task = {
+      id: 'task-1',
+      title: 'Pay rent',
+      status: 'inbox',
+      checklist: [{ id: 'item-1', title: 'Confirm amount', isCompleted: false }],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    } as any;
+    storeState.tasks = [task];
+    getChecklistProgress.mockImplementation((value: any) => {
+      const checklist = value?.checklist ?? [];
+      if (!checklist.length) return null;
+      const completed = checklist.filter((entry: any) => entry.isCompleted).length;
+      return {
+        completed,
+        total: checklist.length,
+        percent: completed / checklist.length,
+      };
+    });
+
+    let tree!: renderer.ReactTestRenderer;
+    renderer.act(() => {
+      tree = renderer.create(
+        <SwipeableTaskItem
+          task={task}
+          isDark={false}
+          tc={{
+            taskItemBg: '#111111',
+            border: '#222222',
+            text: '#ffffff',
+            secondaryText: '#999999',
+            tint: '#3b82f6',
+            warning: '#f59e0b',
+          } as any}
+          onPress={vi.fn()}
+          onStatusChange={vi.fn()}
+          onDelete={onDelete}
+        />
+      );
+    });
+
+    const checklistProgressButton = tree.root.find((node) => node.props.accessibilityLabel === 'checklist.progress');
+    renderer.act(() => {
+      checklistProgressButton.props.onPress();
+    });
+
+    const checklistItemButton = tree.root.find(
+      (node) => node.props.accessibilityLabel === 'Confirm amount' && typeof node.props.onPress === 'function'
+    );
+    renderer.act(() => {
+      checklistItemButton.props.onPress();
+    });
+
+    expect(updateTask).not.toHaveBeenCalled();
+
+    const deleteAction = tree.root.find(
+      (node) => node.props.accessibilityLabel === 'Delete task' && typeof node.props.onPress === 'function'
+    );
+    renderer.act(() => {
+      deleteAction.props.onPress();
+    });
+
+    const alertButtons = alertSpy.mock.calls[0]?.[2] as { text?: string; onPress?: () => void }[];
+    const destructiveAction = alertButtons.find((button) => button.text === 'Delete');
+    renderer.act(() => {
+      destructiveAction?.onPress?.();
+      tree.unmount();
+      vi.runAllTimers();
+    });
+
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(updateTask).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
