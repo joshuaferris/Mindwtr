@@ -755,6 +755,24 @@ describe('cloud server api', () => {
         expect(missingResponse.status).toBe(404);
     });
 
+    test('rejects attachment uploads with blocked executable content types', async () => {
+        const putResponse = await fetch(`${baseUrl}/v1/attachments/folder/file.exe`, {
+            method: 'PUT',
+            headers: {
+                ...authHeaders,
+                'content-type': 'application/x-msdownload; charset=binary',
+            },
+            body: new Uint8Array([1, 2, 3]),
+        });
+        expect(putResponse.status).toBe(400);
+        expect((await putResponse.json()).error).toBe('Blocked attachment content type: application/x-msdownload');
+
+        const getResponse = await fetch(`${baseUrl}/v1/attachments/folder/file.exe`, {
+            headers: authHeaders,
+        });
+        expect(getResponse.status).toBe(404);
+    });
+
     test('rejects attachment uploads when target path is a symlink', async () => {
         const token = integrationToken;
         const key = __cloudTestUtils.tokenToKey(token);

@@ -7,6 +7,8 @@ import {
     mergeAppData,
     parseQuickAdd,
     searchAll,
+    validateAttachmentForUpload,
+    type Attachment,
     type AppData,
     type Task,
     type TaskStatus,
@@ -64,6 +66,8 @@ import {
     validateTaskCreationProps,
     validateTaskPatchProps,
 } from './server-validation';
+
+const normalizeAttachmentContentType = (value: string | null): string => value?.split(';', 1)[0]?.trim().toLowerCase() || '';
 
 type RateLimitState = {
     count: number;
@@ -634,6 +638,20 @@ export async function startCloudServer(options: CloudServerOptions = {}): Promis
                     }
 
                     if (req.method === 'PUT') {
+                        const contentType = normalizeAttachmentContentType(req.headers.get('content-type'));
+                        if (contentType) {
+                            const validation = await validateAttachmentForUpload({
+                                id: 'attachment-upload',
+                                kind: 'file',
+                                title: pathname,
+                                createdAt: '1970-01-01T00:00:00.000Z',
+                                updatedAt: '1970-01-01T00:00:00.000Z',
+                                mimeType: contentType,
+                            } satisfies Attachment, 0);
+                            if (!validation.valid && validation.error === 'mime_type_blocked') {
+                                return errorResponse(`Blocked attachment content type: ${validation.details}`, 400);
+                            }
+                        }
                         const body = await readRequestBytes(req, maxAttachmentBytes, requestAbortController.signal);
                         if (isBodyReadError(body)) {
                             return errorResponse(body.__mindwtrError.message, body.__mindwtrError.status);
