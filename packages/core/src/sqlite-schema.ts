@@ -175,7 +175,6 @@ CREATE INDEX IF NOT EXISTS idx_tasks_section_id ON tasks(sectionId);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_projects_areaId ON projects(areaId);
 CREATE INDEX IF NOT EXISTS idx_projects_area_order ON projects(areaId, orderNum);
-CREATE INDEX IF NOT EXISTS idx_projects_dueDate ON projects(dueDate);
 `;
 
 export const SQLITE_FTS_SCHEMA = `

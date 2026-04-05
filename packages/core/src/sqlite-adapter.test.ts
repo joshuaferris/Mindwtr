@@ -552,8 +552,11 @@ describeSqlite('SqliteAdapter', () => {
 
         const projectColumns = allSql<{ name: string }>(db, 'PRAGMA table_info(projects)');
         const projectColumnNames = projectColumns.map((col) => col.name);
+        expect(projectColumnNames).toContain('dueDate');
         expect(projectColumnNames).toContain('rev');
         expect(projectColumnNames).toContain('revBy');
+        const projectIndexes = allSql<{ name: string }>(db, 'PRAGMA index_list(projects)');
+        expect(projectIndexes.map((row) => row.name)).toContain('idx_projects_dueDate');
 
         const sectionColumns = allSql<{ name: string }>(db, 'PRAGMA table_info(sections)');
         const sectionColumnNames = sectionColumns.map((col) => col.name);

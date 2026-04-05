@@ -1585,6 +1585,7 @@ fn parse_json_relaxed(raw: &str) -> Result<Value, serde_json::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
 
     #[test]
     fn detect_storage_mode_returns_standard_without_marker() {
@@ -1619,6 +1620,44 @@ mod tests {
             portable_profile_root_for_exe_dir(&exe_dir),
             exe_dir.join(PORTABLE_PROFILE_DIR_NAME)
         );
+    }
+
+    #[test]
+    fn ensure_projects_due_date_column_migrates_legacy_schema_before_indexing() {
+        let conn = Connection::open_in_memory().expect("should open in-memory db");
+        conn.execute_batch(
+            r#"
+            CREATE TABLE projects (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              status TEXT NOT NULL,
+              color TEXT NOT NULL
+            );
+            "#,
+        )
+        .expect("should create legacy projects table");
+
+        ensure_projects_due_date_column(&conn).expect("should add dueDate column and index");
+
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(projects)")
+            .expect("should inspect project columns");
+        let column_names: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("should read project columns")
+            .map(|row| row.expect("column row"))
+            .collect();
+        assert!(column_names.iter().any(|name| name == "dueDate"));
+
+        let mut idx_stmt = conn
+            .prepare("PRAGMA index_list(projects)")
+            .expect("should inspect project indexes");
+        let index_names: Vec<String> = idx_stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("should read project indexes")
+            .map(|row| row.expect("index row"))
+            .collect();
+        assert!(index_names.iter().any(|name| name == "idx_projects_dueDate"));
     }
 }
 
