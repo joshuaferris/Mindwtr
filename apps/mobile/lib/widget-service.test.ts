@@ -30,6 +30,16 @@ vi.mock('react-native-android-widget', () => ({
 
 import { updateMobileWidgetFromData } from './widget-service';
 
+type WidgetElement = ReactElement<{
+    children?: WidgetElement | WidgetElement[];
+    text?: string;
+}>;
+
+const asWidgetChildren = (children: WidgetElement['props']['children']): WidgetElement[] => {
+    if (!children) return [];
+    return Array.isArray(children) ? children : [children];
+};
+
 const buildData = (): AppData => {
     const now = new Date().toISOString();
     return {
@@ -47,11 +57,11 @@ const buildData = (): AppData => {
     };
 };
 
-const countRenderedTaskRows = (tree: ReactElement): number => {
-    const [content] = tree.props.children as ReactElement[];
-    const contentChildren = content.props.children as ReactElement[];
+const countRenderedTaskRows = (tree: WidgetElement): number => {
+    const [content] = asWidgetChildren(tree.props.children);
+    const contentChildren = content ? asWidgetChildren(content.props.children) : [];
     return contentChildren.filter((child) => {
-        const text = (child as ReactElement<{ text?: string }>).props.text;
+        const text = child.props.text;
         return typeof text === 'string' && text.startsWith('• ');
     }).length;
 };
@@ -64,7 +74,7 @@ describe('widget-service', () => {
     });
 
     it('uses Android widget height to render more rows during app-driven updates', async () => {
-        let renderedTree: ReactElement | null = null;
+        let renderedTree: WidgetElement | null = null;
         mockRequestWidgetUpdate.mockImplementation(async ({ renderWidget }) => {
             renderedTree = await renderWidget({
                 widgetName: 'TasksWidget',
@@ -85,6 +95,9 @@ describe('widget-service', () => {
         expect(didUpdate).toBe(true);
         expect(mockRequestWidgetUpdate).toHaveBeenCalledTimes(1);
         expect(renderedTree).not.toBeNull();
-        expect(countRenderedTaskRows(renderedTree as ReactElement)).toBe(5);
+        if (!renderedTree) {
+            throw new Error('Expected Android widget render tree');
+        }
+        expect(countRenderedTaskRows(renderedTree)).toBe(5);
     });
 });
