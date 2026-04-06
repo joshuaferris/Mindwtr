@@ -222,6 +222,33 @@ describe('TaskStore', () => {
         expect(useTaskStore.getState()._allTasks.find((task) => task.id === taskIds[3])?.isFocusedToday).not.toBe(true);
     });
 
+    it('prefers the renamed tag when deduplicating normalized tag collisions', async () => {
+        const { addProject, addTask, renameTag } = useTaskStore.getState();
+
+        const project = await addProject('Tagged Project', '#123456', {
+            status: 'active',
+            tagIds: ['BAR', 'foo'],
+        });
+        expect(project).not.toBeNull();
+        if (!project) return;
+
+        const taskResult = await addTask('Tagged Task', {
+            status: 'next',
+            projectId: project.id,
+            tags: ['BAR', 'foo'],
+        });
+        expect(taskResult.success).toBe(true);
+        expect(taskResult.id).toBeTruthy();
+        if (!taskResult.id) return;
+
+        await renameTag('foo', 'bar');
+
+        const updatedTask = useTaskStore.getState()._allTasks.find((task) => task.id === taskResult.id);
+        const updatedProject = useTaskStore.getState()._allProjects.find((item) => item.id === project.id);
+        expect(updatedTask?.tags).toEqual(['#bar']);
+        expect(updatedProject?.tagIds).toEqual(['#bar']);
+    });
+
     it('should delete a task', () => {
         const { addTask, deleteTask } = useTaskStore.getState();
         addTask('Task to Delete');

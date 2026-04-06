@@ -44,6 +44,20 @@ type ProjectActionContext = {
 const actionOk = (extra?: Omit<StoreActionResult, 'success'>): StoreActionResult => ({ success: true, ...extra });
 const actionFail = (error: string): StoreActionResult => ({ success: false, error });
 
+const dedupeTagValuesLastWins = (values: string[], preferredValue?: string): string[] => {
+    const preferredNormalized = preferredValue ? normalizeTagId(preferredValue) : '';
+    const seen = new Set<string>();
+    const dedupedReversed: string[] = [];
+    for (let index = values.length - 1; index >= 0; index -= 1) {
+        const value = values[index];
+        const normalized = normalizeTagId(value);
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        dedupedReversed.push(normalized === preferredNormalized ? preferredValue! : value);
+    }
+    return dedupedReversed.reverse();
+};
+
 export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionContext): ProjectActions => ({
     /**
      * Add a new project.
@@ -1288,13 +1302,9 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
                 if (idx === -1) return task;
                 const newTags = [...task.tags];
                 newTags[idx] = normalizedNew;
-                // Deduplicate in case the new tag already exists on this task
-                const unique = [...new Set(newTags.map(normalizeTagId))].map((norm) =>
-                    newTags.find((t) => normalizeTagId(t) === norm)!
-                );
                 return {
                     ...task,
-                    tags: unique,
+                    tags: dedupeTagValuesLastWins(newTags, normalizedNew),
                     updatedAt: now,
                     rev: normalizeRevision(task.rev) + 1,
                     revBy: deviceState.deviceId,
@@ -1307,12 +1317,9 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
                 if (idx === -1) return project;
                 const newTagIds = [...project.tagIds];
                 newTagIds[idx] = normalizedNew;
-                const unique = [...new Set(newTagIds.map(normalizeTagId))].map((norm) =>
-                    newTagIds.find((t) => normalizeTagId(t) === norm)!
-                );
                 return {
                     ...project,
-                    tagIds: unique,
+                    tagIds: dedupeTagValuesLastWins(newTagIds, normalizedNew),
                     updatedAt: now,
                     rev: normalizeRevision(project.rev) + 1,
                     revBy: deviceState.deviceId,
