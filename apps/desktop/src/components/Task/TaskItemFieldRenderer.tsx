@@ -11,6 +11,7 @@ import {
     type RecurrenceStrategy,
     type Task,
     type TaskEditorFieldId,
+    type TaskEnergyLevel,
     type TaskPriority,
     type TaskStatus,
     type TimeEstimate,
@@ -43,6 +44,8 @@ export type TaskItemFieldRendererData = {
     editReviewAt: string;
     editStatus: TaskStatus;
     editPriority: TaskPriority | '';
+    editEnergyLevel: NonNullable<TaskEnergyLevel> | '';
+    editAssignedTo: string;
     editRecurrence: RecurrenceRule | '';
     editRecurrenceStrategy: RecurrenceStrategy;
     editRecurrenceRRule: string;
@@ -67,6 +70,8 @@ export type TaskItemFieldRendererHandlers = {
     setEditReviewAt: (value: string) => void;
     setEditStatus: (value: TaskStatus) => void;
     setEditPriority: (value: TaskPriority | '') => void;
+    setEditEnergyLevel: (value: NonNullable<TaskEnergyLevel> | '') => void;
+    setEditAssignedTo: (value: string) => void;
     setEditRecurrence: (value: RecurrenceRule | '') => void;
     setEditRecurrenceStrategy: (value: RecurrenceStrategy) => void;
     setEditRecurrenceRRule: (value: string) => void;
@@ -102,6 +107,8 @@ export function TaskItemFieldRenderer({
         editReviewAt,
         editStatus,
         editPriority,
+        editEnergyLevel,
+        editAssignedTo,
         editRecurrence,
         editRecurrenceStrategy,
         editRecurrenceRRule,
@@ -133,6 +140,8 @@ export function TaskItemFieldRenderer({
         setEditReviewAt,
         setEditStatus,
         setEditPriority,
+        setEditEnergyLevel,
+        setEditAssignedTo,
         setEditRecurrence,
         setEditRecurrenceStrategy,
         setEditRecurrenceRRule,
@@ -472,6 +481,37 @@ export function TaskItemFieldRenderer({
                         <option value="high">{t('priority.high')}</option>
                         <option value="urgent">{t('priority.urgent')}</option>
                     </select>
+                </div>
+            );
+        case 'energyLevel':
+            return (
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground font-medium">{t('taskEdit.energyLevel')}</label>
+                    <select
+                        value={editEnergyLevel}
+                        aria-label={t('taskEdit.energyLevel')}
+                        onChange={(e) => setEditEnergyLevel(e.target.value as TaskEnergyLevel | '')}
+                        className="text-xs bg-muted/50 border border-border rounded px-2 py-1 text-foreground"
+                    >
+                        <option value="">{t('common.none')}</option>
+                        <option value="low">{t('energyLevel.low')}</option>
+                        <option value="medium">{t('energyLevel.medium')}</option>
+                        <option value="high">{t('energyLevel.high')}</option>
+                    </select>
+                </div>
+            );
+        case 'assignedTo':
+            return (
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground font-medium">{t('taskEdit.assignedTo')}</label>
+                    <input
+                        type="text"
+                        value={editAssignedTo}
+                        aria-label={t('taskEdit.assignedTo')}
+                        onChange={(event) => setEditAssignedTo(event.target.value)}
+                        placeholder={t('taskEdit.assignedToPlaceholder')}
+                        className="text-xs bg-muted/50 border border-border rounded px-2 py-1 text-foreground"
+                    />
                 </div>
             );
         case 'recurrence':

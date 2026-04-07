@@ -9,6 +9,8 @@ export type Task = {
   title: string;
   status: TaskStatus;
   priority?: string;
+  energyLevel?: string;
+  assignedTo?: string;
   taskMode?: string;
   startTime?: string;
   dueDate?: string;
@@ -131,6 +133,8 @@ export type AddTaskInput = {
   tags?: string[];
   description?: string;
   priority?: string;
+  energyLevel?: string;
+  assignedTo?: string;
   timeEstimate?: string;
 };
 
@@ -148,6 +152,8 @@ const BASE_TASK_COLUMNS = [
   'title',
   'status',
   'priority',
+  'energyLevel',
+  'assignedTo',
   'taskMode',
   'startTime',
   'dueDate',
@@ -226,6 +232,8 @@ function mapTaskRow(row: any): TaskRow {
     title: row.title as string,
     status: normalizeTaskStatus(row.status as string),
     priority: row.priority ?? undefined,
+    energyLevel: row.energyLevel ?? undefined,
+    assignedTo: row.assignedTo ?? undefined,
     taskMode: row.taskMode ?? undefined,
     startTime: row.startTime ?? undefined,
     dueDate: row.dueDate ?? undefined,
@@ -495,6 +503,8 @@ export function addTask(db: DbClient, input: AddTaskInput): TaskRow {
       title,
       status,
       priority: (input.priority ?? props.priority) as Task['priority'],
+      energyLevel: (input.energyLevel ?? props.energyLevel) as Task['energyLevel'],
+      assignedTo: (input.assignedTo ?? props.assignedTo) as Task['assignedTo'],
       taskMode: props.taskMode,
       startTime: input.startTime ?? props.startTime,
       dueDate: input.dueDate ?? props.dueDate,
@@ -524,6 +534,8 @@ export function addTask(db: DbClient, input: AddTaskInput): TaskRow {
       'title',
       'status',
       'priority',
+      'energyLevel',
+      'assignedTo',
       'taskMode',
       'startTime',
       'dueDate',
@@ -559,6 +571,8 @@ export function addTask(db: DbClient, input: AddTaskInput): TaskRow {
       title: task.title,
       status: task.status,
       priority: task.priority ?? null,
+      energyLevel: task.energyLevel ?? null,
+      assignedTo: task.assignedTo ?? null,
       taskMode: task.taskMode ?? null,
       startTime: task.startTime ?? null,
       dueDate: task.dueDate ?? null,
@@ -619,6 +633,8 @@ export type UpdateTaskInput = {
   tags?: string[] | null;
   description?: string | null;
   priority?: string | null;
+  energyLevel?: string | null;
+  assignedTo?: string | null;
   timeEstimate?: string | null;
   reviewAt?: string | null;
   isFocusedToday?: boolean;
@@ -645,6 +661,8 @@ export function updateTask(db: DbClient, input: UpdateTaskInput): TaskRow {
       tags: input.tags === null ? [] : input.tags ?? current.tags ?? [],
       description: input.description === null ? undefined : input.description ?? current.description,
       priority: input.priority === null ? undefined : input.priority ?? current.priority,
+      energyLevel: input.energyLevel === null ? undefined : input.energyLevel ?? current.energyLevel,
+      assignedTo: input.assignedTo === null ? undefined : input.assignedTo ?? current.assignedTo,
       timeEstimate: input.timeEstimate === null ? undefined : input.timeEstimate ?? current.timeEstimate,
       reviewAt: input.reviewAt === null ? undefined : input.reviewAt ?? current.reviewAt,
       isFocusedToday: input.isFocusedToday ?? current.isFocusedToday,
@@ -662,6 +680,8 @@ export function updateTask(db: DbClient, input: UpdateTaskInput): TaskRow {
           tags = @tags,
           description = @description,
           priority = @priority,
+          energyLevel = @energyLevel,
+          assignedTo = @assignedTo,
           timeEstimate = @timeEstimate,
           reviewAt = @reviewAt,
           isFocusedToday = @isFocusedToday,
@@ -680,6 +700,8 @@ export function updateTask(db: DbClient, input: UpdateTaskInput): TaskRow {
       tags: JSON.stringify(updated.tags ?? []),
       description: updated.description ?? null,
       priority: updated.priority ?? null,
+      energyLevel: updated.energyLevel ?? null,
+      assignedTo: updated.assignedTo ?? null,
       timeEstimate: updated.timeEstimate ?? null,
       reviewAt: updated.reviewAt ?? null,
       isFocusedToday: updated.isFocusedToday ? 1 : 0,

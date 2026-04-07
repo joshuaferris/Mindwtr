@@ -53,6 +53,8 @@ type Labels = {
     taskEditorFieldSection: string;
     taskEditorFieldArea: string;
     taskEditorFieldPriority: string;
+    taskEditorFieldEnergyLevel: string;
+    taskEditorFieldAssignedTo: string;
     taskEditorFieldContexts: string;
     taskEditorFieldDescription: string;
     taskEditorFieldTags: string;
@@ -135,6 +137,8 @@ export function SettingsGtdPage({
         'area',
         'description',
         'checklist',
+        'energyLevel',
+        'assignedTo',
         'contexts',
         'dueDate',
         'priority',
@@ -177,6 +181,10 @@ export function SettingsGtdPage({
                 return t.taskEditorFieldArea;
             case 'priority':
                 return t.taskEditorFieldPriority;
+            case 'energyLevel':
+                return t.taskEditorFieldEnergyLevel;
+            case 'assignedTo':
+                return t.taskEditorFieldAssignedTo;
             case 'contexts':
                 return t.taskEditorFieldContexts;
             case 'description':

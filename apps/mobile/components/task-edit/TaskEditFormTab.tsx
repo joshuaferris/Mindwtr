@@ -204,6 +204,10 @@ export function TaskEditFormTab({
                     return (editedTask.tags?.length ?? 0) > 0;
                 case 'priority':
                     return Boolean(editedTask.priority);
+                case 'energyLevel':
+                    return Boolean(editedTask.energyLevel);
+                case 'assignedTo':
+                    return Boolean(String(editedTask.assignedTo ?? '').trim());
                 case 'timeEstimate':
                     return Boolean(editedTask.timeEstimate);
                 case 'description':

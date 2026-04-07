@@ -541,6 +541,10 @@ export function GtdSettingsScreen({
                 return t('taskEdit.areaLabel');
             case 'priority':
                 return t('taskEdit.priorityLabel');
+            case 'energyLevel':
+                return t('taskEdit.energyLevel');
+            case 'assignedTo':
+                return t('taskEdit.assignedTo');
             case 'contexts':
                 return t('taskEdit.contextsLabel');
             case 'description':

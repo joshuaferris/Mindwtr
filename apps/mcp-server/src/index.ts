@@ -155,6 +155,8 @@ const addTaskSchema = z.object({
   tags: z.array(z.string()).optional().describe('Tags (e.g. ["#urgent", "#personal"])'),
   description: z.string().optional().describe('Task description/notes'),
   priority: z.string().optional().describe('Priority level'),
+  energyLevel: z.enum(['low', 'medium', 'high']).optional().describe('Energy level: low, medium, high'),
+  assignedTo: z.string().optional().describe('Person this task is assigned to or waiting for'),
   timeEstimate: z.string().optional().describe('Time estimate (e.g. "30m", "2h")'),
 });
 const validateAddTask = (data: z.infer<typeof addTaskSchema>) => {
@@ -188,6 +190,8 @@ const updateTaskSchema = z.object({
   tags: z.array(z.string()).nullable().optional(),
   description: z.string().nullable().optional(),
   priority: z.string().nullable().optional(),
+  energyLevel: z.enum(['low', 'medium', 'high']).nullable().optional(),
+  assignedTo: z.string().nullable().optional(),
   timeEstimate: z.string().nullable().optional(),
   reviewAt: isoDateLikeSchema.nullable().optional(),
   isFocusedToday: z.boolean().optional(),

@@ -17,6 +17,7 @@ import {
     safeParseDate,
     type Task,
     TaskEditorFieldId,
+    type TaskEnergyLevel,
     type TaskPriority,
     TaskStatus,
     type TimeEstimate,
@@ -75,6 +76,7 @@ type TaskEditFieldRendererProps = {
     pendingDueDate: Date | null;
     pendingStartDate: Date | null;
     prioritiesEnabled: boolean;
+    energyLevelOptions: TaskEnergyLevel[];
     priorityOptions: TaskPriority[];
     projects: Project[];
     projectSections: Section[];
@@ -149,6 +151,7 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
         pendingDueDate,
         pendingStartDate,
         prioritiesEnabled,
+        energyLevelOptions,
         priorityOptions,
         projects,
         projectSections,
@@ -395,6 +398,49 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
                                 </TouchableOpacity>
                             ))}
                         </View>
+                    </View>
+                );
+            case 'energyLevel':
+                return (
+                    <View style={styles.formGroup}>
+                        <Text style={[styles.label, { color: tc.secondaryText }]}>{t('taskEdit.energyLevel')}</Text>
+                        <View style={styles.statusContainer}>
+                            <TouchableOpacity
+                                style={getStatusChipStyle(!editedTask.energyLevel)}
+                                onPress={() => setEditedTask(prev => ({ ...prev, energyLevel: undefined }))}
+                            >
+                                <Text style={getStatusTextStyle(!editedTask.energyLevel)}>
+                                    {t('common.none')}
+                                </Text>
+                            </TouchableOpacity>
+                            {energyLevelOptions.map((energyLevel) => (
+                                <TouchableOpacity
+                                    key={energyLevel}
+                                    style={getStatusChipStyle(editedTask.energyLevel === energyLevel)}
+                                    onPress={() => setEditedTask(prev => ({ ...prev, energyLevel }))}
+                                >
+                                    <Text style={getStatusTextStyle(editedTask.energyLevel === energyLevel)}>
+                                        {t(`energyLevel.${energyLevel}`)}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+                );
+            case 'assignedTo':
+                return (
+                    <View style={styles.formGroup}>
+                        <Text style={[styles.label, { color: tc.secondaryText }]}>{t('taskEdit.assignedTo')}</Text>
+                        <TextInput
+                            style={[styles.input, inputStyle]}
+                            value={String(editedTask.assignedTo ?? '')}
+                            onChangeText={(assignedTo) => setEditedTask(prev => ({ ...prev, assignedTo }))}
+                            onFocus={(event) => handleInputFocus(event.nativeEvent.target)}
+                            placeholder={t('taskEdit.assignedToPlaceholder')}
+                            placeholderTextColor={tc.secondaryText}
+                            accessibilityLabel={t('taskEdit.assignedTo')}
+                            accessibilityHint={t('taskEdit.assignedToPlaceholder')}
+                        />
                     </View>
                 );
             case 'contexts':

@@ -193,6 +193,10 @@ export const TaskItem = memo(function TaskItem({
         setEditTimeEstimate,
         editPriority,
         setEditPriority,
+        editEnergyLevel,
+        setEditEnergyLevel,
+        editAssignedTo,
+        setEditAssignedTo,
         editReviewAt,
         setEditReviewAt,
         showDescriptionPreview,
@@ -418,6 +422,8 @@ export const TaskItem = memo(function TaskItem({
         editSectionId,
         editAreaId,
         editPriority,
+        editEnergyLevel,
+        editAssignedTo,
         editContexts,
         editDescription,
         editDueDate,
@@ -452,6 +458,8 @@ export const TaskItem = memo(function TaskItem({
         editReviewAt,
         editStatus,
         editPriority,
+        editEnergyLevel,
+        editAssignedTo,
         editRecurrence,
         editRecurrenceStrategy,
         editRecurrenceRRule,
@@ -474,6 +482,8 @@ export const TaskItem = memo(function TaskItem({
         editReviewAt,
         editStatus,
         editPriority,
+        editEnergyLevel,
+        editAssignedTo,
         editRecurrence,
         editRecurrenceStrategy,
         editRecurrenceRRule,
@@ -497,6 +507,8 @@ export const TaskItem = memo(function TaskItem({
         setEditReviewAt,
         setEditStatus,
         setEditPriority,
+        setEditEnergyLevel,
+        setEditAssignedTo,
         setEditRecurrence,
         setEditRecurrenceStrategy,
         setEditRecurrenceRRule,
@@ -518,6 +530,8 @@ export const TaskItem = memo(function TaskItem({
         setEditReviewAt,
         setEditStatus,
         setEditPriority,
+        setEditEnergyLevel,
+        setEditAssignedTo,
         setEditRecurrence,
         setEditRecurrenceStrategy,
         setEditRecurrenceRRule,
@@ -685,6 +699,8 @@ export const TaskItem = memo(function TaskItem({
             recurrence: recurrenceValue,
             timeEstimate: editTimeEstimate || undefined,
             priority: editPriority || undefined,
+            energyLevel: editEnergyLevel || undefined,
+            assignedTo: editAssignedTo.trim() || undefined,
             reviewAt: parsedProps.reviewAt || editReviewAt || undefined,
             attachments: editAttachments.length > 0 ? editAttachments : undefined,
         });
@@ -761,6 +777,8 @@ export const TaskItem = memo(function TaskItem({
         if (editRecurrenceRRule !== getRecurrenceRRuleValue(task.recurrence)) return true;
         if (editTimeEstimate !== (task.timeEstimate || '')) return true;
         if (editPriority !== (task.priority || '')) return true;
+        if (editEnergyLevel !== (task.energyLevel || '')) return true;
+        if (editAssignedTo !== (task.assignedTo || '')) return true;
         if (editDueDate !== toDateTimeLocalValue(task.dueDate)) return true;
         if (editStartTime !== toDateTimeLocalValue(task.startTime)) return true;
         if (editReviewAt !== toDateTimeLocalValue(task.reviewAt)) return true;
@@ -780,6 +798,8 @@ export const TaskItem = memo(function TaskItem({
         editRecurrenceRRule,
         editTimeEstimate,
         editPriority,
+        editEnergyLevel,
+        editAssignedTo,
         editDueDate,
         editStartTime,
         editReviewAt,

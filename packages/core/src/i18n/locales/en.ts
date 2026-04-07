@@ -140,6 +140,9 @@ export const en: Record<string, string> = {
         'priority.medium': 'Medium',
         'priority.high': 'High',
         'priority.urgent': 'Urgent',
+        'energyLevel.low': 'Low energy',
+        'energyLevel.medium': 'Medium energy',
+        'energyLevel.high': 'High energy',
 
         // Task Edit
         'taskEdit.editTask': 'Edit Task',
@@ -163,6 +166,9 @@ export const en: Record<string, string> = {
         'taskEdit.titleLabel': 'Title',
         'taskEdit.statusLabel': 'Status',
         'taskEdit.priorityLabel': 'Priority',
+        'taskEdit.energyLevel': 'Energy Level',
+        'taskEdit.assignedTo': 'Assigned To',
+        'taskEdit.assignedToPlaceholder': 'Who is this waiting for?',
         'taskEdit.contextsLabel': 'Contexts',
         'taskEdit.contextsPlaceholder': '@home, @work',
         'taskEdit.tagsLabel': 'Tags',

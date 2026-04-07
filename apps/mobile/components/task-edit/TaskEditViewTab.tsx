@@ -132,6 +132,9 @@ export function TaskEditViewTab({
   const statusLabel = mergedTask.status ? (t(`status.${mergedTask.status}`) || mergedTask.status) : undefined;
   const isReference = mergedTask.status === 'reference';
   const priorityLabel = mergedTask.priority ? (t(`priority.${mergedTask.priority}`) || mergedTask.priority) : undefined;
+  const energyLevelLabel = mergedTask.energyLevel
+    ? (t(`energyLevel.${mergedTask.energyLevel}`) || mergedTask.energyLevel)
+    : undefined;
   const timeEstimateLabel = mergedTask.timeEstimate
     ? (formatTimeEstimateLabel(mergedTask.timeEstimate as TimeEstimate) || String(mergedTask.timeEstimate))
     : undefined;
@@ -150,6 +153,8 @@ export function TaskEditViewTab({
     >
       {renderViewRow(t('taskEdit.statusLabel'), statusLabel)}
       {!isReference && prioritiesEnabled ? renderViewRow(t('taskEdit.priorityLabel'), priorityLabel) : null}
+      {!isReference ? renderViewRow(t('taskEdit.energyLevel'), energyLevelLabel) : null}
+      {renderViewRow(t('taskEdit.assignedTo'), mergedTask.assignedTo)}
       {renderViewRow(
         t('taskEdit.projectLabel'),
         project?.title,
