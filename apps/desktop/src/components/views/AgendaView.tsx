@@ -6,7 +6,7 @@ import type { Task, Project } from '@mindwtr/core';
 import { useLanguage } from '../../contexts/language-context';
 import { cn } from '../../lib/utils';
 import { useUiStore } from '../../store/ui-store';
-import { Clock, Star, Calendar, ArrowRight, Filter, Folder, List, ChevronDown, type LucideIcon } from 'lucide-react';
+import { Clock, Star, Calendar, ArrowRight, Filter, Folder, List, ChevronDown, ChevronRight, type LucideIcon } from 'lucide-react';
 import { usePerformanceMonitor } from '../../hooks/usePerformanceMonitor';
 import { checkBudget } from '../../config/performanceBudgets';
 import { TaskItem } from '../TaskItem';
@@ -178,6 +178,11 @@ export function AgendaView() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [top3Only, setTop3Only] = useState(false);
+    const [expandedSections, setExpandedSections] = useState({
+        schedule: true,
+        nextActions: true,
+        reviewDue: true,
+    });
     const prioritiesEnabled = settings?.features?.priorities === true;
     const timeEstimatesEnabled = settings?.features?.timeEstimates === true;
     const pomodoroEnabled = settings?.features?.pomodoro === true;
@@ -542,28 +547,87 @@ export function AgendaView() {
         };
     }, [focusedCount, handleToggleFocus, t]);
 
-    const Section = ({ title, icon: Icon, tasks, color }: {
+    const toggleSection = useCallback((sectionKey: keyof typeof expandedSections) => {
+        setExpandedSections((current) => ({
+            ...current,
+            [sectionKey]: !current[sectionKey],
+        }));
+    }, []);
+
+    const SectionToggle = ({
+        title,
+        icon: Icon,
+        color,
+        count,
+        expanded,
+        onToggle,
+        controlsId,
+    }: {
+        title: string;
+        icon: LucideIcon;
+        color: string;
+        count: number;
+        expanded: boolean;
+        onToggle: () => void;
+        controlsId: string;
+    }) => (
+        <h3>
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={expanded}
+                aria-controls={controlsId}
+                className={cn(
+                    "w-full flex items-center gap-2 text-left font-semibold transition-colors",
+                    "focus:outline-none focus:ring-2 focus:ring-primary/30 rounded-md",
+                    color
+                )}
+            >
+                {expanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                )}
+                <Icon className="w-5 h-5" />
+                <span>{title}</span>
+                <span className="text-muted-foreground font-normal">({count})</span>
+            </button>
+        </h3>
+    );
+
+    const Section = ({ sectionKey, title, icon: Icon, tasks, color }: {
+        sectionKey: keyof typeof expandedSections;
         title: string;
         icon: LucideIcon;
         tasks: Task[];
         color: string;
     }) => {
         if (tasks.length === 0) return null;
+        const expanded = expandedSections[sectionKey];
+        const controlsId = `agenda-section-${sectionKey}`;
 
         return (
             <div className="space-y-3">
-                <h3 className={cn("font-semibold flex items-center gap-2", color)}>
-                    <Icon className="w-5 h-5" />
-                    {title}
-                    <span className="text-muted-foreground font-normal">({tasks.length})</span>
-                </h3>
-                <AgendaTaskList
-                    tasks={tasks}
-                    projectMap={projectMap}
-                    buildFocusToggle={buildFocusToggle}
-                    showListDetails={showListDetails}
-                    highlightTaskId={highlightTaskId}
+                <SectionToggle
+                    title={title}
+                    icon={Icon}
+                    color={color}
+                    count={tasks.length}
+                    expanded={expanded}
+                    onToggle={() => toggleSection(sectionKey)}
+                    controlsId={controlsId}
                 />
+                {expanded ? (
+                    <div id={controlsId}>
+                        <AgendaTaskList
+                            tasks={tasks}
+                            projectMap={projectMap}
+                            buildFocusToggle={buildFocusToggle}
+                            showListDetails={showListDetails}
+                            highlightTaskId={highlightTaskId}
+                        />
+                    </div>
+                ) : null}
             </div>
         );
     };
@@ -869,6 +933,7 @@ export function AgendaView() {
                     {/* Other Sections */}
                     <div className="space-y-6">
                         <Section
+                            sectionKey="schedule"
                             title={t('focus.schedule') || t('agenda.dueToday')}
                             icon={Calendar}
                             tasks={sections.schedule}
@@ -877,6 +942,7 @@ export function AgendaView() {
 
                         {nextGroupBy === 'none' ? (
                             <Section
+                                sectionKey="nextActions"
                                 title={t('agenda.nextActions')}
                                 icon={ArrowRight}
                                 tasks={sections.nextActions}
@@ -884,40 +950,47 @@ export function AgendaView() {
                             />
                         ) : (
                             <div className="space-y-3">
-                                <h3 className="font-semibold flex items-center gap-2 text-blue-600">
-                                    <ArrowRight className="w-5 h-5" />
-                                    {t('agenda.nextActions')}
-                                    <span className="text-muted-foreground font-normal">({sections.nextActions.length})</span>
-                                </h3>
-                                <div className="space-y-2">
-                                    {nextActionGroups.map((group) => (
-                                        <div key={group.id} className="rounded-md border border-border/40 bg-card/30">
-                                            <div className={cn(
-                                                'px-3 py-2 text-xs font-semibold uppercase tracking-wide border-b border-border/30',
-                                                group.muted ? 'text-muted-foreground' : 'text-foreground/90',
-                                            )}>
-                                                <span className="inline-flex items-center gap-1.5">
-                                                    {group.dotColor && (
-                                                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: group.dotColor }} aria-hidden="true" />
-                                                    )}
-                                                    <span>{group.title}</span>
-                                                </span>
-                                                <span className="ml-2 text-muted-foreground">{group.tasks.length}</span>
+                                <SectionToggle
+                                    title={t('agenda.nextActions')}
+                                    icon={ArrowRight}
+                                    color="text-blue-600"
+                                    count={sections.nextActions.length}
+                                    expanded={expandedSections.nextActions}
+                                    onToggle={() => toggleSection('nextActions')}
+                                    controlsId="agenda-section-nextActions"
+                                />
+                                {expandedSections.nextActions ? (
+                                    <div id="agenda-section-nextActions" className="space-y-2">
+                                        {nextActionGroups.map((group) => (
+                                            <div key={group.id} className="rounded-md border border-border/40 bg-card/30">
+                                                <div className={cn(
+                                                    'px-3 py-2 text-xs font-semibold uppercase tracking-wide border-b border-border/30',
+                                                    group.muted ? 'text-muted-foreground' : 'text-foreground/90',
+                                                )}>
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        {group.dotColor && (
+                                                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: group.dotColor }} aria-hidden="true" />
+                                                        )}
+                                                        <span>{group.title}</span>
+                                                    </span>
+                                                    <span className="ml-2 text-muted-foreground">{group.tasks.length}</span>
+                                                </div>
+                                                <AgendaTaskList
+                                                    tasks={group.tasks}
+                                                    projectMap={projectMap}
+                                                    buildFocusToggle={buildFocusToggle}
+                                                    showListDetails={showListDetails}
+                                                    highlightTaskId={highlightTaskId}
+                                                />
                                             </div>
-                                            <AgendaTaskList
-                                                tasks={group.tasks}
-                                                projectMap={projectMap}
-                                                buildFocusToggle={buildFocusToggle}
-                                                showListDetails={showListDetails}
-                                                highlightTaskId={highlightTaskId}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                ) : null}
                             </div>
                         )}
 
                         <Section
+                            sectionKey="reviewDue"
                             title={t('agenda.reviewDue') || 'Review Due'}
                             icon={Clock}
                             tasks={sections.reviewDue}

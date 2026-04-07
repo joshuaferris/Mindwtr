@@ -227,6 +227,52 @@ describe('AgendaView', () => {
         expect(getByText('Home next task')).toBeInTheDocument();
     });
 
+    it('collapses next actions when the section header is toggled', () => {
+        const nextTask: Task = {
+            id: 'next-action-task',
+            title: 'Next action task',
+            status: 'next',
+            tags: [],
+            contexts: [],
+            createdAt: nowIso,
+            updatedAt: nowIso,
+        };
+        const reviewTask: Task = {
+            id: 'waiting-review-task',
+            title: 'Waiting review task',
+            status: 'waiting',
+            reviewAt: '2026-02-27T09:00:00.000Z',
+            tags: [],
+            contexts: [],
+            createdAt: nowIso,
+            updatedAt: nowIso,
+        };
+
+        useTaskStore.setState({
+            tasks: [nextTask, reviewTask],
+            _allTasks: [nextTask, reviewTask],
+            projects: [],
+            _allProjects: [],
+            areas: [],
+            _allAreas: [],
+            settings: {},
+            highlightTaskId: null,
+        });
+
+        const { container, getByRole } = renderAgenda();
+        const nextSectionButton = getByRole('button', { name: /next actions/i });
+
+        expect(nextSectionButton).toHaveAttribute('aria-expanded', 'true');
+        expect(container.querySelector('[data-task-id="next-action-task"]')).toBeTruthy();
+        expect(container.querySelector('[data-task-id="waiting-review-task"]')).toBeTruthy();
+
+        fireEvent.click(nextSectionButton);
+
+        expect(getByRole('button', { name: /next actions/i })).toHaveAttribute('aria-expanded', 'false');
+        expect(container.querySelector('[data-task-id="next-action-task"]')).toBeNull();
+        expect(container.querySelector('[data-task-id="waiting-review-task"]')).toBeTruthy();
+    });
+
     it('exposes the filter panel state with aria-expanded', () => {
         const { getByRole } = renderAgenda();
 

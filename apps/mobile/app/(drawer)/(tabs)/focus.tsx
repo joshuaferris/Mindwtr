@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, SectionList, StyleSheet } from 'react-native';
+import { View, Text, SectionList, StyleSheet, Pressable } from 'react-native';
 import { format } from 'date-fns';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -23,6 +23,10 @@ export default function FocusScreen() {
   const tc = useThemeColors();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    schedule: true,
+    next: true,
+  });
   const lastOpenedFromNotificationRef = useRef<string | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pomodoroEnabled = settings?.features?.pomodoro === true;
@@ -144,9 +148,22 @@ export default function FocusScreen() {
   }, [visibleTasks, sequentialProjectIds, sequentialFirstTaskIds]);
 
   const sections = useMemo(() => ([
-    { title: t('focus.schedule') ?? 'Today', data: schedule, type: 'schedule' as const },
-    { title: t('focus.nextActions') ?? t('list.next'), data: nextActions, type: 'next' as const },
-  ]), [schedule, nextActions, t]);
+    {
+      title: t('focus.schedule') ?? 'Today',
+      data: expandedSections.schedule ? schedule : [],
+      totalCount: schedule.length,
+      expanded: expandedSections.schedule,
+      type: 'schedule' as const,
+    },
+    {
+      title: t('focus.nextActions') ?? t('list.next'),
+      data: expandedSections.next ? nextActions : [],
+      totalCount: nextActions.length,
+      expanded: expandedSections.next,
+      type: 'next' as const,
+    },
+  ]), [expandedSections.next, expandedSections.schedule, schedule, nextActions, t]);
+  const hasTasks = schedule.length > 0 || nextActions.length > 0;
   const pomodoroTasks = useMemo(() => {
     const byId = new Map<string, Task>();
     [...schedule, ...nextActions].forEach((task) => {
@@ -164,6 +181,13 @@ export default function FocusScreen() {
   const onSaveTask = useCallback((taskId: string, updates: Partial<Task>) => {
     updateTask(taskId, updates);
   }, [updateTask]);
+
+  const toggleSection = useCallback((sectionType: 'schedule' | 'next') => {
+    setExpandedSections((current) => ({
+      ...current,
+      [sectionType]: !current[sectionType],
+    }));
+  }, []);
 
   const renderItem = ({ item }: { item: Task }) => (
     <View style={styles.itemWrapper}>
@@ -207,20 +231,30 @@ export default function FocusScreen() {
           </View>
         )}
         renderSectionHeader={({ section }) => (
-          section.data.length > 0 ? (
-            <View style={styles.sectionHeader}>
+          section.totalCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={section.title}
+              accessibilityState={{ expanded: section.expanded }}
+              onPress={() => toggleSection(section.type)}
+              style={styles.sectionHeader}
+            >
+              <Text style={[styles.sectionChevron, { color: tc.secondaryText }]}>
+                {section.expanded ? '▼' : '▶'}
+              </Text>
               <Text style={[styles.sectionTitle, { color: tc.tint }]}>{section.title}</Text>
+              <Text style={[styles.sectionCount, { color: tc.secondaryText }]}>({section.totalCount})</Text>
               <View style={[styles.sectionLine, { backgroundColor: tc.border }]} />
-            </View>
+            </Pressable>
           ) : null
         )}
         renderItem={renderItem}
-        ListEmptyComponent={
+        ListEmptyComponent={!hasTasks ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyTitle, { color: tc.text }]}>{t('agenda.allClear')}</Text>
             <Text style={[styles.emptySubtitle, { color: tc.secondaryText }]}>{t('agenda.noTasks')}</Text>
           </View>
-        }
+        ) : null}
       />
       <TaskEditModal
         visible={isModalVisible}
@@ -266,6 +300,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  sectionChevron: {
+    fontSize: 12,
+    width: 14,
+    textAlign: 'center',
+  },
+  sectionCount: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   sectionLine: {
     flex: 1,
