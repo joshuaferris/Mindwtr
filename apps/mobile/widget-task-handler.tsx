@@ -10,7 +10,7 @@ import {
     WIDGET_DATA_KEY,
     WIDGET_LANGUAGE_KEY,
 } from './lib/widget-data';
-import { getAdaptiveWidgetTaskLimit } from './lib/widget-layout';
+import { getAdaptiveAndroidWidgetTaskLimit } from './lib/widget-layout';
 import { logWarn } from './lib/app-log';
 import { getSystemColorSchemeForWidget } from './lib/system-color-scheme';
 
@@ -48,7 +48,7 @@ async function loadWidgetContext() {
 
 const widgetTaskHandler: WidgetTaskHandler = async ({ renderWidget, widgetInfo }) => {
     let { data, language } = await loadWidgetContext();
-    const maxItems = getAdaptiveWidgetTaskLimit(widgetInfo.height);
+    const maxItems = getAdaptiveAndroidWidgetTaskLimit(widgetInfo.height);
     const tasksPayload = buildWidgetPayload(data, language, {
         systemColorScheme: getSystemColorSchemeForWidget(),
         maxItems,

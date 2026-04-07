@@ -70,9 +70,9 @@
               "name": "TasksWidget",
               "label": "Mindwtr",
               "description": "Inbox, focus, and quick capture",
-              "minWidth": "180dp",
+              "minWidth": "120dp",
               "minHeight": "180dp",
-              "targetCellWidth": 3,
+              "targetCellWidth": 2,
               "targetCellHeight": 3,
               "resizeMode": "horizontal|vertical",
               "previewImage": "./assets/images/widget-preview.png"

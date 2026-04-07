@@ -118,6 +118,33 @@ describe('widget-service', () => {
         expect(countRenderedTaskRows(renderedTree)).toBe(5);
     });
 
+    it('fills more of a default-height Android widget before falling back to +N more', async () => {
+        let renderedTree: WidgetElement | null = null;
+        mockRequestWidgetUpdate.mockImplementation(async ({ renderWidget }) => {
+            renderedTree = await renderWidget({
+                widgetName: 'TasksWidget',
+                widgetId: 1,
+                height: 180,
+                width: 180,
+                screenInfo: {
+                    screenHeightDp: 800,
+                    screenWidthDp: 400,
+                    density: 2,
+                    densityDpi: 320,
+                },
+            });
+        });
+
+        const didUpdate = await updateMobileWidgetFromData(buildData(6));
+
+        expect(didUpdate).toBe(true);
+        expect(renderedTree).not.toBeNull();
+        if (!renderedTree) {
+            throw new Error('Expected Android widget render tree');
+        }
+        expect(countRenderedTaskRows(renderedTree)).toBe(4);
+    });
+
     it('writes family-specific iOS payloads using adaptive task limits', async () => {
         mockPlatform.OS = 'ios';
         mockIosWidgetSetItem.mockResolvedValue(undefined);

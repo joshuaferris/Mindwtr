@@ -19,7 +19,7 @@ import {
 } from './widget-data';
 import { logError, logWarn } from './app-log';
 import { getSystemColorSchemeForWidget } from './system-color-scheme';
-import { getAdaptiveWidgetTaskLimit } from './widget-layout';
+import { getAdaptiveAndroidWidgetTaskLimit, getAdaptiveWidgetTaskLimit } from './widget-layout';
 
 export function isAndroidWidgetSupported(): boolean {
     return Platform.OS === 'android';
@@ -83,7 +83,7 @@ async function updateAndroidWidgetsFromData(data: AppData, language: Language): 
                         buildPayloadFromData(
                             data,
                             language,
-                            getAdaptiveWidgetTaskLimit(widgetInfo.height),
+                            getAdaptiveAndroidWidgetTaskLimit(widgetInfo.height),
                         ),
                     ),
                 });
