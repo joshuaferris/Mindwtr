@@ -20,9 +20,12 @@ export type Task = {
   contexts?: string[];
   checklist?: unknown[];
   description?: string;
+  textDirection?: string;
   attachments?: unknown[];
   location?: string;
   projectId?: string;
+  sectionId?: string;
+  areaId?: string;
   orderNum?: number;
   isFocusedToday?: boolean;
   timeEstimate?: string;
@@ -163,9 +166,12 @@ const BASE_TASK_COLUMNS = [
   'contexts',
   'checklist',
   'description',
+  'textDirection',
   'attachments',
   'location',
   'projectId',
+  'sectionId',
+  'areaId',
   'orderNum',
   'isFocusedToday',
   'timeEstimate',
@@ -187,7 +193,7 @@ const getTaskColumns = (db: DbClient) => {
     const columns = db.prepare('PRAGMA table_info(tasks)').all();
     const names = new Set<string>(columns.map((col: any) => String(col.name)));
     const hasOrderNum = names.has('orderNum');
-    const selectColumns = BASE_TASK_COLUMNS.filter((name) => hasOrderNum || name !== 'orderNum');
+    const selectColumns = BASE_TASK_COLUMNS.filter((name) => name === 'orderNum' ? hasOrderNum : names.has(name));
     const resolved = { hasOrderNum, selectColumns };
     taskColumnsCache.set(db, resolved);
     return resolved;
@@ -243,9 +249,12 @@ function mapTaskRow(row: any): TaskRow {
     contexts: parseJson(row.contexts, []),
     checklist: parseJson(row.checklist, []),
     description: row.description ?? undefined,
+    textDirection: row.textDirection ?? undefined,
     attachments: parseJson(row.attachments, []),
     location: row.location ?? undefined,
     projectId: row.projectId ?? undefined,
+    sectionId: row.sectionId ?? undefined,
+    areaId: row.areaId ?? undefined,
     orderNum: row.orderNum ?? undefined,
     isFocusedToday: row.isFocusedToday === 1,
     timeEstimate: row.timeEstimate ?? undefined,
