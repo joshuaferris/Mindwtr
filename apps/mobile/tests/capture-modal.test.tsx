@@ -3,7 +3,7 @@ import { TouchableOpacity } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import CaptureScreen from './capture-modal';
+import CaptureScreen from '@/app/capture-modal';
 
 const { routerMocks, storeState } = vi.hoisted(() => ({
   routerMocks: {
@@ -32,7 +32,7 @@ vi.mock('@mindwtr/core', () => ({
   useTaskStore: () => storeState,
 }));
 
-vi.mock('../contexts/language-context', () => ({
+vi.mock('@/contexts/language-context', () => ({
   useLanguage: () => ({
     t: (key: string) =>
       ({
@@ -50,7 +50,7 @@ vi.mock('../contexts/language-context', () => ({
   }),
 }));
 
-vi.mock('../hooks/use-theme-colors', () => ({
+vi.mock('@/hooks/use-theme-colors', () => ({
   useThemeColors: () => ({
     bg: '#0f172a',
     cardBg: '#111827',
@@ -61,13 +61,13 @@ vi.mock('../hooks/use-theme-colors', () => ({
   }),
 }));
 
-vi.mock('../lib/ai-config', () => ({
+vi.mock('@/lib/ai-config', () => ({
   buildCopilotConfig: vi.fn(),
   isAIKeyRequired: vi.fn(() => false),
   loadAIKey: vi.fn().mockResolvedValue(''),
 }));
 
-vi.mock('../lib/app-log', () => ({
+vi.mock('@/lib/app-log', () => ({
   logError: vi.fn(),
 }));
 

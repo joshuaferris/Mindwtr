@@ -173,14 +173,9 @@ const getWhisperModule = () => {
 const getExpoConstants = (): ExpoConstantsLike | null => {
   if (expoConstantsCache !== undefined) return expoConstantsCache;
   try {
-    const localRequire = typeof require === 'function' ? require : null;
-    if (!localRequire) {
-      expoConstantsCache = null;
-      return null;
-    }
     // Delay loading expo-constants so non-Expo test environments can import this module.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = localRequire('expo-constants') as { default?: ExpoConstantsLike } | undefined;
+    const mod = require('expo-constants') as { default?: ExpoConstantsLike } | undefined;
     expoConstantsCache = mod?.default ?? null;
     return expoConstantsCache;
   } catch {

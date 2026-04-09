@@ -9,12 +9,12 @@ import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { projectsScreenStyles as styles } from '@/app/(drawer)/projects-screen.styles';
+import { projectsScreenStyles as styles } from '@/components/projects-screen/projects-screen.styles';
 import {
   formatProjectDate,
   normalizeProjectTag,
   resolveAttachmentValidationMessage,
-} from '@/app/(drawer)/projects-screen.utils';
+} from '@/components/projects-screen/projects-screen.utils';
 import { ProjectImagePreviewModal, ProjectLinkModal, ProjectTagPickerModal } from '@/components/projects-screen/ProjectOverlayModals';
 import { ProjectRow } from '@/components/projects-screen/ProjectRow';
 import { TaskEditModal } from '@/components/task-edit-modal';

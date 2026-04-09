@@ -3,7 +3,7 @@ import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { type Area, type Project, type Task } from '@mindwtr/core';
 import { Trash2 } from 'lucide-react-native';
 
-import { projectsScreenStyles as styles } from '@/app/(drawer)/projects-screen.styles';
+import { projectsScreenStyles as styles } from '@/components/projects-screen/projects-screen.styles';
 
 type ThemeColors = {
     cardBg: string;

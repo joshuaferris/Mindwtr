@@ -18,11 +18,7 @@ export const normalizeAudioUri = (uri: string): string => {
 };
 
 export const normalizeAudioUriForFileRead = (uri: string): string => {
-  const normalized = normalizeAudioUri(uri);
-  if (normalized.startsWith('file://')) {
-    return normalized.replace(/^file:\/\//, '');
-  }
-  return normalized;
+  return normalizeAudioUri(uri);
 };
 
 export const buildMultipartAudioPart = ({

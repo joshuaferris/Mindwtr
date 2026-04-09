@@ -13,10 +13,10 @@ describe('speech-to-text helpers', () => {
     expect(normalizeAudioUri('content://media/external/audio/123')).toBe('content://media/external/audio/123');
   });
 
-  it('strips the file scheme when reading audio bytes from disk', () => {
-    expect(normalizeAudioUriForFileRead('/tmp/clip.m4a')).toBe('/tmp/clip.m4a');
-    expect(normalizeAudioUriForFileRead('file:/tmp/clip.m4a')).toBe('/tmp/clip.m4a');
-    expect(normalizeAudioUriForFileRead('file:///tmp/clip.m4a')).toBe('/tmp/clip.m4a');
+  it('keeps absolute URIs when reading audio bytes from disk', () => {
+    expect(normalizeAudioUriForFileRead('/tmp/clip.m4a')).toBe('file:///tmp/clip.m4a');
+    expect(normalizeAudioUriForFileRead('file:/tmp/clip.m4a')).toBe('file:///tmp/clip.m4a');
+    expect(normalizeAudioUriForFileRead('file:///tmp/clip.m4a')).toBe('file:///tmp/clip.m4a');
     expect(normalizeAudioUriForFileRead('content://media/external/audio/123')).toBe(
       'content://media/external/audio/123'
     );
