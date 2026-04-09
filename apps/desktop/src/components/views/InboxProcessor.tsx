@@ -17,6 +17,7 @@ import {
 import { InboxProcessingWizard, type ProcessingStep } from '../InboxProcessingWizard';
 import { InboxProcessingQuickPanel, type QuickActionabilityChoice, type QuickExecutionChoice, type QuickTwoMinuteChoice } from '../InboxProcessingQuickPanel';
 import { resolveAreaFilter, taskMatchesAreaFilter } from '../../lib/area-filter';
+import { reportError } from '../../lib/report-error';
 
 type InboxProcessorProps = {
     t: (key: string) => string;
@@ -507,21 +508,25 @@ export function InboxProcessor({
             alert(t('process.nextActionRequired'));
             return;
         }
-        const existing = projects.find((project) => project.title.toLowerCase() === projectTitle.toLowerCase());
-        const project = existing ?? await addProject(projectTitle, DEFAULT_PROJECT_COLOR);
-        if (!project) return;
-        applyProcessingEdits({
-            title: nextAction,
-            status: 'next',
-            contexts: selectedContexts,
-            tags: selectedTags,
-            ...(prioritiesEnabled ? { priority: selectedPriority ?? undefined } : {}),
-            projectId: project.id,
-            ...(scheduleEnabled && scheduleDate
-                ? { startTime: scheduleTime ? `${scheduleDate}T${scheduleTime}` : scheduleDate }
-                : {}),
-        });
-        processNext();
+        try {
+            const existing = projects.find((project) => project.title.toLowerCase() === projectTitle.toLowerCase());
+            const project = existing ?? await addProject(projectTitle, DEFAULT_PROJECT_COLOR);
+            if (!project) return;
+            applyProcessingEdits({
+                title: nextAction,
+                status: 'next',
+                contexts: selectedContexts,
+                tags: selectedTags,
+                ...(prioritiesEnabled ? { priority: selectedPriority ?? undefined } : {}),
+                projectId: project.id,
+                ...(scheduleEnabled && scheduleDate
+                    ? { startTime: scheduleTime ? `${scheduleDate}T${scheduleTime}` : scheduleDate }
+                    : {}),
+            });
+            processNext();
+        } catch (error) {
+            reportError('Failed to create project from inbox processing', error);
+        }
     };
 
     const handleQuickSubmit = useCallback(async () => {

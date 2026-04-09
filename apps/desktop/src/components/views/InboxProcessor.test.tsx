@@ -4,6 +4,11 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import type { AppData, Area, Project, Task } from '@mindwtr/core';
 
 import { InboxProcessor } from './InboxProcessor';
+import { reportError } from '../../lib/report-error';
+
+vi.mock('../../lib/report-error', () => ({
+    reportError: vi.fn(),
+}));
 
 const nowIso = new Date().toISOString();
 
@@ -109,6 +114,25 @@ describe('InboxProcessor', () => {
                 }),
             );
         });
+    });
+
+    it('reports addProject failures instead of throwing from project conversion', async () => {
+        const { getByRole, getByText, addProject, updateTask } = renderInboxProcessor();
+        addProject.mockRejectedValueOnce(new Error('disk full'));
+
+        fireEvent.click(getByRole('button', { name: /process\.btn/i }));
+        fireEvent.click(getByText('process.refineNext'));
+        fireEvent.click(getByText('process.yesActionable'));
+        fireEvent.click(getByText('process.moreThanOneStepYes'));
+        fireEvent.click(getByText('process.createProject'));
+
+        await waitFor(() => {
+            expect(reportError).toHaveBeenCalledWith(
+                'Failed to create project from inbox processing',
+                expect.any(Error),
+            );
+        });
+        expect(updateTask).not.toHaveBeenCalled();
     });
 
     it('continues to normal two-minute flow when item is a single action', () => {
