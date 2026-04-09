@@ -18,6 +18,7 @@ import { InboxProcessingWizard, type ProcessingStep } from '../InboxProcessingWi
 import { InboxProcessingQuickPanel, type QuickActionabilityChoice, type QuickExecutionChoice, type QuickTwoMinuteChoice } from '../InboxProcessingQuickPanel';
 import { resolveAreaFilter, taskMatchesAreaFilter } from '../../lib/area-filter';
 import { reportError } from '../../lib/report-error';
+import { useUiStore } from '../../store/ui-store';
 
 type InboxProcessorProps = {
     t: (key: string) => string;
@@ -62,6 +63,7 @@ export function InboxProcessor({
     isProcessing,
     setIsProcessing,
 }: InboxProcessorProps) {
+    const showToast = useUiStore((state) => state.showToast);
     const [processingMode, setProcessingMode] = useState<'guided' | 'quick'>('guided');
     const [processingTask, setProcessingTask] = useState<Task | null>(null);
     const [processingStep, setProcessingStep] = useState<ProcessingStep>('actionable');
@@ -169,7 +171,17 @@ export function InboxProcessor({
         setScheduleTime('');
         setScheduleTimeDraft('');
         setSkippedIds(new Set());
-    }, [defaultProcessingMode, isProcessing]);
+    }, [
+        contextStepEnabled,
+        defaultProcessingMode,
+        isProcessing,
+        prioritiesEnabled,
+        projectFirst,
+        referenceEnabled,
+        scheduleEnabled,
+        twoMinuteEnabled,
+        twoMinuteFirst,
+    ]);
 
     const hydrateProcessingTask = useCallback((task: Task) => {
         setProcessingTask(task);
@@ -526,6 +538,7 @@ export function InboxProcessor({
             processNext();
         } catch (error) {
             reportError('Failed to create project from inbox processing', error);
+            showToast(t('projects.createFailed') || 'Failed to create project', 'error');
         }
     };
 
