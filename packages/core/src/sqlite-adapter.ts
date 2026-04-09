@@ -789,6 +789,7 @@ export class SqliteAdapter {
         await this.ensureSchema();
         await this.client.run('BEGIN IMMEDIATE');
         try {
+            const nowIso = new Date().toISOString();
             const chunkArray = <T>(items: T[], size: number): T[][] => {
                 const chunks: T[][] = [];
                 for (let i = 0; i < items.length; i += size) {
@@ -857,18 +858,22 @@ export class SqliteAdapter {
                     'updatedAt',
                     'deletedAt',
                 ],
-                data.areas.map((area) => [
-                    area.id,
-                    area.name,
-                    area.color ?? null,
-                    area.icon ?? null,
-                    area.order,
-                    area.rev ?? null,
-                    area.revBy ?? null,
-                    area.createdAt ?? null,
-                    area.updatedAt ?? null,
-                    area.deletedAt ?? null,
-                ]),
+                data.areas.map((area) => {
+                    const createdAt = area.createdAt ?? area.updatedAt ?? nowIso;
+                    const updatedAt = area.updatedAt ?? area.createdAt ?? nowIso;
+                    return [
+                        area.id,
+                        area.name,
+                        area.color ?? null,
+                        area.icon ?? null,
+                        area.order,
+                        area.rev ?? null,
+                        area.revBy ?? null,
+                        createdAt,
+                        updatedAt,
+                        area.deletedAt ?? null,
+                    ];
+                }),
                 `name=excluded.name,
                  color=excluded.color,
                  icon=excluded.icon,

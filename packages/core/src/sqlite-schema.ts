@@ -67,8 +67,8 @@ CREATE TABLE IF NOT EXISTS areas (
   orderNum INTEGER NOT NULL,
   rev INTEGER,
   revBy TEXT,
-  createdAt TEXT,
-  updatedAt TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
   deletedAt TEXT
 );
 
