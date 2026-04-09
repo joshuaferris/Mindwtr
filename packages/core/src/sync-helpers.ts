@@ -18,7 +18,17 @@ export const normalizeWebdavUrl = (rawUrl: string): string => {
 
 export const normalizeCloudUrl = (rawUrl: string): string => {
     const trimmed = rawUrl.replace(/\/+$/, '');
-    return trimmed.toLowerCase().endsWith('/data') ? trimmed : `${trimmed}/data`;
+    const lower = trimmed.toLowerCase();
+
+    if (lower.endsWith('/v1/data') || lower.endsWith('/data')) {
+        return trimmed;
+    }
+
+    if (/\/v\d+$/i.test(trimmed)) {
+        return `${trimmed}/data`;
+    }
+
+    return `${trimmed}/v1/data`;
 };
 
 const isLocalAttachmentUri = (uri: string): boolean => {

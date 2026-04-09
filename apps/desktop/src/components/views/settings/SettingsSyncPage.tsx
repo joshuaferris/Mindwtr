@@ -582,7 +582,7 @@ export function SettingsSyncPage({
                                             type="text"
                                             value={cloudUrl}
                                             onChange={(e) => onCloudUrlChange(e.target.value)}
-                                            placeholder="https://example.com/v1/data"
+                                            placeholder="https://example.com"
                                             className={cn(
                                                 "bg-muted p-2 rounded text-sm font-mono border focus:outline-none focus:ring-2 focus:ring-primary",
                                                 cloudUrlError ? "border-destructive" : "border-border",

@@ -157,7 +157,7 @@ export const nlOverrides: Record<string, string> = {
         'settings.webdavPassword': 'Wachtwoord',
         'settings.webdavSave': 'WebDAV opslaan',
         'settings.cloudUrl': 'Self-hosted URL',
-        'settings.cloudUrlPlaceholder': 'https://example.com/v1',
+        'settings.cloudUrlPlaceholder': 'https://example.com',
         'settings.cloudToken': 'Toegangstoken',
         'settings.cloudSave': 'Self-hosted opslaan',
         'settings.importData': 'Data importeren',

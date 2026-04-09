@@ -3,6 +3,7 @@ import {
     areSyncPayloadsEqual,
     assertNoPendingAttachmentUploads,
     findPendingAttachmentUploads,
+    normalizeCloudUrl,
     sanitizeAppDataForRemote,
 } from './sync-helpers';
 import type { AppData, Attachment } from './types';
@@ -36,6 +37,23 @@ const createData = (attachments: Attachment[]): AppData => ({
     sections: [],
     areas: [],
     settings: {},
+});
+
+describe('sync-helpers normalizeCloudUrl', () => {
+    it('appends /v1/data to a bare self-hosted base URL', () => {
+        expect(normalizeCloudUrl('https://example.com')).toBe('https://example.com/v1/data');
+        expect(normalizeCloudUrl('https://example.com/mindwtr/')).toBe('https://example.com/mindwtr/v1/data');
+    });
+
+    it('appends /data when the versioned API base is already provided', () => {
+        expect(normalizeCloudUrl('https://example.com/v1')).toBe('https://example.com/v1/data');
+        expect(normalizeCloudUrl('https://example.com/api/v2/')).toBe('https://example.com/api/v2/data');
+    });
+
+    it('preserves full data endpoints for compatibility', () => {
+        expect(normalizeCloudUrl('https://example.com/v1/data')).toBe('https://example.com/v1/data');
+        expect(normalizeCloudUrl('https://example.com/data/')).toBe('https://example.com/data');
+    });
 });
 
 describe('sync-helpers pending attachment uploads', () => {
