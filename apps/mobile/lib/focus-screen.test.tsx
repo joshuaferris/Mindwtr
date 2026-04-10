@@ -1,32 +1,34 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Task } from '@mindwtr/core';
 
 import FocusScreen from '../app/(drawer)/(tabs)/focus';
 import { SwipeableTaskItem } from '@/components/swipeable-task-item';
 
-const storeState = {
+const makeTask = (id: string, overrides: Partial<Task> = {}): Task => ({
+  id,
+  title: `Task ${id}`,
+  status: 'next',
+  tags: [],
+  contexts: [],
+  createdAt: '2026-04-01T00:00:00.000Z',
+  updatedAt: '2026-04-01T00:00:00.000Z',
+  ...overrides,
+});
+
+const storeState: {
+  tasks: Task[];
+  projects: unknown[];
+  settings: { features: Record<string, unknown> };
+  updateTask: ReturnType<typeof vi.fn>;
+  deleteTask: ReturnType<typeof vi.fn>;
+  highlightTaskId: string | null;
+  setHighlightTask: ReturnType<typeof vi.fn>;
+} = {
   tasks: [
-    {
-      id: 'focus-task',
-      title: 'Focus task',
-      status: 'next',
-      isFocusedToday: true,
-      dueDate: '2000-01-01',
-      tags: [],
-      contexts: [],
-      createdAt: '2026-04-01T00:00:00.000Z',
-      updatedAt: '2026-04-01T00:00:00.000Z',
-    },
-    {
-      id: 'next-task',
-      title: 'Next task',
-      status: 'next',
-      tags: [],
-      contexts: [],
-      createdAt: '2026-04-01T00:00:00.000Z',
-      updatedAt: '2026-04-01T00:00:00.000Z',
-    },
+    makeTask('focus-task', { isFocusedToday: true, dueDate: '2000-01-01' }),
+    makeTask('next-task'),
   ],
   projects: [],
   settings: { features: {} },
@@ -38,26 +40,8 @@ const storeState = {
 
 beforeEach(() => {
   storeState.tasks = [
-    {
-      id: 'focus-task',
-      title: 'Focus task',
-      status: 'next',
-      isFocusedToday: true,
-      dueDate: '2000-01-01',
-      tags: [],
-      contexts: [],
-      createdAt: '2026-04-01T00:00:00.000Z',
-      updatedAt: '2026-04-01T00:00:00.000Z',
-    },
-    {
-      id: 'next-task',
-      title: 'Next task',
-      status: 'next',
-      tags: [],
-      contexts: [],
-      createdAt: '2026-04-01T00:00:00.000Z',
-      updatedAt: '2026-04-01T00:00:00.000Z',
-    },
+    makeTask('focus-task', { isFocusedToday: true, dueDate: '2000-01-01' }),
+    makeTask('next-task'),
   ];
   storeState.highlightTaskId = null;
 });
@@ -144,34 +128,9 @@ vi.mock('@/lib/task-meta-navigation', () => ({
 describe('FocusScreen', () => {
   it('renders focused next actions before other next actions', () => {
     storeState.tasks = [
-      {
-        id: 'plain-next',
-        title: 'Plain next',
-        status: 'next',
-        tags: [],
-        contexts: [],
-        createdAt: '2026-04-01T00:00:00.000Z',
-        updatedAt: '2026-04-01T00:00:00.000Z',
-      },
-      {
-        id: 'focused-next',
-        title: 'Focused next',
-        status: 'next',
-        isFocusedToday: true,
-        tags: [],
-        contexts: [],
-        createdAt: '2026-04-01T00:00:00.000Z',
-        updatedAt: '2026-04-01T00:00:00.000Z',
-      },
-      {
-        id: 'another-next',
-        title: 'Another next',
-        status: 'next',
-        tags: [],
-        contexts: [],
-        createdAt: '2026-04-01T00:00:00.000Z',
-        updatedAt: '2026-04-01T00:00:00.000Z',
-      },
+      makeTask('plain-next', { title: 'Plain next' }),
+      makeTask('focused-next', { title: 'Focused next', isFocusedToday: true }),
+      makeTask('another-next', { title: 'Another next' }),
     ];
 
     let tree!: ReturnType<typeof create>;
