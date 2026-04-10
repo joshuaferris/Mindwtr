@@ -140,13 +140,13 @@ export default function FocusScreen() {
 
     const scheduleIds = new Set(scheduleItems.map((task) => task.id));
 
-    const nextItems = visibleTasks.filter((task) => {
+    const nextItems = orderFocusedTasksFirst(visibleTasks.filter((task) => {
       if (task.deletedAt) return false;
       if (task.status !== 'next') return false;
       if (isPlannedForFuture(task)) return false;
       if (isSequentialBlocked(task)) return false;
       return !scheduleIds.has(task.id);
-    });
+    }));
 
     return { schedule: scheduleItems, nextActions: nextItems };
   }, [visibleTasks, sequentialProjectIds, sequentialFirstTaskIds]);

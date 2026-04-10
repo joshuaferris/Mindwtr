@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FocusScreen from '../app/(drawer)/(tabs)/focus';
 import { SwipeableTaskItem } from '@/components/swipeable-task-item';
@@ -35,6 +35,32 @@ const storeState = {
   highlightTaskId: null,
   setHighlightTask: vi.fn(),
 };
+
+beforeEach(() => {
+  storeState.tasks = [
+    {
+      id: 'focus-task',
+      title: 'Focus task',
+      status: 'next',
+      isFocusedToday: true,
+      dueDate: '2000-01-01',
+      tags: [],
+      contexts: [],
+      createdAt: '2026-04-01T00:00:00.000Z',
+      updatedAt: '2026-04-01T00:00:00.000Z',
+    },
+    {
+      id: 'next-task',
+      title: 'Next task',
+      status: 'next',
+      tags: [],
+      contexts: [],
+      createdAt: '2026-04-01T00:00:00.000Z',
+      updatedAt: '2026-04-01T00:00:00.000Z',
+    },
+  ];
+  storeState.highlightTaskId = null;
+});
 
 vi.mock('@mindwtr/core', () => {
   const useTaskStore = Object.assign(() => storeState, {
@@ -116,6 +142,49 @@ vi.mock('@/lib/task-meta-navigation', () => ({
 }));
 
 describe('FocusScreen', () => {
+  it('renders focused next actions before other next actions', () => {
+    storeState.tasks = [
+      {
+        id: 'plain-next',
+        title: 'Plain next',
+        status: 'next',
+        tags: [],
+        contexts: [],
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-01T00:00:00.000Z',
+      },
+      {
+        id: 'focused-next',
+        title: 'Focused next',
+        status: 'next',
+        isFocusedToday: true,
+        tags: [],
+        contexts: [],
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-01T00:00:00.000Z',
+      },
+      {
+        id: 'another-next',
+        title: 'Another next',
+        status: 'next',
+        tags: [],
+        contexts: [],
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-01T00:00:00.000Z',
+      },
+    ];
+
+    let tree!: ReturnType<typeof create>;
+
+    act(() => {
+      tree = create(<FocusScreen />);
+    });
+
+    expect(
+      tree.root.findAllByType(SwipeableTaskItem).map((node) => node.props.task.id),
+    ).toEqual(['focused-next', 'plain-next', 'another-next']);
+  });
+
   it('collapses the Next Actions section without showing the empty state', () => {
     let tree!: ReturnType<typeof create>;
 
