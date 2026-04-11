@@ -201,7 +201,8 @@ function mergeEntitiesWithStats<T extends MergeableEntity>(
     local: T[],
     incoming: T[],
     mergeConflict?: (localItem: T, incomingItem: T, winner: T) => T,
-    normalizeForComparison?: ComparisonNormalizer<T>
+    normalizeForComparison?: ComparisonNormalizer<T>,
+    entityType: string = 'entity',
 ): { merged: T[]; stats: EntityMergeStats } {
     const localMap = new Map<string, T>(local.map((item) => [item.id, item]));
     const incomingMap = new Map<string, T>(incoming.map((item) => [item.id, item]));
@@ -210,6 +211,7 @@ function mergeEntitiesWithStats<T extends MergeableEntity>(
     const stats = createEmptyEntityStats(local.length, incoming.length);
     const merged: T[] = [];
     let invalidDeletedAtWarnings = 0;
+    let ambiguousResurrectionWarnings = 0;
     const maxAllowedMergeTime = Date.now();
     const normalizeTimestamps = (item: T): T => {
         if (!item.createdAt) return item;
@@ -344,24 +346,68 @@ function mergeEntitiesWithStats<T extends MergeableEntity>(
             if (right.deletedAt && !left.deletedAt) return left;
             return chooseDeterministicWinner(left, right);
         };
-        const resolveDeleteVsLiveWinner = (localCandidate: T, incomingCandidate: T): T => {
+        const resolveDeleteVsLiveWinner = (
+            localCandidate: T,
+            incomingCandidate: T,
+        ): { winner: T; preservedLiveInAmbiguousWindow: boolean; operationDiffMs: number } => {
             const localOpTime = resolveOperationTime(localCandidate);
             const incomingOpTime = resolveOperationTime(incomingCandidate);
             const operationDiff = incomingOpTime - localOpTime;
             if (Math.abs(operationDiff) <= DELETE_VS_LIVE_AMBIGUOUS_WINDOW_MS) {
                 if (hasRevision && revDiff !== 0) {
-                    return revDiff > 0 ? normalizedLocalItem : normalizedIncomingItem;
+                    const winner = revDiff > 0 ? normalizedLocalItem : normalizedIncomingItem;
+                    return {
+                        winner,
+                        preservedLiveInAmbiguousWindow: !winner.deletedAt,
+                        operationDiffMs: operationDiff,
+                    };
                 }
-                return preferLiveCandidate(localCandidate, incomingCandidate);
+                const winner = preferLiveCandidate(localCandidate, incomingCandidate);
+                return {
+                    winner,
+                    preservedLiveInAmbiguousWindow: !winner.deletedAt,
+                    operationDiffMs: operationDiff,
+                };
             }
-            if (operationDiff > 0) return incomingCandidate;
-            if (operationDiff < 0) return localCandidate;
-            return preferDeletedCandidate(localCandidate, incomingCandidate);
+            if (operationDiff > 0) {
+                return { winner: incomingCandidate, preservedLiveInAmbiguousWindow: false, operationDiffMs: operationDiff };
+            }
+            if (operationDiff < 0) {
+                return { winner: localCandidate, preservedLiveInAmbiguousWindow: false, operationDiffMs: operationDiff };
+            }
+            return {
+                winner: preferDeletedCandidate(localCandidate, incomingCandidate),
+                preservedLiveInAmbiguousWindow: false,
+                operationDiffMs: operationDiff,
+            };
         };
 
         if (hasRevision) {
             if (localDeleted !== incomingDeleted) {
-                winner = resolveDeleteVsLiveWinner(normalizedLocalItem, normalizedIncomingItem);
+                const resolution = resolveDeleteVsLiveWinner(normalizedLocalItem, normalizedIncomingItem);
+                winner = resolution.winner;
+                if (resolution.preservedLiveInAmbiguousWindow) {
+                    ambiguousResurrectionWarnings += 1;
+                    if (ambiguousResurrectionWarnings <= 5) {
+                        logWarn('Preserved live item during ambiguous delete-vs-live merge', {
+                            scope: 'sync',
+                            category: 'sync',
+                            context: {
+                                entityType,
+                                id,
+                                operationDiffMs: resolution.operationDiffMs,
+                                localDeletedAt: normalizedLocalItem.deletedAt,
+                                incomingDeletedAt: normalizedIncomingItem.deletedAt,
+                                localUpdatedAt: normalizedLocalItem.updatedAt,
+                                incomingUpdatedAt: normalizedIncomingItem.updatedAt,
+                                localRev,
+                                incomingRev,
+                                localRevBy: localRevBy || undefined,
+                                incomingRevBy: incomingRevBy || undefined,
+                            },
+                        });
+                    }
+                }
             } else if (revDiff !== 0) {
                 winner = revDiff > 0 ? normalizedLocalItem : normalizedIncomingItem;
             } else if (comparableUpdatedTimeDiff !== 0) {
@@ -372,7 +418,30 @@ function mergeEntitiesWithStats<T extends MergeableEntity>(
                 winner = chooseDeterministicWinner(normalizedLocalItem, normalizedIncomingItem);
             }
         } else if (localDeleted !== incomingDeleted) {
-            winner = resolveDeleteVsLiveWinner(normalizedLocalItem, normalizedIncomingItem);
+            const resolution = resolveDeleteVsLiveWinner(normalizedLocalItem, normalizedIncomingItem);
+            winner = resolution.winner;
+            if (resolution.preservedLiveInAmbiguousWindow) {
+                ambiguousResurrectionWarnings += 1;
+                if (ambiguousResurrectionWarnings <= 5) {
+                    logWarn('Preserved live item during ambiguous delete-vs-live merge', {
+                        scope: 'sync',
+                        category: 'sync',
+                        context: {
+                            entityType,
+                            id,
+                            operationDiffMs: resolution.operationDiffMs,
+                            localDeletedAt: normalizedLocalItem.deletedAt,
+                            incomingDeletedAt: normalizedIncomingItem.deletedAt,
+                            localUpdatedAt: normalizedLocalItem.updatedAt,
+                            incomingUpdatedAt: normalizedIncomingItem.updatedAt,
+                            localRev,
+                            incomingRev,
+                            localRevBy: localRevBy || undefined,
+                            incomingRevBy: incomingRevBy || undefined,
+                        },
+                    });
+                }
+            }
         } else if (withinSkew && comparableUpdatedTimeDiff === 0) {
             winner = chooseDeterministicWinner(normalizedLocalItem, normalizedIncomingItem);
         }
@@ -424,7 +493,7 @@ function mergeEntitiesWithStats<T extends MergeableEntity>(
 function mergeAreas(local: Area[], incoming: Area[], nowIso: string): { merged: Area[]; stats: EntityMergeStats } {
     const localNormalized = local.map((area) => normalizeRevisionMetadata(normalizeAreaForSyncMerge(area, nowIso)));
     const incomingNormalized = incoming.map((area) => normalizeRevisionMetadata(normalizeAreaForSyncMerge(area, nowIso)));
-    const result = mergeEntitiesWithStats(localNormalized, incomingNormalized);
+    const result = mergeEntitiesWithStats(localNormalized, incomingNormalized, undefined, undefined, 'area');
     let fallbackOrder = result.merged.reduce((maxOrder, area) => {
         const order = typeof area.order === 'number' && Number.isFinite(area.order) ? area.order : -1;
         return Math.max(maxOrder, order);
@@ -548,7 +617,7 @@ export function mergeAppDataWithStats(local: AppData, incoming: AppData): MergeR
                 uri,
                 localStatus,
             };
-        }).merged;
+        }, undefined, 'attachment').merged;
 
         const normalized = merged.map((attachment) => {
             if (attachment.kind !== 'file') return attachment;
@@ -586,7 +655,8 @@ export function mergeAppDataWithStats(local: AppData, incoming: AppData): MergeR
             const attachments = mergeAttachments(localTask.attachments, incomingTask.attachments);
             return { ...winner, attachments };
         },
-        normalizeTaskForContentComparison
+        normalizeTaskForContentComparison,
+        'task'
     );
 
     const projectsResult = mergeEntitiesWithStats(
@@ -596,14 +666,16 @@ export function mergeAppDataWithStats(local: AppData, incoming: AppData): MergeR
             const attachments = mergeAttachments(localProject.attachments, incomingProject.attachments);
             return { ...winner, attachments };
         },
-        normalizeProjectForContentComparison
+        normalizeProjectForContentComparison,
+        'project'
     );
 
     const sectionsResult = mergeEntitiesWithStats(
         localNormalized.sections,
         incomingNormalized.sections,
         undefined,
-        normalizeSectionForContentComparison
+        normalizeSectionForContentComparison,
+        'section'
     );
 
     const areasResult = mergeAreas(local.areas || [], incoming.areas || [], nowIso);

@@ -92,6 +92,38 @@ describe('performSyncCycle', () => {
         expect(result.stats.tasks.conflicts).toBe(0);
     });
 
+    it('preserves the live task during an ambiguous delete-vs-live sync cycle', async () => {
+        const deletedTask = {
+            ...createMockTask('task-1', '2026-04-01T00:00:00.000Z', '2026-04-01T00:00:00.000Z'),
+            rev: 7,
+            revBy: 'device-local',
+        } satisfies Task;
+        const liveTask = {
+            ...createMockTask('task-1', '2026-04-01T00:00:00.000Z'),
+            rev: 7,
+            revBy: 'device-local',
+        } satisfies Task;
+        let wroteLocal: AppData | null = null;
+        let wroteRemote: AppData | null = null;
+
+        const result = await performSyncCycle({
+            readLocal: async () => mockAppData([deletedTask]),
+            readRemote: async () => mockAppData([liveTask]),
+            writeLocal: async (data) => {
+                wroteLocal = data;
+            },
+            writeRemote: async (data) => {
+                wroteRemote = data;
+            },
+        });
+
+        expect(result.status).toBe('conflict');
+        expect(result.data.tasks).toHaveLength(1);
+        expect(result.data.tasks[0].deletedAt).toBeUndefined();
+        expect(wroteLocal?.tasks[0]?.deletedAt).toBeUndefined();
+        expect(wroteRemote?.tasks[0]?.deletedAt).toBeUndefined();
+    });
+
     it('surfaces a clock skew warning when merge drift exceeds the threshold', async () => {
         const result = await performSyncCycle({
             readLocal: async () => mockAppData([

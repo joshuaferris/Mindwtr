@@ -3,6 +3,11 @@ import { CLOCK_SKEW_THRESHOLD_MS, mergeAppData, mergeAppDataWithStats, filterDel
 import { createMockArea, createMockProject, createMockSection, createMockTask, mockAppData } from './sync-test-utils';
 import { AppData, Task, Project, Attachment, Section, Area } from './types';
 
+const parseLoggedContext = (value: unknown): Record<string, unknown> => {
+    expect(typeof value).toBe('string');
+    return JSON.parse(String(value)) as Record<string, unknown>;
+};
+
 describe('Sync Logic', () => {
     describe('mergeAppData', () => {
         it('should merge attachments across devices', () => {
@@ -805,6 +810,46 @@ describe('Sync Logic', () => {
             expect(forward.tasks[0]).toEqual(reverse.tasks[0]);
             expect(forward.tasks[0].deletedAt).toBeUndefined();
             expect(forward.tasks[0].title).toBe('aa live');
+        });
+
+        it('logs when a live item is preserved inside the delete ambiguity window', () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            const deletedTask = {
+                ...createMockTask('1', '2023-01-02T00:00:00.000Z', '2023-01-02T00:00:00.000Z'),
+                rev: 7,
+                revBy: 'device-a',
+            } satisfies Task;
+            const liveTask = {
+                ...createMockTask('1', '2023-01-02T00:00:00.000Z'),
+                rev: 7,
+                revBy: 'device-a',
+            } satisfies Task;
+
+            const merged = mergeAppData(mockAppData([deletedTask]), mockAppData([liveTask]));
+
+            expect(merged.tasks).toHaveLength(1);
+            expect(merged.tasks[0].deletedAt).toBeUndefined();
+
+            const warningCall = warnSpy.mock.calls.find(([message]) => (
+                message === 'Preserved live item during ambiguous delete-vs-live merge'
+            ));
+            expect(warningCall).toBeTruthy();
+            const [, warningMeta] = warningCall ?? [];
+            expect(warningMeta).toEqual(
+                expect.objectContaining({
+                    scope: 'sync',
+                    category: 'sync',
+                    context: expect.any(String),
+                })
+            );
+            expect(parseLoggedContext(warningMeta?.context)).toMatchObject({
+                entityType: 'task',
+                id: '1',
+                operationDiffMs: 0,
+                localDeletedAt: '2023-01-02T00:00:00.000Z',
+                localRev: 7,
+                incomingRev: 7,
+            });
         });
 
         it('prefers live data over revBy tie-breaks inside the ambiguity window', () => {
