@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     createAIProvider,
     getStaleItems,
@@ -1000,7 +1001,7 @@ export function ReviewModal({ visible, onClose }: ReviewModalProps) {
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={handleClose}>
             <GestureHandlerRootView style={{ flex: 1 }}>
-                <View style={[styles.container, { backgroundColor: tc.bg }]}>
+                <SafeAreaView style={[styles.container, { backgroundColor: tc.bg }]} edges={['top', 'bottom']}>
                     {/* Header */}
                     <View style={[styles.header, { borderBottomColor: tc.border }]}>
                         <TouchableOpacity onPress={handleClose}>
@@ -1035,7 +1036,7 @@ export function ReviewModal({ visible, onClose }: ReviewModalProps) {
                             </TouchableOpacity>
                         </View>
                     )}
-                </View>
+                </SafeAreaView>
 
                 {/* Task Edit Modal */}
                 <TaskEditModal
