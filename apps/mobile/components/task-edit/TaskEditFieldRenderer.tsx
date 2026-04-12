@@ -19,6 +19,8 @@ import {
     type Task,
     TaskEditorFieldId,
     type TaskEnergyLevel,
+    type MarkdownSelection,
+    type MarkdownToolbarActionId,
     type TaskPriority,
     TaskStatus,
     type TimeEstimate,
@@ -27,7 +29,7 @@ import {
 } from '@mindwtr/core';
 import type { ThemeColors } from '@/hooks/use-theme-colors';
 
-import { ExpandedMarkdownEditor } from '../expanded-markdown-editor';
+import { MarkdownFormatToolbar } from '../markdown-format-toolbar';
 import { MarkdownText } from '../markdown-text';
 import { buildRecurrenceValue } from './recurrence-utils';
 import type { SetEditedTask } from './use-task-edit-state';
@@ -58,9 +60,17 @@ type TaskEditFieldRendererProps = {
     contextTokenSuggestions: string[];
     customWeekdays: RecurrenceWeekday[];
     dailyInterval: number;
-    descriptionDebounceRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
     descriptionDraft: string;
-    descriptionDraftRef: React.MutableRefObject<string>;
+    descriptionInputRef: React.RefObject<TextInput | null>;
+    descriptionSelection: MarkdownSelection;
+    setDescriptionSelection: React.Dispatch<React.SetStateAction<MarkdownSelection>>;
+    descriptionUndoDepth: number;
+    isDescriptionInputFocused: boolean;
+    setIsDescriptionInputFocused: React.Dispatch<React.SetStateAction<boolean>>;
+    handleDescriptionChange: (text: string) => void;
+    handleDescriptionUndo: () => MarkdownSelection | undefined;
+    handleDescriptionApplyAction: (actionId: MarkdownToolbarActionId, selection: MarkdownSelection) => MarkdownSelection;
+    openDescriptionExpandedEditor: () => void;
     downloadAttachment: (attachment: Attachment) => void | Promise<void>;
     editedTask: Partial<Task>;
     formatDate: (dateStr?: string) => string;
@@ -88,11 +98,9 @@ type TaskEditFieldRendererProps = {
     recurrenceStrategyValue: RecurrenceStrategy;
     recurrenceWeekdayButtons: WeekdayButton[];
     removeAttachment: (attachmentId: string) => void | Promise<void>;
-    resetCopilotDraft: () => void;
     selectedContextTokens: Set<string>;
     selectedTagTokens: Set<string>;
     setCustomWeekdays: React.Dispatch<React.SetStateAction<RecurrenceWeekday[]>>;
-    setDescriptionDraft: React.Dispatch<React.SetStateAction<string>>;
     setEditedTask: SetEditedTask;
     setIsContextInputFocused: React.Dispatch<React.SetStateAction<boolean>>;
     setIsTagInputFocused: React.Dispatch<React.SetStateAction<boolean>>;
@@ -133,9 +141,17 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
         contextTokenSuggestions,
         customWeekdays,
         dailyInterval,
-        descriptionDebounceRef,
         descriptionDraft,
-        descriptionDraftRef,
+        descriptionInputRef,
+        descriptionSelection,
+        setDescriptionSelection,
+        descriptionUndoDepth,
+        isDescriptionInputFocused,
+        setIsDescriptionInputFocused,
+        handleDescriptionChange,
+        handleDescriptionUndo,
+        handleDescriptionApplyAction,
+        openDescriptionExpandedEditor,
         downloadAttachment,
         editedTask,
         formatDate,
@@ -163,11 +179,9 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
         recurrenceStrategyValue,
         recurrenceWeekdayButtons,
         removeAttachment,
-        resetCopilotDraft,
         selectedContextTokens,
         selectedTagTokens,
         setCustomWeekdays,
-        setDescriptionDraft,
         setEditedTask,
         setIsContextInputFocused,
         setIsTagInputFocused,
@@ -201,7 +215,6 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
     const inputStyle = { backgroundColor: tc.inputBg, borderColor: tc.border, color: tc.text };
     const combinedText = `${titleDraft ?? ''}\n${descriptionDraft ?? ''}`.trim();
     const resolvedDirection = resolveAutoTextDirection(combinedText, language);
-    const [descriptionExpanded, setDescriptionExpanded] = React.useState(false);
     const textDirectionStyle = {
         writingDirection: resolvedDirection,
         textAlign: resolvedDirection === 'rtl' ? 'right' : 'left',
@@ -245,17 +258,6 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
     const openDatePicker = (mode: NonNullable<typeof showDatePicker>) => {
         Keyboard.dismiss();
         setShowDatePicker(mode);
-    };
-    const handleDescriptionChange = (text: string) => {
-        setDescriptionDraft(text);
-        descriptionDraftRef.current = text;
-        resetCopilotDraft();
-        if (descriptionDebounceRef.current) {
-            clearTimeout(descriptionDebounceRef.current);
-        }
-        descriptionDebounceRef.current = setTimeout(() => {
-            setEditedTask(prev => ({ ...prev, description: text }));
-        }, 250);
     };
     const getDatePickerValue = (mode: NonNullable<typeof showDatePicker>) => {
         if (mode === 'start') return getSafePickerDateValue(editedTask.startTime);
@@ -882,7 +884,7 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    onPress={() => setDescriptionExpanded(true)}
+                                    onPress={openDescriptionExpandedEditor}
                                     accessibilityRole="button"
                                     accessibilityLabel={t('markdown.expand')}
                                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -896,31 +898,38 @@ export function TaskEditFieldRenderer(input: TaskEditFieldRendererProps) {
                                 <MarkdownText markdown={descriptionDraft || ''} tc={tc} direction={resolvedDirection} />
                             </View>
                         ) : (
-                            <TextInput
-                                style={[styles.input, styles.textArea, inputStyle, textDirectionStyle]}
-                                value={descriptionDraft}
-                                onFocus={(event) => {
-                                    handleInputFocus(event.nativeEvent.target);
-                                }}
-                                onChangeText={handleDescriptionChange}
-                                placeholder={t('taskEdit.descriptionPlaceholder')}
-                                multiline
-                                placeholderTextColor={tc.secondaryText}
-                                accessibilityLabel={t('taskEdit.descriptionLabel')}
-                                accessibilityHint={t('taskEdit.descriptionPlaceholder')}
-                            />
+                            <>
+                                <MarkdownFormatToolbar
+                                    selection={descriptionSelection}
+                                    onSelectionChange={setDescriptionSelection}
+                                    inputRef={descriptionInputRef}
+                                    t={t}
+                                    tc={tc}
+                                    visible={isDescriptionInputFocused}
+                                    canUndo={descriptionUndoDepth > 0}
+                                    onUndo={handleDescriptionUndo}
+                                    onApplyAction={handleDescriptionApplyAction}
+                                />
+                                <TextInput
+                                    ref={descriptionInputRef}
+                                    style={[styles.input, styles.textArea, inputStyle, textDirectionStyle]}
+                                    value={descriptionDraft}
+                                    onFocus={(event) => {
+                                        setIsDescriptionInputFocused(true);
+                                        handleInputFocus(event.nativeEvent.target);
+                                    }}
+                                    onBlur={() => setIsDescriptionInputFocused(false)}
+                                    onChangeText={handleDescriptionChange}
+                                    onSelectionChange={(event) => setDescriptionSelection(event.nativeEvent.selection)}
+                                    selection={descriptionSelection}
+                                    placeholder={t('taskEdit.descriptionPlaceholder')}
+                                    multiline
+                                    placeholderTextColor={tc.secondaryText}
+                                    accessibilityLabel={t('taskEdit.descriptionLabel')}
+                                    accessibilityHint={t('taskEdit.descriptionPlaceholder')}
+                                />
+                            </>
                         )}
-                        <ExpandedMarkdownEditor
-                            isOpen={descriptionExpanded}
-                            onClose={() => setDescriptionExpanded(false)}
-                            value={descriptionDraft}
-                            onChange={handleDescriptionChange}
-                            title={t('taskEdit.descriptionLabel')}
-                            placeholder={t('taskEdit.descriptionPlaceholder')}
-                            t={t}
-                            initialMode="edit"
-                            direction={resolvedDirection}
-                        />
                     </View>
                 );
             case 'attachments':

@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+    InteractionManager,
     Keyboard,
     KeyboardAvoidingView,
     Modal,
@@ -9,13 +10,22 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    type TextInputSelectionChangeEventData,
+    type NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import {
+    applyMarkdownToolbarAction,
+    type MarkdownSelection,
+    type MarkdownToolbarActionId,
+} from '@mindwtr/core';
 
 import { useThemeColors } from '@/hooks/use-theme-colors';
 
 import { expandedMarkdownEditorStyles as styles } from './expanded-markdown-editor.styles';
+import { KeyboardAccessoryHost } from './keyboard-accessory-host';
+import { MarkdownFormatToolbar } from './markdown-format-toolbar';
 import { MarkdownText } from './markdown-text';
 
 type ExpandedMarkdownEditorProps = {
@@ -25,10 +35,16 @@ type ExpandedMarkdownEditorProps = {
     onChange: (value: string) => void;
     onCommit?: () => void;
     title: string;
+    headerTitle?: string;
     placeholder: string;
     t: (key: string) => string;
     initialMode?: 'edit' | 'preview';
     direction?: 'ltr' | 'rtl';
+    selection: MarkdownSelection;
+    onSelectionChange: (selection: MarkdownSelection) => void;
+    canUndo: boolean;
+    onUndo: () => MarkdownSelection | void;
+    onApplyAction?: (actionId: MarkdownToolbarActionId, selection: MarkdownSelection) => MarkdownSelection | void;
 };
 
 export function ExpandedMarkdownEditor({
@@ -38,132 +54,294 @@ export function ExpandedMarkdownEditor({
     onChange,
     onCommit,
     title,
+    headerTitle,
     placeholder,
     t,
     initialMode = 'edit',
     direction,
+    selection,
+    onSelectionChange,
+    canUndo,
+    onUndo,
+    onApplyAction,
 }: ExpandedMarkdownEditorProps) {
     const tc = useThemeColors();
     const inputRef = React.useRef<TextInput | null>(null);
     const focusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const focusInteractionRef = React.useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+    const openedAtRef = React.useRef(0);
+    const pendingInitialFocusRef = React.useRef(false);
+    const wasOpenRef = React.useRef(false);
+    const toolbarInteractionUntilRef = React.useRef(0);
+    const valueRef = React.useRef(value);
+    const selectionRef = React.useRef(selection);
+    const [editorValue, setEditorValue] = React.useState(value);
+    const [editorSelection, setEditorSelection] = React.useState(selection);
     const [mode, setMode] = React.useState<'edit' | 'preview'>(initialMode);
+    const [isInputFocused, setIsInputFocused] = React.useState(false);
+    const resolvedHeaderTitle = (headerTitle || '').trim() || title;
     const directionStyle = direction
         ? {
             writingDirection: direction,
             textAlign: direction === 'rtl' ? 'right' : 'left',
         }
         : undefined;
+    React.useEffect(() => {
+        if (isOpen && !wasOpenRef.current) {
+            openedAtRef.current = Date.now();
+            pendingInitialFocusRef.current = true;
+            setMode(initialMode);
+            valueRef.current = value;
+            selectionRef.current = selection;
+            setEditorValue(value);
+            setEditorSelection(selection);
+        }
+        wasOpenRef.current = isOpen;
+    }, [initialMode, isOpen, selection, value]);
 
     React.useEffect(() => {
-        if (!isOpen) return;
-        setMode(initialMode);
-    }, [initialMode, isOpen]);
+        if (!isOpen) {
+            setIsInputFocused(false);
+        }
+    }, [isOpen]);
+
+    const scheduleEditorFocus = React.useCallback(() => {
+        if (focusInteractionRef.current?.cancel) {
+            focusInteractionRef.current.cancel();
+        }
+        if (focusTimerRef.current) {
+            clearTimeout(focusTimerRef.current);
+            focusTimerRef.current = null;
+        }
+        focusInteractionRef.current = InteractionManager.runAfterInteractions(() => {
+            focusTimerRef.current = setTimeout(() => {
+                inputRef.current?.focus();
+                if (selectionRef.current) {
+                    inputRef.current?.setNativeProps?.({ selection: selectionRef.current });
+                }
+            }, Platform.OS === 'android' ? 120 : 30);
+        });
+    }, []);
 
     React.useEffect(() => {
         if (!isOpen || mode !== 'edit') return;
-        focusTimerRef.current = setTimeout(() => {
-            inputRef.current?.focus();
-        }, 30);
-        return () => {
-            if (focusTimerRef.current) {
-                clearTimeout(focusTimerRef.current);
-                focusTimerRef.current = null;
-            }
-        };
-    }, [isOpen, mode]);
+        if (pendingInitialFocusRef.current) return;
+        if (wasOpenRef.current) {
+            scheduleEditorFocus();
+        }
+    }, [isOpen, mode, scheduleEditorFocus]);
+
+    React.useEffect(() => {
+        if (isOpen) return;
+        valueRef.current = value;
+        setEditorValue(value);
+    }, [isOpen, value]);
+
+    React.useEffect(() => {
+        if (isOpen) return;
+        selectionRef.current = selection;
+        setEditorSelection(selection);
+    }, [isOpen, selection]);
+    React.useEffect(() => () => {
+        if (focusInteractionRef.current?.cancel) {
+            focusInteractionRef.current.cancel();
+        }
+        if (focusTimerRef.current) {
+            clearTimeout(focusTimerRef.current);
+            focusTimerRef.current = null;
+        }
+    }, []);
 
     const handleClose = React.useCallback(() => {
         onCommit?.();
         onClose();
     }, [onClose, onCommit]);
+    const handleRequestClose = React.useCallback(() => {
+        const elapsed = Date.now() - openedAtRef.current;
+        if (Platform.OS === 'android' && elapsed < 750) {
+            if (mode === 'edit') {
+                requestAnimationFrame(() => {
+                    inputRef.current?.focus();
+                });
+            }
+            return;
+        }
+        handleClose();
+    }, [handleClose, mode]);
 
     const handleToggleMode = React.useCallback(() => {
         setMode((prev) => {
             const next = prev === 'edit' ? 'preview' : 'edit';
             if (next === 'preview') {
                 Keyboard.dismiss();
+                setIsInputFocused(false);
             }
             return next;
         });
     }, []);
+
+    const handleSelectionChange = React.useCallback((event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
+        selectionRef.current = event.nativeEvent.selection;
+        setEditorSelection(event.nativeEvent.selection);
+        onSelectionChange(event.nativeEvent.selection);
+    }, [onSelectionChange]);
+    const restoreEditorFocus = React.useCallback((selectionOverride?: MarkdownSelection) => {
+        const targetSelection = selectionOverride ?? selectionRef.current;
+        const focusInput = () => {
+            inputRef.current?.focus();
+            if (targetSelection) {
+                inputRef.current?.setNativeProps?.({ selection: targetSelection });
+            }
+        };
+        requestAnimationFrame(focusInput);
+        setTimeout(focusInput, 40);
+    }, []);
+    const handleToolbarInteractionStart = React.useCallback(() => {
+        toolbarInteractionUntilRef.current = Date.now() + 300;
+        setIsInputFocused(true);
+    }, []);
+
+    const handleChangeText = React.useCallback((nextValue: string) => {
+        valueRef.current = nextValue;
+        setEditorValue(nextValue);
+        onChange(nextValue);
+    }, [onChange]);
+
+    const handleApplyAction = React.useCallback((actionId: MarkdownToolbarActionId, currentSelection: MarkdownSelection) => {
+        const liveSelection = selectionRef.current ?? currentSelection;
+        const optimisticNext = applyMarkdownToolbarAction(valueRef.current, liveSelection, actionId);
+        valueRef.current = optimisticNext.value;
+        selectionRef.current = optimisticNext.selection;
+        setEditorValue(optimisticNext.value);
+        setEditorSelection(optimisticNext.selection);
+        restoreEditorFocus(optimisticNext.selection);
+
+        if (onApplyAction) {
+            const nextSelection = onApplyAction(actionId, liveSelection) ?? optimisticNext.selection;
+            selectionRef.current = nextSelection;
+            setEditorSelection(nextSelection);
+            restoreEditorFocus(nextSelection);
+            return nextSelection;
+        }
+        onChange(optimisticNext.value);
+        onSelectionChange(optimisticNext.selection);
+        return optimisticNext.selection;
+    }, [onApplyAction, onChange, onSelectionChange, restoreEditorFocus]);
 
     return (
         <Modal
             visible={isOpen}
             animationType="slide"
             presentationStyle="fullScreen"
-            onRequestClose={handleClose}
+            onRequestClose={handleRequestClose}
+            onShow={() => {
+                if (initialMode === 'edit') {
+                    pendingInitialFocusRef.current = false;
+                    scheduleEditorFocus();
+                }
+            }}
         >
-            <SafeAreaView style={[styles.container, { backgroundColor: tc.bg }]} edges={['top', 'bottom']}>
-                <View style={[styles.header, { borderBottomColor: tc.border }]}>
-                    <TouchableOpacity
-                        onPress={handleClose}
-                        style={[
-                            styles.closeButton,
-                            direction === 'rtl' ? { left: undefined, right: 16 } : null,
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('markdown.collapse')}
-                    >
-                        <Ionicons name="close" size={24} color={tc.text} />
-                    </TouchableOpacity>
-
-                    <Text style={[styles.title, { color: tc.text }]} numberOfLines={1}>
-                        {title}
-                    </Text>
-
-                    <TouchableOpacity
-                        onPress={handleToggleMode}
-                        style={[
-                            styles.modeButton,
-                            direction === 'rtl' ? { right: undefined, left: 16 } : null,
-                            { backgroundColor: tc.cardBg, borderColor: tc.border },
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel={mode === 'edit' ? t('markdown.preview') : t('markdown.edit')}
-                    >
-                        <Text style={[styles.modeButtonText, { color: tc.tint }]}>
-                            {mode === 'edit' ? t('markdown.preview') : t('markdown.edit')}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={0}
-                    style={styles.body}
-                >
-                    {mode === 'edit' ? (
-                        <View style={styles.content}>
-                            <TextInput
-                                ref={inputRef}
-                                style={[
-                                    styles.editorInput,
-                                    directionStyle,
-                                    { color: tc.text, backgroundColor: tc.inputBg, borderColor: tc.border },
-                                ]}
-                                value={value}
-                                onChangeText={onChange}
-                                placeholder={placeholder}
-                                placeholderTextColor={tc.secondaryText}
-                                multiline
-                                accessibilityLabel={title}
-                                accessibilityHint={placeholder}
-                            />
-                        </View>
-                    ) : (
-                        <ScrollView
-                            style={styles.previewScroll}
-                            contentContainerStyle={styles.previewContent}
-                            keyboardShouldPersistTaps="handled"
+            <KeyboardAccessoryHost>
+                <SafeAreaView style={[styles.container, { backgroundColor: tc.bg }]} edges={['top', 'bottom']}>
+                    <View style={[styles.header, { borderBottomColor: tc.border }]}>
+                        <TouchableOpacity
+                            onPress={() => handleClose()}
+                            style={[
+                                styles.closeButton,
+                                direction === 'rtl' ? { left: undefined, right: 16 } : null,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('markdown.collapse')}
                         >
-                            <View style={[styles.previewSurface, { backgroundColor: tc.filterBg, borderColor: tc.border }]}>
-                                <MarkdownText markdown={value} tc={tc} direction={direction} />
+                            <Ionicons name="close" size={24} color={tc.text} />
+                        </TouchableOpacity>
+
+                        <Text style={[styles.title, { color: tc.text }]} numberOfLines={1}>
+                            {resolvedHeaderTitle}
+                        </Text>
+
+                        <TouchableOpacity
+                            onPress={handleToggleMode}
+                            style={[
+                                styles.modeButton,
+                                direction === 'rtl' ? { right: undefined, left: 16 } : null,
+                                { backgroundColor: tc.cardBg, borderColor: tc.border },
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel={mode === 'edit' ? t('markdown.preview') : t('markdown.edit')}
+                        >
+                            <Text style={[styles.modeButtonText, { color: tc.tint }]}>
+                                {mode === 'edit' ? t('markdown.preview') : t('markdown.edit')}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        keyboardVerticalOffset={0}
+                        style={styles.body}
+                    >
+                        {mode === 'edit' ? (
+                            <View style={styles.content}>
+                                <MarkdownFormatToolbar
+                                    selection={selection}
+                                    onSelectionChange={onSelectionChange}
+                                    inputRef={inputRef}
+                                    t={t}
+                                    tc={tc}
+                                    visible={isInputFocused}
+                                    canUndo={canUndo}
+                                    onUndo={onUndo}
+                                    onApplyAction={handleApplyAction}
+                                    onInteractionStart={handleToolbarInteractionStart}
+                                />
+                                <TextInput
+                                    ref={inputRef}
+                                    style={[
+                                        styles.editorInput,
+                                        directionStyle,
+                                        { color: tc.text, backgroundColor: tc.inputBg, borderColor: tc.border },
+                                    ]}
+                                    value={editorValue}
+                                    onChangeText={handleChangeText}
+                                    onFocus={() => {
+                                        setIsInputFocused(true);
+                                    }}
+                                    onBlur={() => {
+                                        const preserveFocus = toolbarInteractionUntilRef.current > Date.now();
+                                        if (preserveFocus) {
+                                            restoreEditorFocus();
+                                            return;
+                                        }
+                                        setTimeout(() => {
+                                            if (!inputRef.current?.isFocused?.()) {
+                                                setIsInputFocused(false);
+                                            }
+                                        }, 0);
+                                    }}
+                                    selection={editorSelection}
+                                    onSelectionChange={handleSelectionChange}
+                                    placeholder={placeholder}
+                                    placeholderTextColor={tc.secondaryText}
+                                    multiline
+                                    accessibilityLabel={title}
+                                    accessibilityHint={placeholder}
+                                />
                             </View>
-                        </ScrollView>
-                    )}
-                </KeyboardAvoidingView>
-            </SafeAreaView>
+                        ) : (
+                            <ScrollView
+                                style={styles.previewScroll}
+                                contentContainerStyle={styles.previewContent}
+                                keyboardShouldPersistTaps="handled"
+                            >
+                                <View style={[styles.previewSurface, { backgroundColor: tc.filterBg, borderColor: tc.border }]}>
+                                    <MarkdownText markdown={editorValue} tc={tc} direction={direction} />
+                                </View>
+                            </ScrollView>
+                        )}
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
+            </KeyboardAccessoryHost>
         </Modal>
     );
 }

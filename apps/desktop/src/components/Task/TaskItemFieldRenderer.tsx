@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Maximize2 } from 'lucide-react';
 import {
+    applyMarkdownToolbarAction,
     buildRRuleString,
     hasTimeComponent,
     parseRRuleString,
@@ -8,6 +9,8 @@ import {
     safeFormatDate,
     safeParseDate,
     type Attachment,
+    type MarkdownSelection,
+    type MarkdownToolbarActionId,
     type RecurrenceRule,
     type RecurrenceStrategy,
     type Task,
@@ -22,6 +25,7 @@ import { cn } from '../../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExpandedMarkdownEditor } from '../ExpandedMarkdownEditor';
+import { MarkdownFormatToolbar } from '../MarkdownFormatToolbar';
 import { WeekdaySelector } from './TaskForm/WeekdaySelector';
 import { AttachmentsField } from './TaskForm/AttachmentsField';
 import { ChecklistField } from './TaskForm/ChecklistField';
@@ -125,12 +129,27 @@ export function TaskItemFieldRenderer({
 
     const [reviewTimeDraft, setReviewTimeDraft] = useState('');
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+    const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const descriptionSelectionRef = useRef<MarkdownSelection>({
+        start: editDescription.length,
+        end: editDescription.length,
+    });
+    const descriptionUndoRef = useRef<Array<{ value: string; selection: MarkdownSelection }>>([]);
+    const [descriptionUndoDepth, setDescriptionUndoDepth] = useState(0);
     useEffect(() => {
         const parsed = editReviewAt ? safeParseDate(editReviewAt) : null;
         const hasTime = hasTimeComponent(editReviewAt);
         const next = hasTime && parsed ? safeFormatDate(parsed, 'HH:mm') : '';
         setReviewTimeDraft(next);
     }, [editReviewAt]);
+    useEffect(() => {
+        descriptionSelectionRef.current = {
+            start: editDescription.length,
+            end: editDescription.length,
+        };
+        descriptionUndoRef.current = [];
+        setDescriptionUndoDepth(0);
+    }, [taskId]);
     const {
         toggleDescriptionPreview,
         setEditDescription,
@@ -158,6 +177,65 @@ export function TaskItemFieldRenderer({
 
     const resolvedDirection = resolveAutoTextDirection([task.title, editDescription].filter(Boolean).join(' '), language);
     const isRtl = resolvedDirection === 'rtl';
+    const pushDescriptionUndoEntry = (value: string, selection: MarkdownSelection) => {
+        const previousEntry = descriptionUndoRef.current[descriptionUndoRef.current.length - 1];
+        if (
+            previousEntry
+            && previousEntry.value === value
+            && previousEntry.selection.start === selection.start
+            && previousEntry.selection.end === selection.end
+        ) {
+            return;
+        }
+        const nextUndoEntries = [...descriptionUndoRef.current, { value, selection }];
+        descriptionUndoRef.current = nextUndoEntries.length > 100
+            ? nextUndoEntries.slice(nextUndoEntries.length - 100)
+            : nextUndoEntries;
+        setDescriptionUndoDepth(descriptionUndoRef.current.length);
+    };
+    const applyDescriptionValue = (
+        value: string,
+        options?: {
+            nextSelection?: MarkdownSelection;
+            recordUndo?: boolean;
+            baseSelection?: MarkdownSelection;
+        },
+    ) => {
+        if ((options?.recordUndo ?? true) && value !== editDescription) {
+            pushDescriptionUndoEntry(editDescription, options?.baseSelection ?? descriptionSelectionRef.current);
+        }
+        setEditDescription(value);
+        if (options?.nextSelection) {
+            descriptionSelectionRef.current = options.nextSelection;
+        }
+    };
+    const handleDescriptionUndo = () => {
+        const previousEntry = descriptionUndoRef.current[descriptionUndoRef.current.length - 1];
+        if (!previousEntry) return undefined;
+        descriptionUndoRef.current = descriptionUndoRef.current.slice(0, -1);
+        setDescriptionUndoDepth(descriptionUndoRef.current.length);
+        applyDescriptionValue(previousEntry.value, {
+            nextSelection: previousEntry.selection,
+            recordUndo: false,
+        });
+        return previousEntry.selection;
+    };
+    const handleDescriptionApplyAction = (actionId: MarkdownToolbarActionId, selection: MarkdownSelection) => {
+        const next = applyMarkdownToolbarAction(editDescription, selection, actionId);
+        applyDescriptionValue(next.value, {
+            baseSelection: selection,
+            nextSelection: next.selection,
+        });
+        return next.selection;
+    };
+    const handleDescriptionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+        const lowerKey = event.key.toLowerCase();
+        if (lowerKey !== 'z') return;
+        if (descriptionUndoRef.current.length === 0) return;
+        event.preventDefault();
+        handleDescriptionUndo();
+    };
 
     switch (fieldId) {
         case 'description':
@@ -244,31 +322,62 @@ export function TaskItemFieldRenderer({
                             </ReactMarkdown>
                         </div>
                     ) : (
-                        <AutosizeTextarea
-                            aria-label={t('task.aria.description')}
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                            minHeight={112}
-                            focusedMinHeight={208}
-                            maxHeight={480}
-                            className={cn(
-                                "w-full text-sm leading-6 bg-muted/50 border border-border rounded px-3 py-2 resize-none transition-[border-color,box-shadow] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40",
-                                isRtl && "text-right"
-                            )}
-                            placeholder={t('taskEdit.descriptionPlaceholder')}
-                            dir={resolvedDirection}
-                        />
+                        <div className="flex flex-col gap-2">
+                            <MarkdownFormatToolbar
+                                textareaRef={descriptionTextareaRef}
+                                t={t}
+                                canUndo={descriptionUndoDepth > 0}
+                                onUndo={handleDescriptionUndo}
+                                onApplyAction={handleDescriptionApplyAction}
+                            />
+                            <AutosizeTextarea
+                                ref={descriptionTextareaRef}
+                                aria-label={t('task.aria.description')}
+                                value={editDescription}
+                                onChange={(event) => {
+                                    applyDescriptionValue(event.target.value);
+                                    descriptionSelectionRef.current = {
+                                        start: event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                                        end: event.currentTarget.selectionEnd ?? event.currentTarget.value.length,
+                                    };
+                                }}
+                                onSelect={(event) => {
+                                    descriptionSelectionRef.current = {
+                                        start: event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                                        end: event.currentTarget.selectionEnd ?? event.currentTarget.value.length,
+                                    };
+                                }}
+                                onKeyDown={handleDescriptionKeyDown}
+                                minHeight={112}
+                                focusedMinHeight={208}
+                                maxHeight={480}
+                                className={cn(
+                                    "w-full text-sm leading-6 bg-muted/50 border border-border rounded px-3 py-2 resize-none transition-[border-color,box-shadow] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40",
+                                    isRtl && "text-right"
+                                )}
+                                placeholder={t('taskEdit.descriptionPlaceholder')}
+                                dir={resolvedDirection}
+                            />
+                        </div>
                     )}
                     <ExpandedMarkdownEditor
                         isOpen={descriptionExpanded}
                         onClose={() => setDescriptionExpanded(false)}
                         value={editDescription}
-                        onChange={setEditDescription}
+                        onChange={applyDescriptionValue}
                         title={t('taskEdit.descriptionLabel')}
+                        headerTitle={task.title?.trim() || t('taskEdit.descriptionLabel')}
                         placeholder={t('taskEdit.descriptionPlaceholder')}
                         t={t}
                         initialMode="edit"
                         direction={resolvedDirection}
+                        canUndo={descriptionUndoDepth > 0}
+                        onUndo={handleDescriptionUndo}
+                        onApplyAction={handleDescriptionApplyAction}
+                        onSelectionChange={(selection) => {
+                            descriptionSelectionRef.current = selection;
+                        }}
+                        onEditorKeyDown={handleDescriptionKeyDown}
                     />
                 </div>
             );

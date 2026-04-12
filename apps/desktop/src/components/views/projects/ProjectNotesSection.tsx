@@ -1,8 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link2, Maximize2, Paperclip } from 'lucide-react';
-import { resolveAutoTextDirection, type Attachment, type Project } from '@mindwtr/core';
+import {
+    applyMarkdownToolbarAction,
+    resolveAutoTextDirection,
+    type Attachment,
+    type MarkdownSelection,
+    type MarkdownToolbarActionId,
+    type Project,
+} from '@mindwtr/core';
 
 import { ExpandedMarkdownEditor } from '../../ExpandedMarkdownEditor';
+import { MarkdownFormatToolbar } from '../../MarkdownFormatToolbar';
 import { Markdown } from '../../Markdown';
 import { AttachmentProgressIndicator } from '../../AttachmentProgressIndicator';
 import { getAttachmentDisplayTitle } from '../../../lib/attachment-utils';
@@ -42,6 +50,12 @@ export function ProjectNotesSection({
     const [notesExpanded, setNotesExpanded] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const draftNotesRef = useRef(project.supportNotes || '');
+    const notesSelectionRef = useRef<MarkdownSelection>({
+        start: draftNotes.length,
+        end: draftNotes.length,
+    });
+    const notesUndoRef = useRef<Array<{ value: string; selection: MarkdownSelection }>>([]);
+    const [notesUndoDepth, setNotesUndoDepth] = useState(0);
     const resolvedDirection = resolveAutoTextDirection([project.title, draftNotes].filter(Boolean).join(' '), language);
     const isRtl = resolvedDirection === 'rtl';
 
@@ -49,14 +63,83 @@ export function ProjectNotesSection({
         draftNotesRef.current = project.supportNotes || '';
         setDraftNotes(project.supportNotes || '');
         setNotesExpanded(false);
+        notesSelectionRef.current = {
+            start: (project.supportNotes || '').length,
+            end: (project.supportNotes || '').length,
+        };
+        notesUndoRef.current = [];
+        setNotesUndoDepth(0);
         if (textareaRef.current) {
             textareaRef.current.scrollTop = 0;
         }
     }, [project.id, project.supportNotes]);
 
-    const handleNotesChange = (value: string) => {
+    const pushNotesUndoEntry = (value: string, selection: MarkdownSelection) => {
+        const previousEntry = notesUndoRef.current[notesUndoRef.current.length - 1];
+        if (
+            previousEntry
+            && previousEntry.value === value
+            && previousEntry.selection.start === selection.start
+            && previousEntry.selection.end === selection.end
+        ) {
+            return;
+        }
+        const nextUndoEntries = [...notesUndoRef.current, { value, selection }];
+        notesUndoRef.current = nextUndoEntries.length > 100
+            ? nextUndoEntries.slice(nextUndoEntries.length - 100)
+            : nextUndoEntries;
+        setNotesUndoDepth(notesUndoRef.current.length);
+    };
+
+    const applyNotesValue = (
+        value: string,
+        options?: {
+            nextSelection?: MarkdownSelection;
+            recordUndo?: boolean;
+            baseSelection?: MarkdownSelection;
+        },
+    ) => {
+        if ((options?.recordUndo ?? true) && value !== draftNotesRef.current) {
+            pushNotesUndoEntry(draftNotesRef.current, options?.baseSelection ?? notesSelectionRef.current);
+        }
         draftNotesRef.current = value;
         setDraftNotes(value);
+        if (options?.nextSelection) {
+            notesSelectionRef.current = options.nextSelection;
+        }
+    };
+
+    const handleNotesChange = (value: string) => {
+        applyNotesValue(value);
+    };
+
+    const handleNotesUndo = () => {
+        const previousEntry = notesUndoRef.current[notesUndoRef.current.length - 1];
+        if (!previousEntry) return undefined;
+        notesUndoRef.current = notesUndoRef.current.slice(0, -1);
+        setNotesUndoDepth(notesUndoRef.current.length);
+        applyNotesValue(previousEntry.value, {
+            nextSelection: previousEntry.selection,
+            recordUndo: false,
+        });
+        return previousEntry.selection;
+    };
+
+    const handleNotesApplyAction = (actionId: MarkdownToolbarActionId, selection: MarkdownSelection) => {
+        const next = applyMarkdownToolbarAction(draftNotesRef.current, selection, actionId);
+        applyNotesValue(next.value, {
+            baseSelection: selection,
+            nextSelection: next.selection,
+        });
+        return next.selection;
+    };
+
+    const handleNotesKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+        if (event.key.toLowerCase() !== 'z') return;
+        if (notesUndoRef.current.length === 0) return;
+        event.preventDefault();
+        handleNotesUndo();
     };
 
     return (
@@ -112,18 +195,40 @@ export function ProjectNotesSection({
                         <Markdown markdown={draftNotes} className={isRtl ? 'text-right' : undefined} />
                     </div>
                 ) : (
-                    <textarea
-                        ref={textareaRef}
-                        className={`w-full min-h-[120px] p-3 text-sm bg-background border border-border rounded-md resize-y focus:outline-none focus:bg-accent/5 ${isRtl ? 'text-right' : ''}`}
-                        placeholder={t('projects.notesPlaceholder')}
-                        value={draftNotes}
-                        dir={resolvedDirection}
-                        onChange={(event) => handleNotesChange(event.target.value)}
-                        onBlur={(event) => {
-                            onUpdateNotes(event.target.value);
-                            event.currentTarget.scrollTop = 0;
-                        }}
-                    />
+                    <div className="flex flex-col gap-2">
+                        <MarkdownFormatToolbar
+                            textareaRef={textareaRef}
+                            t={t}
+                            canUndo={notesUndoDepth > 0}
+                            onUndo={handleNotesUndo}
+                            onApplyAction={handleNotesApplyAction}
+                        />
+                        <textarea
+                            ref={textareaRef}
+                            className={`w-full min-h-[120px] p-3 text-sm bg-background border border-border rounded-md resize-y focus:outline-none focus:bg-accent/5 ${isRtl ? 'text-right' : ''}`}
+                            placeholder={t('projects.notesPlaceholder')}
+                            value={draftNotes}
+                            dir={resolvedDirection}
+                            onChange={(event) => {
+                                applyNotesValue(event.target.value);
+                                notesSelectionRef.current = {
+                                    start: event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                                    end: event.currentTarget.selectionEnd ?? event.currentTarget.value.length,
+                                };
+                            }}
+                            onSelect={(event) => {
+                                notesSelectionRef.current = {
+                                    start: event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                                    end: event.currentTarget.selectionEnd ?? event.currentTarget.value.length,
+                                };
+                            }}
+                            onKeyDown={handleNotesKeyDown}
+                            onBlur={(event) => {
+                                onUpdateNotes(event.target.value);
+                                event.currentTarget.scrollTop = 0;
+                            }}
+                        />
+                    </div>
                 )}
 
                 <div className="pt-2 border-t border-border/50 space-y-1.5">
@@ -171,10 +276,18 @@ export function ProjectNotesSection({
                     onChange={handleNotesChange}
                     onCommit={() => onUpdateNotes(draftNotesRef.current)}
                     title={t('project.notes')}
+                    headerTitle={project.title || t('project.notes')}
                     placeholder={t('projects.notesPlaceholder')}
                     t={t}
                     initialMode="edit"
                     direction={resolvedDirection}
+                    canUndo={notesUndoDepth > 0}
+                    onUndo={handleNotesUndo}
+                    onApplyAction={handleNotesApplyAction}
+                    onSelectionChange={(selection) => {
+                        notesSelectionRef.current = selection;
+                    }}
+                    onEditorKeyDown={handleNotesKeyDown}
                 />
             </div>
         </section>

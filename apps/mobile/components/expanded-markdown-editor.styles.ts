@@ -6,7 +6,7 @@ export const expandedMarkdownEditorStyles = StyleSheet.create({
     },
     header: {
         position: 'relative',
-        minHeight: 60,
+        minHeight: 56,
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: 16,
@@ -14,10 +14,10 @@ export const expandedMarkdownEditorStyles = StyleSheet.create({
         borderBottomWidth: StyleSheet.hairlineWidth,
     },
     title: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '600',
         textAlign: 'center',
-        paddingHorizontal: 88,
+        paddingHorizontal: 76,
     },
     closeButton: {
         position: 'absolute',
@@ -31,18 +31,18 @@ export const expandedMarkdownEditorStyles = StyleSheet.create({
     modeButton: {
         position: 'absolute',
         right: 16,
-        top: 8,
-        bottom: 8,
-        minWidth: 76,
-        paddingHorizontal: 12,
-        borderRadius: 10,
+        top: 11,
+        bottom: 11,
+        minWidth: 64,
+        paddingHorizontal: 10,
+        borderRadius: 8,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },
     modeButtonText: {
-        fontSize: 12,
-        fontWeight: '700',
+        fontSize: 11,
+        fontWeight: '600',
     },
     body: {
         flex: 1,

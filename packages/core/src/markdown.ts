@@ -23,6 +23,46 @@ export type MarkdownChecklistItem = {
     isCompleted: boolean;
 };
 
+export type MarkdownToolbarActionId =
+    | 'heading'
+    | 'bold'
+    | 'italic'
+    | 'quote'
+    | 'bulletList'
+    | 'orderedList'
+    | 'taskList'
+    | 'link'
+    | 'code';
+
+export type MarkdownSelection = {
+    start: number;
+    end: number;
+};
+
+export type MarkdownToolbarAction = {
+    id: MarkdownToolbarActionId;
+    shortLabel: string;
+    labelKey: string;
+    fallbackLabel: string;
+};
+
+export type MarkdownToolbarResult = {
+    value: string;
+    selection: MarkdownSelection;
+};
+
+export const MARKDOWN_TOOLBAR_ACTIONS: MarkdownToolbarAction[] = [
+    { id: 'heading', shortLabel: 'H1', labelKey: 'markdown.toolbar.heading', fallbackLabel: 'Insert heading' },
+    { id: 'bold', shortLabel: 'B', labelKey: 'markdown.toolbar.bold', fallbackLabel: 'Bold' },
+    { id: 'italic', shortLabel: 'I', labelKey: 'markdown.toolbar.italic', fallbackLabel: 'Italic' },
+    { id: 'quote', shortLabel: '>', labelKey: 'markdown.toolbar.quote', fallbackLabel: 'Quote' },
+    { id: 'bulletList', shortLabel: '-', labelKey: 'markdown.toolbar.bulletList', fallbackLabel: 'Bullet list' },
+    { id: 'orderedList', shortLabel: '1.', labelKey: 'markdown.toolbar.orderedList', fallbackLabel: 'Numbered list' },
+    { id: 'taskList', shortLabel: '[ ]', labelKey: 'markdown.toolbar.taskList', fallbackLabel: 'Task list' },
+];
+
+const clampIndex = (value: string, index: number) => Math.max(0, Math.min(index, value.length));
+
 const sanitizeLinkHref = (href: string): string | null => {
     const trimmed = href.trim();
     if (!trimmed) return null;
@@ -138,4 +178,131 @@ export function extractChecklistFromMarkdown(markdown: string): MarkdownChecklis
         });
     }
     return items;
+}
+
+const normalizeSelection = (value: string, selection: MarkdownSelection): MarkdownSelection => {
+    const start = clampIndex(value, selection.start);
+    const end = clampIndex(value, selection.end);
+    if (start <= end) return { start, end };
+    return { start: end, end: start };
+};
+
+const wrapSelection = (
+    value: string,
+    selection: MarkdownSelection,
+    prefix: string,
+    suffix: string,
+    emptySelectionOffset: number,
+    selectionMode: 'wrapped' | 'inside-suffix' = 'wrapped',
+): MarkdownToolbarResult => {
+    const { start, end } = normalizeSelection(value, selection);
+    const before = value.slice(0, start);
+    const selected = value.slice(start, end);
+    const after = value.slice(end);
+    const nextValue = `${before}${prefix}${selected}${suffix}${after}`;
+
+    if (start === end) {
+        const cursor = start + emptySelectionOffset;
+        return {
+            value: nextValue,
+            selection: { start: cursor, end: cursor },
+        };
+    }
+
+    if (selectionMode === 'inside-suffix') {
+        const cursor = start + prefix.length + selected.length + suffix.length - 1;
+        return {
+            value: nextValue,
+            selection: { start: cursor, end: cursor },
+        };
+    }
+
+    return {
+        value: nextValue,
+        selection: {
+            start: start + prefix.length,
+            end: start + prefix.length + selected.length,
+        },
+    };
+};
+
+const findLineStart = (value: string, index: number) => {
+    const normalized = clampIndex(value, index);
+    const previousNewline = value.lastIndexOf('\n', Math.max(0, normalized - 1));
+    return previousNewline === -1 ? 0 : previousNewline + 1;
+};
+
+const findLineEnd = (value: string, index: number) => {
+    const normalized = clampIndex(value, index);
+    const nextNewline = value.indexOf('\n', normalized);
+    return nextNewline === -1 ? value.length : nextNewline;
+};
+
+const prefixLines = (value: string, selection: MarkdownSelection, prefix: string): MarkdownToolbarResult => {
+    const { start, end } = normalizeSelection(value, selection);
+    const blockStart = findLineStart(value, start);
+    const blockEnd = findLineEnd(value, end > start ? end - 1 : start);
+    const block = value.slice(blockStart, blockEnd);
+
+    if (start === end && block.length === 0) {
+        const nextValue = `${value.slice(0, blockStart)}${prefix}${value.slice(blockEnd)}`;
+        const cursor = blockStart + prefix.length;
+        return {
+            value: nextValue,
+            selection: { start: cursor, end: cursor },
+        };
+    }
+
+    const prefixedBlock = block
+        .split('\n')
+        .map((line) => (line.length > 0 ? `${prefix}${line}` : line))
+        .join('\n');
+
+    const nextValue = `${value.slice(0, blockStart)}${prefixedBlock}${value.slice(blockEnd)}`;
+
+    if (start === end) {
+        const lineText = value.slice(findLineStart(value, start), findLineEnd(value, start));
+        const cursor = lineText.length > 0 ? start + prefix.length : start;
+        return {
+            value: nextValue,
+            selection: { start: cursor, end: cursor },
+        };
+    }
+
+    return {
+        value: nextValue,
+        selection: {
+            start: blockStart,
+            end: blockStart + prefixedBlock.length,
+        },
+    };
+};
+
+export function applyMarkdownToolbarAction(
+    value: string,
+    selection: MarkdownSelection,
+    actionId: MarkdownToolbarActionId,
+): MarkdownToolbarResult {
+    switch (actionId) {
+        case 'heading':
+            return prefixLines(value, selection, '# ');
+        case 'bold':
+            return wrapSelection(value, selection, '**', '**', 2);
+        case 'italic':
+            return wrapSelection(value, selection, '*', '*', 1);
+        case 'quote':
+            return prefixLines(value, selection, '> ');
+        case 'bulletList':
+            return prefixLines(value, selection, '- ');
+        case 'orderedList':
+            return prefixLines(value, selection, '1. ');
+        case 'taskList':
+            return prefixLines(value, selection, '- [ ] ');
+        case 'link':
+            return wrapSelection(value, selection, '[', ']()', 1, 'inside-suffix');
+        case 'code':
+            return wrapSelection(value, selection, '`', '`', 1);
+        default:
+            return { value, selection: normalizeSelection(value, selection) };
+    }
 }

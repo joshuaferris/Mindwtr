@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Modal, Alert, Pressable, Scrol
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { AREA_PRESET_COLORS, Area, Attachment, DEFAULT_PROJECT_COLOR, generateUUID, getAttachmentDisplayTitle, normalizeLinkAttachmentInput, Project, resolveAutoTextDirection, safeParseDate, Task, useTaskStore, validateAttachmentForUpload } from '@mindwtr/core';
+import { AREA_PRESET_COLORS, Area, Attachment, DEFAULT_PROJECT_COLOR, generateUUID, getAttachmentDisplayTitle, normalizeLinkAttachmentInput, Project, resolveAutoTextDirection, safeParseDate, Task, type MarkdownSelection, type MarkdownToolbarActionId, applyMarkdownToolbarAction, useTaskStore, validateAttachmentForUpload } from '@mindwtr/core';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Linking from 'expo-linking';
@@ -21,6 +21,8 @@ import { ProjectRow } from '@/components/projects-screen/ProjectRow';
 import { TaskEditModal } from '@/components/task-edit-modal';
 import { useProjectFiltering, type ProjectSectionItem } from '@/hooks/use-project-filtering';
 import { ExpandedMarkdownEditor } from '../../components/expanded-markdown-editor';
+import { KeyboardAccessoryHost } from '../../components/keyboard-accessory-host';
+import { MarkdownFormatToolbar } from '../../components/markdown-format-toolbar';
 import { TaskList } from '../../components/task-list';
 import { useMobileAreaFilter } from '@/hooks/use-mobile-area-filter';
 import { useLanguage } from '../../contexts/language-context';
@@ -86,6 +88,11 @@ export default function ProjectsScreen() {
   }, []);
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
+  const selectedProjectNotesInputRef = useRef<TextInput | null>(null);
+  const selectedProjectNotesUndoRef = useRef<Array<{ value: string; selection: MarkdownSelection }>>([]);
+  const [selectedProjectNotesUndoDepth, setSelectedProjectNotesUndoDepth] = useState(0);
+  const [isSelectedProjectNotesFocused, setIsSelectedProjectNotesFocused] = useState(false);
+  const [selectedProjectNotesSelection, setSelectedProjectNotesSelection] = useState({ start: 0, end: 0 });
   const windowHeight = Dimensions.get('window').height;
   const pickerCardMaxHeight = Math.min(windowHeight * 0.8, 560);
   const areaListMaxHeight = Math.min(windowHeight * 0.4, 280);
@@ -153,6 +160,11 @@ export default function ProjectsScreen() {
 
   useEffect(() => {
     selectedProjectNotesRef.current = selectedProject?.supportNotes || '';
+    const selectionEnd = (selectedProject?.supportNotes || '').length;
+    selectedProjectNotesUndoRef.current = [];
+    setSelectedProjectNotesUndoDepth(0);
+    setIsSelectedProjectNotesFocused(false);
+    setSelectedProjectNotesSelection({ start: selectionEnd, end: selectionEnd });
   }, [selectedProject]);
 
   const sortAreasByName = () => {
@@ -212,11 +224,72 @@ export default function ProjectsScreen() {
     writingDirection: selectedProjectNotesDirection,
     textAlign: selectedProjectNotesDirection === 'rtl' ? 'right' : 'left',
   } as const;
-  const handleSelectedProjectNotesChange = (text: string) => {
+  const pushSelectedProjectNotesUndoEntry = useCallback((value: string, selection: MarkdownSelection) => {
+    const previousEntry = selectedProjectNotesUndoRef.current[selectedProjectNotesUndoRef.current.length - 1];
+    if (
+      previousEntry
+      && previousEntry.value === value
+      && previousEntry.selection.start === selection.start
+      && previousEntry.selection.end === selection.end
+    ) {
+      return;
+    }
+    const nextUndoEntries = [...selectedProjectNotesUndoRef.current, { value, selection }];
+    selectedProjectNotesUndoRef.current = nextUndoEntries.length > 100
+      ? nextUndoEntries.slice(nextUndoEntries.length - 100)
+      : nextUndoEntries;
+    setSelectedProjectNotesUndoDepth(selectedProjectNotesUndoRef.current.length);
+  }, []);
+  const applySelectedProjectNotesValue = useCallback((
+    text: string,
+    options?: {
+      nextSelection?: MarkdownSelection;
+      recordUndo?: boolean;
+      baseSelection?: MarkdownSelection;
+    },
+  ) => {
     if (!selectedProject) return;
+    if ((options?.recordUndo ?? true) && text !== selectedProjectNotes) {
+      pushSelectedProjectNotesUndoEntry(selectedProjectNotes, options?.baseSelection ?? selectedProjectNotesSelection);
+    }
     selectedProjectNotesRef.current = text;
     setSelectedProject({ ...selectedProject, supportNotes: text });
-  };
+    if (options?.nextSelection) {
+      setSelectedProjectNotesSelection(options.nextSelection);
+    }
+  }, [pushSelectedProjectNotesUndoEntry, selectedProject, selectedProjectNotes, selectedProjectNotesSelection]);
+  const handleSelectedProjectNotesChange = useCallback((text: string) => {
+    applySelectedProjectNotesValue(text);
+  }, [applySelectedProjectNotesValue]);
+  useEffect(() => {
+    setSelectedProjectNotesSelection((prev) => {
+      const nextStart = Math.min(prev.start, selectedProjectNotes.length);
+      const nextEnd = Math.min(prev.end, selectedProjectNotes.length);
+      if (nextStart === prev.start && nextEnd === prev.end) {
+        return prev;
+      }
+      return { start: nextStart, end: nextEnd };
+    });
+  }, [selectedProjectNotes.length]);
+  const handleSelectedProjectNotesUndo = useCallback(() => {
+    const previousEntry = selectedProjectNotesUndoRef.current[selectedProjectNotesUndoRef.current.length - 1];
+    if (!previousEntry) return undefined;
+    selectedProjectNotesUndoRef.current = selectedProjectNotesUndoRef.current.slice(0, -1);
+    setSelectedProjectNotesUndoDepth(selectedProjectNotesUndoRef.current.length);
+    applySelectedProjectNotesValue(previousEntry.value, {
+      nextSelection: previousEntry.selection,
+      recordUndo: false,
+    });
+    return previousEntry.selection;
+  }, [applySelectedProjectNotesValue]);
+  const handleSelectedProjectNotesApplyAction = useCallback((actionId: MarkdownToolbarActionId, selection: MarkdownSelection) => {
+    const next = applyMarkdownToolbarAction(selectedProjectNotesRef.current, selection, actionId);
+    applySelectedProjectNotesValue(next.value, {
+      baseSelection: selection,
+      nextSelection: next.selection,
+    });
+    return next.selection;
+  }, [applySelectedProjectNotesValue, selectedProjectNotesRef]);
   const commitSelectedProjectNotes = () => {
     if (!selectedProject) return;
     updateProject(selectedProject.id, { supportNotes: selectedProjectNotesRef.current });
@@ -939,12 +1012,13 @@ export default function ProjectsScreen() {
         allowSwipeDismissal
         onRequestClose={closeProjectDetail}
       >
-                <SafeAreaView
-                  style={{ flex: 1, backgroundColor: tc.bg }}
-                  edges={['left', 'right', 'bottom']}
-                >
-                  {selectedProject ? (
-                    <>
+                <KeyboardAccessoryHost>
+                  <SafeAreaView
+                    style={{ flex: 1, backgroundColor: tc.bg }}
+                    edges={['left', 'right', 'bottom']}
+                  >
+                    {selectedProject ? (
+                      <>
                 <View style={modalHeaderStyle}>
                   <TouchableOpacity onPress={closeProjectDetail} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Text style={[styles.backButtonText, { color: tc.tint }]}>{t('common.back') || 'Back'}</Text>
@@ -1147,19 +1221,37 @@ export default function ProjectsScreen() {
                             <MarkdownText markdown={selectedProjectNotes} tc={tc} direction={selectedProjectNotesDirection} />
                           </View>
                         ) : (
-                          <TextInput
-                            style={[
-                              styles.notesInput,
-                              selectedProjectNotesTextDirectionStyle,
-                              { color: tc.text, backgroundColor: tc.inputBg, borderColor: tc.border },
-                            ]}
-                            multiline
-                            placeholder={t('projects.notesPlaceholder')}
-                            placeholderTextColor={tc.secondaryText}
-                            value={selectedProjectNotes}
-                            onChangeText={handleSelectedProjectNotesChange}
-                            onEndEditing={commitSelectedProjectNotes}
-                          />
+                          <>
+                            <MarkdownFormatToolbar
+                              selection={selectedProjectNotesSelection}
+                              onSelectionChange={setSelectedProjectNotesSelection}
+                              inputRef={selectedProjectNotesInputRef}
+                              t={t}
+                              tc={tc}
+                              visible={isSelectedProjectNotesFocused}
+                              canUndo={selectedProjectNotesUndoDepth > 0}
+                              onUndo={handleSelectedProjectNotesUndo}
+                              onApplyAction={handleSelectedProjectNotesApplyAction}
+                            />
+                            <TextInput
+                              ref={selectedProjectNotesInputRef}
+                              style={[
+                                styles.notesInput,
+                                selectedProjectNotesTextDirectionStyle,
+                                { color: tc.text, backgroundColor: tc.inputBg, borderColor: tc.border },
+                              ]}
+                              multiline
+                              placeholder={t('projects.notesPlaceholder')}
+                              placeholderTextColor={tc.secondaryText}
+                              value={selectedProjectNotes}
+                              onFocus={() => setIsSelectedProjectNotesFocused(true)}
+                              onBlur={() => setIsSelectedProjectNotesFocused(false)}
+                              onChangeText={handleSelectedProjectNotesChange}
+                              onSelectionChange={(event) => setSelectedProjectNotesSelection(event.nativeEvent.selection)}
+                              selection={selectedProjectNotesSelection}
+                              onEndEditing={commitSelectedProjectNotes}
+                            />
+                          </>
                         )
                       )}
                     </View>
@@ -1341,14 +1433,21 @@ export default function ProjectsScreen() {
                   onChange={handleSelectedProjectNotesChange}
                   onCommit={commitSelectedProjectNotes}
                   title={t('project.notes')}
+                  headerTitle={selectedProject.title || t('project.notes')}
                   placeholder={t('projects.notesPlaceholder')}
                   t={t}
                   initialMode="edit"
                   direction={selectedProjectNotesDirection}
+                  selection={selectedProjectNotesSelection}
+                  onSelectionChange={setSelectedProjectNotesSelection}
+                  canUndo={selectedProjectNotesUndoDepth > 0}
+                  onUndo={handleSelectedProjectNotesUndo}
+                  onApplyAction={handleSelectedProjectNotesApplyAction}
                 />
-                </>
-                  ) : null}
-                </SafeAreaView>
+                      </>
+                    ) : null}
+                  </SafeAreaView>
+                </KeyboardAccessoryHost>
       </Modal>
 
       <TaskEditModal

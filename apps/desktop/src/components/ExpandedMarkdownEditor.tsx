@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 import { cn } from '../lib/utils';
+import { MarkdownFormatToolbar } from './MarkdownFormatToolbar';
 import { Markdown } from './Markdown';
+import type { MarkdownSelection, MarkdownToolbarActionId } from '@mindwtr/core';
 
 type ExpandedMarkdownEditorProps = {
     isOpen: boolean;
@@ -12,10 +14,16 @@ type ExpandedMarkdownEditorProps = {
     onChange: (value: string) => void;
     onCommit?: () => void;
     title: string;
+    headerTitle?: string;
     placeholder: string;
     t: (key: string) => string;
     initialMode?: 'edit' | 'preview';
     direction?: 'ltr' | 'rtl';
+    canUndo: boolean;
+    onUndo: () => MarkdownSelection | void;
+    onApplyAction: (actionId: MarkdownToolbarActionId, selection: MarkdownSelection) => MarkdownSelection | void;
+    onSelectionChange: (selection: MarkdownSelection) => void;
+    onEditorKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 };
 
 export function ExpandedMarkdownEditor({
@@ -25,10 +33,16 @@ export function ExpandedMarkdownEditor({
     onChange,
     onCommit,
     title,
+    headerTitle,
     placeholder,
     t,
     initialMode = 'edit',
     direction = 'ltr',
+    canUndo,
+    onUndo,
+    onApplyAction,
+    onSelectionChange,
+    onEditorKeyDown,
 }: ExpandedMarkdownEditorProps) {
     const [mode, setMode] = useState<'edit' | 'preview'>(initialMode);
     const modalRef = useRef<HTMLDivElement | null>(null);
@@ -36,6 +50,7 @@ export function ExpandedMarkdownEditor({
     const closeButtonRef = useRef<HTMLButtonElement | null>(null);
     const lastActiveElement = useRef<HTMLElement | null>(null);
     const titleId = useId();
+    const resolvedHeaderTitle = (headerTitle || '').trim() || title;
 
     const isRtl = direction === 'rtl';
 
@@ -131,7 +146,7 @@ export function ExpandedMarkdownEditor({
                 <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="min-w-0">
                         <h2 id={titleId} className="truncate text-sm font-semibold">
-                            {title}
+                            {resolvedHeaderTitle}
                         </h2>
                     </div>
                     <div className="flex items-center gap-2">
@@ -156,17 +171,39 @@ export function ExpandedMarkdownEditor({
 
                 <div className="flex-1 min-h-0 p-4">
                     {mode === 'edit' ? (
-                        <textarea
-                            ref={textareaRef}
-                            value={value}
-                            onChange={(event) => onChange(event.target.value)}
-                            placeholder={placeholder}
-                            dir={direction}
-                            className={cn(
-                                'h-full w-full resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-primary/30',
-                                isRtl && 'text-right',
-                            )}
-                        />
+                        <div className="flex h-full flex-col gap-3">
+                            <MarkdownFormatToolbar
+                                textareaRef={textareaRef}
+                                t={t}
+                                canUndo={canUndo}
+                                onUndo={onUndo}
+                                onApplyAction={onApplyAction}
+                            />
+                            <textarea
+                                ref={textareaRef}
+                                value={value}
+                                onChange={(event) => {
+                                    onChange(event.target.value);
+                                    onSelectionChange({
+                                        start: event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                                        end: event.currentTarget.selectionEnd ?? event.currentTarget.value.length,
+                                    });
+                                }}
+                                onSelect={(event) => {
+                                    onSelectionChange({
+                                        start: event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                                        end: event.currentTarget.selectionEnd ?? event.currentTarget.value.length,
+                                    });
+                                }}
+                                onKeyDown={onEditorKeyDown}
+                                placeholder={placeholder}
+                                dir={direction}
+                                className={cn(
+                                    'min-h-0 flex-1 resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-primary/30',
+                                    isRtl && 'text-right',
+                                )}
+                            />
+                        </div>
                     ) : (
                         <div
                             dir={direction}
