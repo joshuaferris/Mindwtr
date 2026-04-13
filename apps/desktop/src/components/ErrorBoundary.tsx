@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { logError } from '../lib/app-log';
 import { useLanguage } from '../contexts/language-context';
+import { Button } from './ui/Button';
 
 interface Props {
     children: ReactNode;
@@ -54,12 +55,9 @@ class BaseErrorBoundary extends Component<Props, State> {
                                 {this.state.error?.message}
                             </p>
                         </div>
-                        <button
-                            onClick={() => window.location.reload()}
-                            className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium hover:bg-primary/90"
-                        >
+                        <Button size="lg" onClick={() => window.location.reload()}>
                             {this.props.strings?.retry ?? 'Try again'}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             );
