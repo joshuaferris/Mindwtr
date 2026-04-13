@@ -23,6 +23,7 @@ import { useProjectFiltering, type ProjectSectionItem } from '@/hooks/use-projec
 import { ExpandedMarkdownEditor } from '../../components/expanded-markdown-editor';
 import { KeyboardAccessoryHost } from '../../components/keyboard-accessory-host';
 import { MarkdownFormatToolbar } from '../../components/markdown-format-toolbar';
+import { MarkdownReferenceAutocomplete } from '../../components/markdown-reference-autocomplete';
 import { TaskList } from '../../components/task-list';
 import { useMobileAreaFilter } from '@/hooks/use-mobile-area-filter';
 import { useLanguage } from '../../contexts/language-context';
@@ -71,8 +72,8 @@ export default function ProjectsScreen() {
   const [newAreaName, setNewAreaName] = useState('');
   const [newAreaColor, setNewAreaColor] = useState('#3b82f6');
   const [expandedAreaColorId, setExpandedAreaColorId] = useState<string | null>(null);
-  const { projectId, taskId } = useLocalSearchParams<{ projectId?: string; taskId?: string }>();
-  const lastOpenedTaskIdRef = useRef<string | null>(null);
+  const { projectId, taskId, openToken } = useLocalSearchParams<{ projectId?: string; taskId?: string; openToken?: string }>();
+  const lastOpenedTaskKeyRef = useRef<string | null>(null);
   const selectedProjectNotesRef = useRef('');
   const ALL_TAGS = '__all__';
   const NO_TAGS = '__none__';
@@ -156,13 +157,14 @@ export default function ProjectsScreen() {
   useEffect(() => {
     if (!taskId || typeof taskId !== 'string') return;
     if (!selectedProject || selectedProject.id !== projectId) return;
-    if (lastOpenedTaskIdRef.current === taskId) return;
+    const openKey = `${taskId}:${typeof openToken === 'string' ? openToken : ''}`;
+    if (lastOpenedTaskKeyRef.current === openKey) return;
     const task = tasks.find((item) => item.id === taskId && !item.deletedAt);
     if (!task || task.projectId !== selectedProject.id) return;
-    lastOpenedTaskIdRef.current = taskId;
+    lastOpenedTaskKeyRef.current = openKey;
     setHighlightTask(task.id);
     setEditingTask(task);
-  }, [taskId, projectId, selectedProject, tasks, setHighlightTask]);
+  }, [openToken, taskId, projectId, selectedProject, tasks, setHighlightTask]);
 
   useEffect(() => {
     selectedProjectNotesRef.current = selectedProject?.supportNotes || '';
@@ -1284,6 +1286,24 @@ export default function ProjectsScreen() {
                               canUndo={selectedProjectNotesUndoDepth > 0}
                               onUndo={handleSelectedProjectNotesUndo}
                               onApplyAction={handleSelectedProjectNotesApplyAction}
+                            />
+                            <MarkdownReferenceAutocomplete
+                              value={selectedProjectNotes}
+                              selection={selectedProjectNotesSelection}
+                              inputRef={selectedProjectNotesInputRef}
+                              visible={isSelectedProjectNotesFocused}
+                              onApplyResult={(next) => {
+                                applySelectedProjectNotesValue(next.value, {
+                                  baseSelection: selectedProjectNotesSelectionRef.current,
+                                  nextSelection: next.selection,
+                                });
+                                selectedProjectNotesSelectionRef.current = next.selection;
+                                if (selectedProject) {
+                                  updateProject(selectedProject.id, { supportNotes: next.value });
+                                }
+                              }}
+                              t={t}
+                              tc={tc}
                             />
                             <TextInput
                               ref={selectedProjectNotesInputRef}
