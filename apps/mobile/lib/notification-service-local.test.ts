@@ -181,7 +181,7 @@ describe('notification-service-local', () => {
     expect(mockAsyncStorageSetItem).toHaveBeenCalledWith('mindwtr:local:alarms:v1', '{}');
   });
 
-  it('schedules task reminders with a non-empty message body', async () => {
+  it('schedules task reminders with a non-empty message body and snooze action', async () => {
     mockStoreState.tasks = [
       {
         id: 'task-1',
@@ -197,7 +197,7 @@ describe('notification-service-local', () => {
       expect.objectContaining({
         auto_cancel: true,
         channel: 'mindwtr_reminders_v2',
-        has_button: false,
+        has_button: true,
         loop_sound: false,
         message: 'Pay rent',
         play_sound: true,
