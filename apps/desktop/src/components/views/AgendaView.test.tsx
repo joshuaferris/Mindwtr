@@ -227,6 +227,48 @@ describe('AgendaView', () => {
         expect(getByText('Home next task')).toBeInTheDocument();
     });
 
+    it('filters focus tasks by energy level', () => {
+        const lowEnergyTask: Task = {
+            id: 'low-energy-task',
+            title: 'Low energy task',
+            status: 'next',
+            energyLevel: 'low',
+            contexts: [],
+            tags: [],
+            createdAt: nowIso,
+            updatedAt: nowIso,
+        };
+        const highEnergyTask: Task = {
+            id: 'high-energy-task',
+            title: 'High energy task',
+            status: 'next',
+            energyLevel: 'high',
+            contexts: [],
+            tags: [],
+            createdAt: nowIso,
+            updatedAt: nowIso,
+        };
+
+        useTaskStore.setState({
+            tasks: [lowEnergyTask, highEnergyTask],
+            _allTasks: [lowEnergyTask, highEnergyTask],
+            projects: [],
+            _allProjects: [],
+            areas: [],
+            _allAreas: [],
+            settings: {},
+            highlightTaskId: null,
+        });
+
+        const { getByRole, getByText, queryByText } = renderAgenda();
+
+        fireEvent.click(getByRole('button', { name: /^Show$/i }));
+        fireEvent.click(getByRole('button', { name: 'High energy' }));
+
+        expect(getByText('High energy task')).toBeInTheDocument();
+        expect(queryByText('Low energy task')).not.toBeInTheDocument();
+    });
+
     it('collapses next actions when the section header is toggled', () => {
         const nextTask: Task = {
             id: 'next-action-task',

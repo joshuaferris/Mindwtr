@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'reac
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { shallow, useTaskStore, TaskPriority, TimeEstimate, getUsedTaskTokens, matchesHierarchicalToken, safeFormatDate, safeParseDate, safeParseDueDate, isDueForReview, isTaskInActiveProject } from '@mindwtr/core';
-import type { Task, Project } from '@mindwtr/core';
+import type { Task, Project, TaskEnergyLevel } from '@mindwtr/core';
 import { useLanguage } from '../../contexts/language-context';
 import { cn } from '../../lib/utils';
 import { useUiStore } from '../../store/ui-store';
@@ -174,6 +174,7 @@ export function AgendaView() {
     }));
     const [selectedTokens, setSelectedTokens] = useState<string[]>([]);
     const [selectedPriorities, setSelectedPriorities] = useState<TaskPriority[]>([]);
+    const [selectedEnergyLevels, setSelectedEnergyLevels] = useState<TaskEnergyLevel[]>([]);
     const [selectedTimeEstimates, setSelectedTimeEstimates] = useState<TimeEstimate[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [filtersOpen, setFiltersOpen] = useState(false);
@@ -217,6 +218,7 @@ export function AgendaView() {
         };
     }, [tasks, projectMap, resolvedAreaFilter, areaById]);
     const priorityOptions: TaskPriority[] = ['low', 'medium', 'high', 'urgent'];
+    const energyLevelOptions: TaskEnergyLevel[] = ['low', 'medium', 'high'];
     const timeEstimateOptions: TimeEstimate[] = ['5min', '10min', '15min', '30min', '1hr', '2hr', '3hr', '4hr', '4hr+'];
     const formatEstimate = (estimate: TimeEstimate) => {
         if (estimate.endsWith('min')) return estimate.replace('min', 'm');
@@ -233,9 +235,10 @@ export function AgendaView() {
             if (!matchesAll) return false;
         }
         if (activePriorities.length > 0 && (!task.priority || !activePriorities.includes(task.priority))) return false;
+        if (selectedEnergyLevels.length > 0 && (!task.energyLevel || !selectedEnergyLevels.includes(task.energyLevel))) return false;
         if (activeTimeEstimates.length > 0 && (!task.timeEstimate || !activeTimeEstimates.includes(task.timeEstimate))) return false;
         return true;
-    }, [selectedTokens, activePriorities, activeTimeEstimates]);
+    }, [selectedTokens, activePriorities, selectedEnergyLevels, activeTimeEstimates]);
     const normalizedSearchQuery = searchQuery.trim().toLowerCase();
     const matchesSearchQuery = useCallback((title: string) => {
         if (!normalizedSearchQuery) return true;
@@ -287,7 +290,12 @@ export function AgendaView() {
                 return a.title.localeCompare(b.title);
             });
     }, [projects, matchesSearchQuery, resolvedAreaFilter, areaById]);
-    const hasFilters = selectedTokens.length > 0 || activePriorities.length > 0 || activeTimeEstimates.length > 0;
+    const hasFilters = (
+        selectedTokens.length > 0
+        || activePriorities.length > 0
+        || selectedEnergyLevels.length > 0
+        || activeTimeEstimates.length > 0
+    );
     const hasTaskFilters = hasFilters || Boolean(normalizedSearchQuery);
     const showFiltersPanel = filtersOpen || hasFilters;
     const toggleTokenFilter = (token: string) => {
@@ -300,6 +308,11 @@ export function AgendaView() {
             prev.includes(priority) ? prev.filter((item) => item !== priority) : [...prev, priority]
         );
     };
+    const toggleEnergyFilter = (energyLevel: TaskEnergyLevel) => {
+        setSelectedEnergyLevels((prev) =>
+            prev.includes(energyLevel) ? prev.filter((item) => item !== energyLevel) : [...prev, energyLevel]
+        );
+    };
     const toggleTimeFilter = (estimate: TimeEstimate) => {
         setSelectedTimeEstimates((prev) =>
             prev.includes(estimate) ? prev.filter((item) => item !== estimate) : [...prev, estimate]
@@ -308,6 +321,7 @@ export function AgendaView() {
     const clearFilters = () => {
         setSelectedTokens([]);
         setSelectedPriorities([]);
+        setSelectedEnergyLevels([]);
         setSelectedTimeEstimates([]);
     };
     useEffect(() => {
@@ -846,6 +860,30 @@ export function AgendaView() {
                                 </div>
                             </div>
                         )}
+                        <div className="space-y-2">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">{t('taskEdit.energyLevel')}</div>
+                            <div className="flex flex-wrap gap-2">
+                                {energyLevelOptions.map((energyLevel) => {
+                                    const isActive = selectedEnergyLevels.includes(energyLevel);
+                                    return (
+                                        <button
+                                            key={energyLevel}
+                                            type="button"
+                                            onClick={() => toggleEnergyFilter(energyLevel)}
+                                            aria-pressed={isActive}
+                                            className={cn(
+                                                "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+                                                isActive
+                                                    ? "bg-primary text-primary-foreground"
+                                                    : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                                            )}
+                                        >
+                                            {t(`energyLevel.${energyLevel}`)}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                         {timeEstimatesEnabled && (
                             <div className="space-y-2">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wide">{t('filters.timeEstimate')}</div>
