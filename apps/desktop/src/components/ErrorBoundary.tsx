@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { logError } from '../lib/app-log';
 import { useLanguage } from '../contexts/language-context';
 
@@ -43,7 +44,7 @@ class BaseErrorBoundary extends Component<Props, State> {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-background" role="alert" aria-live="assertive">
                     <div className="max-w-md p-8 text-center space-y-4">
-                        <div className="text-6xl">💥</div>
+                        <AlertTriangle className="w-14 h-14 mx-auto text-destructive" aria-hidden="true" strokeWidth={1.5} />
                         <h1 className="text-2xl font-bold text-foreground">{this.props.strings?.title ?? 'Something went wrong'}</h1>
                         <p className="text-muted-foreground">
                             {this.props.strings?.message ?? 'The app encountered an unexpected error.'}

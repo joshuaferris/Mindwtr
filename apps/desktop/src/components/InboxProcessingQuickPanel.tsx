@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, CheckCircle, Clock, Trash2, User, X } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle, ClipboardList, Clock, Trash2, User, X } from 'lucide-react';
 import { DEFAULT_PROJECT_COLOR, type Area, type Project, type Task, type TaskPriority } from '@mindwtr/core';
 
 import { cn } from '../lib/utils';
@@ -151,7 +151,10 @@ export function InboxProcessingQuickPanel({
         <div className="bg-card border border-border rounded-xl animate-in fade-in overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-5 py-3.5">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <h3 className="font-semibold text-[15px] truncate">📋 {t('process.title')}</h3>
+                    <h3 className="font-semibold text-[15px] truncate inline-flex items-center gap-2">
+                        <ClipboardList className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
+                        <span className="truncate">{t('process.title')}</span>
+                    </h3>
                     <span className="text-[11px] font-medium text-primary bg-primary/10 px-2.5 py-0.5 rounded-full shrink-0">
                         {remainingCount} {t('process.remaining')}
                     </span>

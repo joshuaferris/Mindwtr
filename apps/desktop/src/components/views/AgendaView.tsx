@@ -6,7 +6,7 @@ import type { Task, Project } from '@mindwtr/core';
 import { useLanguage } from '../../contexts/language-context';
 import { cn } from '../../lib/utils';
 import { useUiStore } from '../../store/ui-store';
-import { Clock, Star, Calendar, ArrowRight, Filter, Folder, List, ChevronDown, ChevronRight, type LucideIcon } from 'lucide-react';
+import { Clock, Star, Calendar, ArrowRight, Filter, Folder, List, ChevronDown, ChevronRight, CheckCircle2, type LucideIcon } from 'lucide-react';
 import { usePerformanceMonitor } from '../../hooks/usePerformanceMonitor';
 import { checkBudget } from '../../config/performanceBudgets';
 import { TaskItem } from '../TaskItem';
@@ -1013,10 +1013,10 @@ export function AgendaView() {
             )}
 
             {visibleActive === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                    <p className="text-4xl mb-4">✨</p>
-                    <p className="text-lg font-medium">{t('agenda.allClear')}</p>
-                    <p>{hasTaskFilters ? t('filters.noMatch') : t('agenda.noTasks')}</p>
+                <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500/80" aria-hidden="true" strokeWidth={1.5} />
+                    <p className="text-lg font-medium text-foreground">{t('agenda.allClear')}</p>
+                    <p className="text-sm">{hasTaskFilters ? t('filters.noMatch') : t('agenda.noTasks')}</p>
                 </div>
             )}
             </div>

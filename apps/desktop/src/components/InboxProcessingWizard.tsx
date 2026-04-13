@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { ArrowRight, BookOpen, CheckCircle, ChevronLeft, Clock, Trash2, User, X } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle, ChevronLeft, ClipboardList, Clock, Trash2, User, X } from 'lucide-react';
 import { DEFAULT_PROJECT_COLOR, type Area, type Project, type Task, type TaskPriority } from '@mindwtr/core';
 
 import { cn } from '../lib/utils';
@@ -213,7 +213,10 @@ export const InboxProcessingWizard = memo(function InboxProcessingWizard({
                             <ChevronLeft className="w-4 h-4" />
                         </button>
                     )}
-                    <h3 className="font-semibold text-[15px]">📋 {t('process.title')}</h3>
+                    <h3 className="font-semibold text-[15px] inline-flex items-center gap-2">
+                        <ClipboardList className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        {t('process.title')}
+                    </h3>
                     <span className="text-[11px] font-medium text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
                         {remainingCount} {t('process.remaining')}
                     </span>
