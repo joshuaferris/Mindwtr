@@ -1,5 +1,4 @@
-import { useCallback } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -8,6 +7,7 @@ import {
     CLOCK_SKEW_THRESHOLD_MS,
     cloudGetJson,
     webdavGetJson,
+    type AppData,
 } from '@mindwtr/core';
 
 import { pickAndParseSyncFolder } from '@/lib/storage-file';
@@ -21,16 +21,15 @@ import {
 } from '@/lib/dropbox-auth';
 import { performMobileSync } from '@/lib/sync-service';
 import {
-    classifySyncFailure,
-    coerceSupportedBackend,
     getSyncConflictCount,
     getSyncMaxClockSkewMs,
     getSyncTimestampAdjustments,
     hasSameUserFacingSyncConflictSummary,
     isLikelyOfflineSyncError,
+    coerceSupportedBackend,
 } from '@/lib/sync-service-utils';
 import { testDropboxAccess } from '@/lib/dropbox-sync';
-import { formatError, isDropboxUnauthorizedError } from '@/lib/settings-utils';
+import { formatClockSkew, formatError, isDropboxUnauthorizedError, logSettingsError } from '@/lib/settings-utils';
 import {
     CLOUD_PROVIDER_KEY,
     CLOUD_TOKEN_KEY,
@@ -43,12 +42,13 @@ import {
     WEBDAV_USERNAME_KEY,
 } from '@/lib/sync-constants';
 
-import { CloudProvider, isValidHttpUrl } from './settings.constants';
+import { type CloudProvider, isValidHttpUrl } from './settings.constants';
 import { type SelfHostedSyncSettings } from './sync-settings-selfhosted-panel';
 import { type WebDavSyncSettings } from './sync-settings-webdav-panel';
 
-type SyncBackend = 'file' | 'webdav' | 'cloud' | 'cloudkit' | 'off';
-type CloudKitAccountStatus = 'available' | 'noAccount' | 'restricted' | 'temporarilyUnavailable' | 'unknown';
+export type SyncBackend = 'file' | 'webdav' | 'cloud' | 'cloudkit' | 'off';
+export type CloudKitAccountStatus = 'available' | 'noAccount' | 'restricted' | 'temporarilyUnavailable' | 'unknown';
+
 type SyncActionOptions = {
     backend?: 'file' | 'webdav' | 'cloud' | 'cloudkit';
     cloud?: SelfHostedSyncSettings;
@@ -56,84 +56,62 @@ type SyncActionOptions = {
     webdav?: WebDavSyncSettings;
 };
 
+type ToastFn = (options: {
+    durationMs?: number;
+    message: string;
+    title: string;
+    tone: 'warning' | 'error' | 'success' | 'info';
+}) => void;
+
 type UseSyncSettingsTransportActionsParams = {
-    cloudProvider: CloudProvider;
-    cloudToken: string;
-    cloudUrl: string;
     dropboxAppKey: string;
     dropboxConfigured: boolean;
     getCloudKitStatusDetails: (status: CloudKitAccountStatus) => { helpText: string; syncEnabled: boolean };
     getSyncFailureToastMessage: (error: unknown) => string;
     isExpoGo: boolean;
     isFossBuild: boolean;
+    lastSyncStats: AppData['settings']['lastSyncStats'] | null | undefined;
+    lastSyncStatus: AppData['settings']['lastSyncStatus'] | undefined;
     localize: (english: string, chinese: string) => string;
     resetSyncStatusForBackendSwitch: () => void;
-    setCloudKitAccountStatus: Dispatch<SetStateAction<CloudKitAccountStatus>>;
-    setCloudProvider: Dispatch<SetStateAction<CloudProvider>>;
-    setCloudToken: Dispatch<SetStateAction<string>>;
-    setCloudUrl: Dispatch<SetStateAction<string>>;
-    setDropboxBusy: Dispatch<SetStateAction<boolean>>;
-    setDropboxConnected: Dispatch<SetStateAction<boolean>>;
-    setIsSyncing: Dispatch<SetStateAction<boolean>>;
-    setIsTestingConnection: Dispatch<SetStateAction<boolean>>;
-    setSyncBackend: Dispatch<SetStateAction<SyncBackend>>;
-    setSyncPath: Dispatch<SetStateAction<string | null>>;
-    setWebdavPassword: Dispatch<SetStateAction<string>>;
-    setWebdavUrl: Dispatch<SetStateAction<string>>;
-    setWebdavUsername: Dispatch<SetStateAction<string>>;
-    settings: Record<string, any>;
     showSettingsErrorToast: (title: string, message: string, durationMs?: number) => void;
     showSettingsWarning: (title: string, message: string, durationMs?: number) => void;
-    showToast: (options: {
-        durationMs?: number;
-        message: string;
-        title: string;
-        tone: 'warning' | 'error' | 'success' | 'info';
-    }) => void;
-    syncBackend: SyncBackend;
-    syncPath: string | null;
+    showToast: ToastFn;
+    supportsNativeICloudSync: boolean;
     t: (key: string) => string;
-    webdavPassword: string;
-    webdavUrl: string;
-    webdavUsername: string;
 };
 
 export function useSyncSettingsTransportActions({
-    cloudProvider,
-    cloudToken,
-    cloudUrl,
     dropboxAppKey,
     dropboxConfigured,
     getCloudKitStatusDetails,
     getSyncFailureToastMessage,
     isExpoGo,
     isFossBuild,
+    lastSyncStats,
+    lastSyncStatus,
     localize,
     resetSyncStatusForBackendSwitch,
-    setCloudKitAccountStatus,
-    setCloudProvider,
-    setCloudToken,
-    setCloudUrl,
-    setDropboxBusy,
-    setDropboxConnected,
-    setIsSyncing,
-    setIsTestingConnection,
-    setSyncBackend,
-    setSyncPath,
-    setWebdavPassword,
-    setWebdavUrl,
-    setWebdavUsername,
-    settings,
     showSettingsErrorToast,
     showSettingsWarning,
     showToast,
-    syncBackend,
-    syncPath,
+    supportsNativeICloudSync,
     t,
-    webdavPassword,
-    webdavUrl,
-    webdavUsername,
 }: UseSyncSettingsTransportActionsParams) {
+    const [syncPath, setSyncPath] = useState<string | null>(null);
+    const [syncBackend, setSyncBackend] = useState<SyncBackend>('off');
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [isTestingConnection, setIsTestingConnection] = useState(false);
+    const [webdavUrl, setWebdavUrl] = useState('');
+    const [webdavUsername, setWebdavUsername] = useState('');
+    const [webdavPassword, setWebdavPassword] = useState('');
+    const [cloudUrl, setCloudUrl] = useState('');
+    const [cloudToken, setCloudToken] = useState('');
+    const [cloudProvider, setCloudProvider] = useState<CloudProvider>('selfhosted');
+    const [dropboxConnected, setDropboxConnected] = useState(false);
+    const [dropboxBusy, setDropboxBusy] = useState(false);
+    const [cloudKitAccountStatus, setCloudKitAccountStatus] = useState<CloudKitAccountStatus>('unknown');
+
     const runDropboxConnectionTest = useCallback(async () => {
         let accessToken = await getValidDropboxAccessToken(dropboxAppKey);
         try {
@@ -147,6 +125,136 @@ export function useSyncSettingsTransportActions({
         }
     }, [dropboxAppKey]);
 
+    useEffect(() => {
+        let cancelled = false;
+
+        AsyncStorage.multiGet([
+            SYNC_PATH_KEY,
+            SYNC_BACKEND_KEY,
+            WEBDAV_URL_KEY,
+            WEBDAV_USERNAME_KEY,
+            WEBDAV_PASSWORD_KEY,
+            CLOUD_URL_KEY,
+            CLOUD_TOKEN_KEY,
+            CLOUD_PROVIDER_KEY,
+        ]).then((entries) => {
+            if (cancelled) return;
+
+            const entryMap = new Map(entries);
+            const path = entryMap.get(SYNC_PATH_KEY);
+            const storedBackend = entryMap.get(SYNC_BACKEND_KEY);
+            const storedWebDavUrl = entryMap.get(WEBDAV_URL_KEY);
+            const storedWebDavUsername = entryMap.get(WEBDAV_USERNAME_KEY);
+            const storedWebDavPassword = entryMap.get(WEBDAV_PASSWORD_KEY);
+            const storedCloudUrl = entryMap.get(CLOUD_URL_KEY);
+            const storedCloudToken = entryMap.get(CLOUD_TOKEN_KEY);
+            const storedCloudProvider = entryMap.get(CLOUD_PROVIDER_KEY);
+
+            setSyncPath(path || null);
+            setWebdavUrl(storedWebDavUrl || '');
+            setWebdavUsername(storedWebDavUsername || '');
+            setWebdavPassword(storedWebDavPassword || '');
+            setCloudUrl(storedCloudUrl || '');
+            setCloudToken(storedCloudToken || '');
+
+            const resolvedBackend = storedBackend === 'webdav'
+                || storedBackend === 'cloud'
+                || storedBackend === 'off'
+                || storedBackend === 'file'
+                || storedBackend === 'cloudkit'
+                ? storedBackend
+                : 'off';
+            const supportedBackend = coerceSupportedBackend(resolvedBackend, supportsNativeICloudSync);
+            setSyncBackend(supportedBackend);
+
+            const resolvedCloudProvider: CloudProvider = (
+                (resolvedBackend === 'cloudkit' || storedCloudProvider === 'cloudkit') && supportsNativeICloudSync
+            )
+                ? 'cloudkit'
+                : storedCloudProvider === 'dropbox' && dropboxConfigured
+                    ? 'dropbox'
+                    : 'selfhosted';
+            setCloudProvider(resolvedCloudProvider);
+
+            if (resolvedBackend !== supportedBackend) {
+                AsyncStorage.setItem(SYNC_BACKEND_KEY, supportedBackend).catch(logSettingsError);
+            }
+            if (!dropboxConfigured && storedCloudProvider === 'dropbox') {
+                AsyncStorage.setItem(CLOUD_PROVIDER_KEY, 'selfhosted').catch(logSettingsError);
+            }
+            if (!supportsNativeICloudSync && storedCloudProvider === 'cloudkit') {
+                AsyncStorage.setItem(CLOUD_PROVIDER_KEY, 'selfhosted').catch(logSettingsError);
+            }
+        }).catch(logSettingsError);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [dropboxConfigured, supportsNativeICloudSync]);
+
+    const refreshCloudKitAccountStatus = useCallback(async () => {
+        if (!supportsNativeICloudSync) {
+            setCloudKitAccountStatus('unknown');
+            return;
+        }
+        setCloudKitAccountStatus(await getCloudKitAccountStatus());
+    }, [supportsNativeICloudSync]);
+
+    useEffect(() => {
+        void refreshCloudKitAccountStatus();
+    }, [refreshCloudKitAccountStatus]);
+
+    useEffect(() => {
+        if (syncBackend !== 'cloudkit') return;
+        void refreshCloudKitAccountStatus();
+    }, [refreshCloudKitAccountStatus, syncBackend]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadDropboxState = async () => {
+            if (!dropboxConfigured) {
+                if (!cancelled) setDropboxConnected(false);
+                return;
+            }
+            try {
+                const connected = await isDropboxConnected();
+                if (!cancelled) setDropboxConnected(connected);
+            } catch {
+                if (!cancelled) setDropboxConnected(false);
+            }
+        };
+
+        void loadDropboxState();
+        return () => {
+            cancelled = true;
+        };
+    }, [dropboxConfigured]);
+
+    const handleSelectSyncBackend = useCallback((backend: 'off' | 'file' | 'webdav' | 'cloud') => {
+        const nextBackend = backend === 'cloud'
+            ? (cloudProvider === 'cloudkit' ? 'cloudkit' : 'cloud')
+            : backend;
+        AsyncStorage.setItem(SYNC_BACKEND_KEY, nextBackend).catch(logSettingsError);
+        addBreadcrumb(`settings:syncBackend:${nextBackend}`);
+        setSyncBackend(nextBackend);
+        resetSyncStatusForBackendSwitch();
+    }, [cloudProvider, resetSyncStatusForBackendSwitch]);
+
+    const handleSelectCloudProvider = useCallback((provider: CloudProvider) => {
+        if (provider === 'cloudkit' && !supportsNativeICloudSync) return;
+        if (provider === 'dropbox' && !dropboxConfigured) return;
+
+        const nextBackend: SyncBackend = provider === 'cloudkit' ? 'cloudkit' : 'cloud';
+        setCloudProvider(provider);
+        setSyncBackend(nextBackend);
+        AsyncStorage.multiSet([
+            [CLOUD_PROVIDER_KEY, provider],
+            [SYNC_BACKEND_KEY, nextBackend],
+        ]).catch(logSettingsError);
+        resetSyncStatusForBackendSwitch();
+    }, [dropboxConfigured, resetSyncStatusForBackendSwitch, supportsNativeICloudSync]);
+
     const handleSetSyncPath = useCallback(async () => {
         try {
             const result = await pickAndParseSyncFolder();
@@ -154,12 +262,14 @@ export function useSyncSettingsTransportActions({
             const fileUri = (result as { __fileUri: string }).__fileUri;
             const fileBookmark = (result as { __fileBookmark?: string }).__fileBookmark?.trim() ?? null;
             if (!fileUri) return;
+
             await AsyncStorage.setItem(SYNC_PATH_KEY, fileUri);
             if (fileBookmark) {
                 await AsyncStorage.setItem(SYNC_PATH_BOOKMARK_KEY, fileBookmark);
             } else {
                 await AsyncStorage.removeItem(SYNC_PATH_BOOKMARK_KEY);
             }
+
             setSyncPath(fileUri);
             await AsyncStorage.setItem(SYNC_BACKEND_KEY, 'file');
             addBreadcrumb('settings:syncBackend:file');
@@ -215,8 +325,6 @@ export function useSyncSettingsTransportActions({
     }, [
         localize,
         resetSyncStatusForBackendSwitch,
-        setSyncBackend,
-        setSyncPath,
         showSettingsErrorToast,
         showSettingsWarning,
         showToast,
@@ -280,10 +388,6 @@ export function useSyncSettingsTransportActions({
         isFossBuild,
         localize,
         resetSyncStatusForBackendSwitch,
-        setCloudProvider,
-        setDropboxBusy,
-        setDropboxConnected,
-        setSyncBackend,
         showSettingsErrorToast,
         showSettingsWarning,
         showToast,
@@ -314,8 +418,6 @@ export function useSyncSettingsTransportActions({
         dropboxConfigured,
         localize,
         resetSyncStatusForBackendSwitch,
-        setDropboxBusy,
-        setDropboxConnected,
         showSettingsErrorToast,
         showToast,
     ]);
@@ -360,8 +462,6 @@ export function useSyncSettingsTransportActions({
         isFossBuild,
         localize,
         runDropboxConnectionTest,
-        setDropboxConnected,
-        setIsTestingConnection,
         showSettingsErrorToast,
         showSettingsWarning,
         showToast,
@@ -400,10 +500,6 @@ export function useSyncSettingsTransportActions({
     }, [
         localize,
         resetSyncStatusForBackendSwitch,
-        setSyncBackend,
-        setWebdavPassword,
-        setWebdavUrl,
-        setWebdavUsername,
         showSettingsErrorToast,
         showSettingsWarning,
         showToast,
@@ -442,10 +538,6 @@ export function useSyncSettingsTransportActions({
     }, [
         localize,
         resetSyncStatusForBackendSwitch,
-        setCloudProvider,
-        setCloudToken,
-        setCloudUrl,
-        setSyncBackend,
         showSettingsErrorToast,
         showSettingsWarning,
         showToast,
@@ -456,8 +548,8 @@ export function useSyncSettingsTransportActions({
         addBreadcrumb('sync:manual');
         setIsSyncing(true);
         try {
-            const previousLastSyncStatus = settings.lastSyncStatus;
-            const previousLastSyncStats = settings.lastSyncStats ?? null;
+            const previousLastSyncStatus = lastSyncStatus;
+            const previousLastSyncStats = lastSyncStats ?? null;
             const effectiveBackend = options?.backend ?? syncBackend;
             const effectiveCloud = options?.cloud ?? { token: cloudToken, url: cloudUrl };
             const effectiveCloudProvider = options?.cloudProvider ?? cloudProvider;
@@ -630,25 +722,15 @@ export function useSyncSettingsTransportActions({
         getCloudKitStatusDetails,
         getSyncFailureToastMessage,
         isFossBuild,
+        lastSyncStats,
+        lastSyncStatus,
         localize,
         resetSyncStatusForBackendSwitch,
-        setCloudKitAccountStatus,
-        setCloudProvider,
-        setCloudToken,
-        setCloudUrl,
-        setIsSyncing,
-        setSyncBackend,
-        setWebdavPassword,
-        setWebdavUrl,
-        setWebdavUsername,
-        settings.lastSyncStats,
-        settings.lastSyncStatus,
         showSettingsErrorToast,
         showSettingsWarning,
         showToast,
         syncBackend,
         syncPath,
-        t,
         webdavPassword,
         webdavUrl,
         webdavUsername,
@@ -732,8 +814,6 @@ export function useSyncSettingsTransportActions({
         isFossBuild,
         localize,
         runDropboxConnectionTest,
-        setDropboxConnected,
-        setIsTestingConnection,
         showSettingsErrorToast,
         showSettingsWarning,
         showToast,
@@ -743,22 +823,28 @@ export function useSyncSettingsTransportActions({
     ]);
 
     return {
+        cloudKitAccountStatus,
+        cloudProvider,
+        cloudToken,
+        cloudUrl,
+        dropboxBusy,
+        dropboxConnected,
         handleConnectDropbox,
         handleDisconnectDropbox,
         handleSaveSelfHostedSettings,
         handleSaveWebDavSettings,
+        handleSelectCloudProvider,
+        handleSelectSyncBackend,
         handleSetSyncPath,
         handleSync,
         handleTestConnection,
         handleTestDropboxConnection,
+        isSyncing,
+        isTestingConnection,
+        syncBackend,
+        syncPath,
+        webdavPassword,
+        webdavUrl,
+        webdavUsername,
     };
-}
-
-function formatClockSkew(maxClockSkewMs: number) {
-    if (maxClockSkewMs <= 0) return '0s';
-    const totalSeconds = Math.round(maxClockSkewMs / 1000);
-    if (totalSeconds < 60) return `${totalSeconds}s`;
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
