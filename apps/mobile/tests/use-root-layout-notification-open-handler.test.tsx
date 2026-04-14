@@ -11,7 +11,7 @@ const {
 } = vi.hoisted(() => ({
   setNotificationOpenHandler: vi.fn(),
   setHighlightTask: vi.fn(),
-  consumePendingNotificationOpenPayload: vi.fn(async () => null),
+  consumePendingNotificationOpenPayload: vi.fn(async (): Promise<{ kind?: string; notificationId?: string; taskId?: string; projectId?: string; actionIdentifier?: string } | null> => null),
 }));
 
 vi.mock('@mindwtr/core', () => ({
