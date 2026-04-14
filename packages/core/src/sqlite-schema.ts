@@ -1,4 +1,4 @@
-export const SQLITE_SCHEMA_VERSION = 2;
+export const SQLITE_SCHEMA_VERSION = 3;
 
 export const SQLITE_BASE_SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -95,6 +95,15 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY
+);
+
+CREATE TABLE IF NOT EXISTS calendar_sync (
+  task_id TEXT NOT NULL,
+  calendar_event_id TEXT NOT NULL,
+  calendar_id TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  last_synced_at TEXT NOT NULL,
+  PRIMARY KEY (task_id, platform)
 );
 
 INSERT OR IGNORE INTO schema_migrations (version) VALUES (1);

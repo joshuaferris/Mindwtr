@@ -1,4 +1,12 @@
 import type { AppData, Area, Attachment, Project, Task, Section } from './types';
+
+export type CalendarSyncEntry = {
+    taskId: string;
+    calendarEventId: string;
+    calendarId: string;
+    platform: string;
+    lastSyncedAt: string;
+};
 import type { SearchProjectResult, SearchResults, SearchTaskResult, TaskQueryOptions } from './storage';
 import { SQLITE_BASE_SCHEMA, SQLITE_FTS_SCHEMA, SQLITE_INDEX_SCHEMA } from './sqlite-schema';
 import { normalizeTaskStatus } from './task-status';
@@ -1110,5 +1118,65 @@ export class SqliteAdapter {
             await this.client.run('ROLLBACK');
             throw error;
         }
+    }
+
+    // MARK: - Calendar Sync CRUD
+
+    async getCalendarSyncEntry(taskId: string, platform: string): Promise<CalendarSyncEntry | null> {
+        await this.ensureSchema();
+        const row = await this.client.get<{
+            task_id: string;
+            calendar_event_id: string;
+            calendar_id: string;
+            platform: string;
+            last_synced_at: string;
+        }>('SELECT * FROM calendar_sync WHERE task_id = ? AND platform = ?', [taskId, platform]);
+        if (!row) return null;
+        return {
+            taskId: row.task_id,
+            calendarEventId: row.calendar_event_id,
+            calendarId: row.calendar_id,
+            platform: row.platform,
+            lastSyncedAt: row.last_synced_at,
+        };
+    }
+
+    async upsertCalendarSyncEntry(entry: CalendarSyncEntry): Promise<void> {
+        await this.ensureSchema();
+        await this.client.run(
+            `INSERT INTO calendar_sync (task_id, calendar_event_id, calendar_id, platform, last_synced_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(task_id, platform) DO UPDATE SET
+               calendar_event_id = excluded.calendar_event_id,
+               calendar_id = excluded.calendar_id,
+               last_synced_at = excluded.last_synced_at`,
+            [entry.taskId, entry.calendarEventId, entry.calendarId, entry.platform, entry.lastSyncedAt]
+        );
+    }
+
+    async deleteCalendarSyncEntry(taskId: string, platform: string): Promise<void> {
+        await this.ensureSchema();
+        await this.client.run(
+            'DELETE FROM calendar_sync WHERE task_id = ? AND platform = ?',
+            [taskId, platform]
+        );
+    }
+
+    async getAllCalendarSyncEntries(platform: string): Promise<CalendarSyncEntry[]> {
+        await this.ensureSchema();
+        const rows = await this.client.all<{
+            task_id: string;
+            calendar_event_id: string;
+            calendar_id: string;
+            platform: string;
+            last_synced_at: string;
+        }>('SELECT * FROM calendar_sync WHERE platform = ?', [platform]);
+        return rows.map((row) => ({
+            taskId: row.task_id,
+            calendarEventId: row.calendar_event_id,
+            calendarId: row.calendar_id,
+            platform: row.platform,
+            lastSyncedAt: row.last_synced_at,
+        }));
     }
 }

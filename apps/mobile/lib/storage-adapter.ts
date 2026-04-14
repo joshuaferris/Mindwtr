@@ -1,4 +1,4 @@
-import { AppData, SqliteAdapter, searchAll, type SqliteClient, StorageAdapter } from '@mindwtr/core';
+import { AppData, SqliteAdapter, searchAll, type SqliteClient, type CalendarSyncEntry, StorageAdapter } from '@mindwtr/core';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
@@ -544,3 +544,25 @@ const createStorage = (): StorageAdapter => {
 };
 
 export const mobileStorage = createStorage();
+
+// MARK: - Calendar Sync SQLite helpers
+
+export const getCalendarSyncEntry = async (taskId: string, platform: string) => {
+    const { adapter } = await getSqliteState();
+    return adapter.getCalendarSyncEntry(taskId, platform);
+};
+
+export const upsertCalendarSyncEntry = async (entry: CalendarSyncEntry) => {
+    const { adapter } = await getSqliteState();
+    return adapter.upsertCalendarSyncEntry(entry);
+};
+
+export const deleteCalendarSyncEntry = async (taskId: string, platform: string) => {
+    const { adapter } = await getSqliteState();
+    return adapter.deleteCalendarSyncEntry(taskId, platform);
+};
+
+export const getAllCalendarSyncEntries = async (platform: string) => {
+    const { adapter } = await getSqliteState();
+    return adapter.getAllCalendarSyncEntries(platform);
+};

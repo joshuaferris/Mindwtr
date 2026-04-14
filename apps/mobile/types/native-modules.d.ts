@@ -111,6 +111,16 @@ declare module 'expo-calendar' {
     title?: string;
     name?: string;
     color?: string;
+    sourceId?: string;
+    source?: Source;
+    entityType?: string;
+    allowsModifications?: boolean;
+  }
+
+  export interface Source {
+    id: string;
+    type: string;
+    name: string;
   }
 
   export interface Event {
@@ -126,12 +136,43 @@ declare module 'expo-calendar' {
 
   export const EntityTypes: {
     EVENT: string;
+    REMINDER: string;
   };
+
+  export enum SourceType {
+    LOCAL = 'local',
+    EXCHANGE = 'exchange',
+    CALDAV = 'caldav',
+    MOBILEME = 'mobileme',
+    SUBSCRIBED = 'subscribed',
+    BIRTHDAYS = 'birthdays',
+  }
+
+  export enum CalendarAccessLevel {
+    CONTRIBUTOR = 'contributor',
+    EDITOR = 'editor',
+    FREEBUSY = 'freebusy',
+    NONE = 'none',
+    OWNER = 'owner',
+    READ = 'read',
+    RESPOND = 'respond',
+    ROOT = 'root',
+    OVERRIDE = 'override',
+    UNKNOWN = 'unknown',
+  }
 
   export function getCalendarPermissionsAsync(): Promise<{ status: PermissionStatus }>;
   export function requestCalendarPermissionsAsync(): Promise<{ status: PermissionStatus }>;
-  export function getCalendarsAsync(entityType: string): Promise<Calendar[]>;
+  export function getCalendarsAsync(entityType?: string): Promise<Calendar[]>;
   export function getEventsAsync(calendarIds: string[], startDate: Date, endDate: Date): Promise<Event[]>;
+  export function getSourcesAsync(): Promise<Source[]>;
+
+  // Write APIs
+  export function createCalendarAsync(details?: Partial<Calendar>): Promise<string>;
+  export function deleteCalendarAsync(id: string): Promise<void>;
+  export function createEventAsync(calendarId: string, eventData?: Partial<Omit<Event, 'id'>>): Promise<string>;
+  export function updateEventAsync(id: string, details?: Partial<Omit<Event, 'id'>>): Promise<string>;
+  export function deleteEventAsync(id: string): Promise<void>;
 }
 
 declare module 'expo-network' {
