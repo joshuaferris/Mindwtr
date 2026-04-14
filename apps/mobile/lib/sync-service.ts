@@ -16,7 +16,7 @@ import {
   downloadDropboxAppData,
   uploadDropboxAppData,
 } from './dropbox-sync';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from './file-system';
 import * as Network from 'expo-network';
 import { coerceSupportedBackend, formatSyncErrorMessage, getFileSyncBaseDir, isLikelyFilePath, isLikelyOfflineSyncError, isRemoteSyncBackend, normalizeFileSyncPath, resolveBackend, type SyncBackend } from './sync-service-utils';
 import { ensureCloudKitReady, readRemoteCloudKit, writeRemoteCloudKit, isCloudKitAvailable } from './cloudkit-sync';
