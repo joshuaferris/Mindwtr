@@ -95,7 +95,10 @@ export function ConfirmModal({
                 <div className="px-4 py-3 border-b">
                     <h3 id={titleId} className="font-semibold">{title}</h3>
                     {description && (
-                        <p id={descriptionId} className="text-xs text-muted-foreground mt-1">
+                        <p
+                            id={descriptionId}
+                            className="mt-1 max-h-64 overflow-y-auto whitespace-pre-line break-words text-xs leading-relaxed text-muted-foreground"
+                        >
                             {description}
                         </p>
                     )}
