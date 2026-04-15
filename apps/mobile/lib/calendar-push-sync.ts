@@ -9,7 +9,7 @@
 import * as Calendar from 'expo-calendar';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useTaskStore, type Task } from '@mindwtr/core';
+import { safeParseDate, useTaskStore, type Task } from '@mindwtr/core';
 
 import { logInfo, logWarn, logError } from './app-log';
 import {
@@ -149,13 +149,16 @@ export const deleteMindwtrCalendar = async (): Promise<void> => {
 // MARK: - Per-task sync
 
 function buildEventDetails(task: Task) {
-    const dueDate = new Date(task.dueDate!);
-    // For all-day events, end at 23:59:59 on the same day
-    const endDate = new Date(dueDate);
+    // safeParseDate parses YYYY-MM-DD as local midnight, avoiding the UTC
+    // shift that `new Date(dateString)` produces for date-only strings.
+    const parsed = safeParseDate(task.dueDate);
+    const startDate = parsed ?? new Date();
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(startDate);
     endDate.setHours(23, 59, 59, 999);
     return {
         title: task.title,
-        startDate: dueDate,
+        startDate,
         endDate,
         allDay: true,
         notes: task.description ?? '',

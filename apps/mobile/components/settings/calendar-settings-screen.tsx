@@ -99,6 +99,11 @@ export function CalendarSettingsScreen() {
     };
 
     const handleDeleteMindwtrCalendar = async () => {
+        // Disable push sync first so the calendar is not recreated on the next
+        // startup or task change.
+        await setCalendarPushEnabled(false);
+        setCalendarPushEnabledState(false);
+        stopCalendarPushSync();
         await deleteMindwtrCalendar();
         showToast({
             title: localize('Calendar deleted', '日历已删除'),

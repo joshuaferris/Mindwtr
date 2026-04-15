@@ -80,6 +80,16 @@ vi.mock('@mindwtr/core', () => ({
         getState: mockGetState,
         subscribe: vi.fn(() => () => {}),
     },
+    // Real implementation: parses YYYY-MM-DD as LOCAL midnight (not UTC).
+    safeParseDate: (dateStr: string | null | undefined): Date | null => {
+        if (!dateStr) return null;
+        const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+        if (match) {
+            return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+        }
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? null : d;
+    },
 }));
 
 vi.mock('@/lib/storage-adapter', () => ({
@@ -168,6 +178,34 @@ describe('ensureMindwtrCalendar', () => {
         expect(mockCreateCalendarAsync).toHaveBeenCalledOnce();
         expect(id).toBe('cal-2');
         expect(mockSetItem).toHaveBeenCalledWith('mindwtr:calendar-push-sync:calendar-id', 'cal-2');
+    });
+});
+
+describe('buildEventDetails — date-only due date stays on correct local day', () => {
+    it('does not shift a YYYY-MM-DD due date to the previous day', async () => {
+        setupEnabled();
+        // Use a fixed date-only string — no time, no timezone suffix.
+        // new Date('2026-04-20') parses as UTC midnight and shifts to Apr 19
+        // in US time zones; safeParseDate('2026-04-20') must produce Apr 20.
+        const task = makeTask({ dueDate: '2026-04-20' });
+        mockGetState.mockReturnValue({ tasks: [task] });
+        mockGetCalendarSyncEntry.mockResolvedValue(null);
+        mockGetAllCalendarSyncEntries.mockResolvedValue([]);
+
+        await runFullCalendarSync();
+
+        expect(mockCreateEventAsync).toHaveBeenCalledOnce();
+        const [, eventData] = mockCreateEventAsync.mock.calls[0] as [string, { startDate: Date; endDate: Date; allDay: boolean }];
+
+        expect(eventData.allDay).toBe(true);
+        expect(eventData.startDate.getFullYear()).toBe(2026);
+        expect(eventData.startDate.getMonth()).toBe(3); // April (0-indexed)
+        expect(eventData.startDate.getDate()).toBe(20);
+        expect(eventData.startDate.getHours()).toBe(0);
+
+        expect(eventData.endDate.getFullYear()).toBe(2026);
+        expect(eventData.endDate.getMonth()).toBe(3);
+        expect(eventData.endDate.getDate()).toBe(20);
     });
 });
 
