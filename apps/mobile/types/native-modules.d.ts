@@ -115,6 +115,8 @@ declare module 'expo-calendar' {
     source?: Source;
     entityType?: string;
     allowsModifications?: boolean;
+    ownerAccount?: string;
+    accessLevel?: CalendarAccessLevel;
   }
 
   export interface Source {

@@ -16,6 +16,7 @@ import {
     getCalendarSyncEntry,
     upsertCalendarSyncEntry,
     deleteCalendarSyncEntry,
+    getAllCalendarSyncEntries,
 } from './storage-adapter';
 
 // MARK: - Constants
@@ -79,27 +80,43 @@ export const ensureMindwtrCalendar = async (): Promise<string | null> => {
             // Calendar was deleted externally — fall through to recreate
         }
 
-        // Find best available calendar source
-        const sources = await Calendar.getSourcesAsync();
-        const source =
-            sources.find((s) => s.type === Calendar.SourceType.LOCAL) ??
-            sources.find((s) => s.type === Calendar.SourceType.CALDAV) ??
-            sources[0];
+        let calendarDetails: Parameters<typeof Calendar.createCalendarAsync>[0];
 
-        if (!source) {
-            void logWarn('No calendar source available; cannot create Mindwtr calendar', {
-                scope: 'calendar-push',
-            });
-            return null;
+        if (Platform.OS === 'android') {
+            // Android does not use sources; needs name, ownerAccount, and accessLevel
+            calendarDetails = {
+                title: 'Mindwtr',
+                color: '#3B82F6',
+                entityType: Calendar.EntityTypes.EVENT,
+                name: 'mindwtr',
+                ownerAccount: 'mindwtr',
+                accessLevel: Calendar.CalendarAccessLevel.OWNER,
+            };
+        } else {
+            // iOS requires a source
+            const sources = await Calendar.getSourcesAsync();
+            const source =
+                sources.find((s) => s.type === Calendar.SourceType.LOCAL) ??
+                sources.find((s) => s.type === Calendar.SourceType.CALDAV) ??
+                sources[0];
+
+            if (!source) {
+                void logWarn('No calendar source available; cannot create Mindwtr calendar', {
+                    scope: 'calendar-push',
+                });
+                return null;
+            }
+
+            calendarDetails = {
+                title: 'Mindwtr',
+                color: '#3B82F6',
+                entityType: Calendar.EntityTypes.EVENT,
+                sourceId: source.id,
+                source,
+            };
         }
 
-        const newId = await Calendar.createCalendarAsync({
-            title: 'Mindwtr',
-            color: '#3B82F6',
-            entityType: Calendar.EntityTypes.EVENT,
-            sourceId: source.id,
-            source,
-        });
+        const newId = await Calendar.createCalendarAsync(calendarDetails);
 
         await setStoredCalendarId(newId);
         void logInfo('Created Mindwtr calendar', {
@@ -156,9 +173,13 @@ async function removeTaskFromCalendar(taskId: string): Promise<void> {
     await deleteCalendarSyncEntry(taskId, PLATFORM);
 }
 
+/** Returns true for tasks that should not have a calendar event. */
+function shouldRemoveFromCalendar(task: Task): boolean {
+    return !task.dueDate || !!task.deletedAt || task.status === 'done' || task.status === 'archived';
+}
+
 async function syncTaskToCalendar(task: Task, calendarId: string): Promise<void> {
-    // Remove from calendar if no due date or soft-deleted
-    if (!task.dueDate || task.deletedAt) {
+    if (shouldRemoveFromCalendar(task)) {
         await removeTaskFromCalendar(task.id);
         return;
     }
@@ -202,14 +223,30 @@ export const runFullCalendarSync = async (): Promise<void> => {
     if (!calendarId) return;
 
     const { tasks } = useTaskStore.getState();
+
+    // Sync all tasks currently in the store
     const results = await Promise.allSettled(
         tasks.map((task) => syncTaskToCalendar(task, calendarId))
     );
 
+    // Reconcile: remove stale calendar_sync entries for tasks that are no
+    // longer in the store or that should not have an event (completed between
+    // sessions, archived, etc.)
+    const activeEventIds = new Set(
+        tasks.filter((t) => !shouldRemoveFromCalendar(t)).map((t) => t.id)
+    );
+    const syncedEntries = await getAllCalendarSyncEntries(PLATFORM);
+    const staleEntries = syncedEntries.filter((e) => !activeEventIds.has(e.taskId));
+    await Promise.allSettled(staleEntries.map((e) => removeTaskFromCalendar(e.taskId)));
+
     const failed = results.filter((r) => r.status === 'rejected').length;
     void logInfo('Full calendar sync complete', {
         scope: 'calendar-push',
-        extra: { total: String(tasks.length), failed: String(failed) },
+        extra: {
+            total: String(tasks.length),
+            failed: String(failed),
+            stale: String(staleEntries.length),
+        },
     });
 };
 
@@ -272,6 +309,7 @@ export const startCalendarPushSync = (): (() => void) => {
                 prev.updatedAt !== task.updatedAt ||
                 prev.dueDate !== task.dueDate ||
                 prev.deletedAt !== task.deletedAt ||
+                prev.status !== task.status ||
                 prev.title !== task.title
             ) {
                 changedIds.push(task.id);
