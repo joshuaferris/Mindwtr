@@ -6,6 +6,7 @@ import { flushPendingSave, useTaskStore } from '@mindwtr/core';
 
 import type { ToastOptions } from '@/contexts/toast-context';
 import { getNotificationPermissionStatus, startMobileNotifications, stopMobileNotifications } from '@/lib/notification-service';
+import { getCalendarPushEnabled, runFullCalendarSync, startCalendarPushSync, stopCalendarPushSync } from '@/lib/calendar-push-sync';
 import { abortMobileSync, performMobileSync } from '@/lib/sync-service';
 import { classifySyncFailure, coerceSupportedBackend, isLikelyOfflineSyncError, resolveBackend, type SyncBackend } from '@/lib/sync-service-utils';
 import { SYNC_BACKEND_KEY } from '@/lib/sync-constants';
@@ -401,6 +402,20 @@ export function useRootLayoutSyncEffects({
         });
 
         return () => unsubscribe();
+    }, []);
+
+    // Start calendar push sync on mount if enabled; stop on unmount.
+    useEffect(() => {
+        let stopSync: (() => void) | null = null;
+        void getCalendarPushEnabled().then((enabled) => {
+            if (!enabled) return;
+            stopSync = startCalendarPushSync();
+            void runFullCalendarSync();
+        });
+        return () => {
+            stopSync?.();
+            stopCalendarPushSync();
+        };
     }, []);
 
     return { requestSync };

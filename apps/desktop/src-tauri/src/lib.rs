@@ -627,6 +627,21 @@ pub fn run() {
                         expand_tauri_fs_scope(&app.handle(), &p);
                     }
                 }
+
+                // Also expand scope for the Obsidian vault path, which may be
+                // inside iCloud Drive or another location not covered at runtime.
+                if let Some(ref raw_obsidian) = config.obsidian_config {
+                    #[derive(serde::Deserialize, Default)]
+                    struct VaultPathOnly { vault_path: Option<String> }
+                    if let Ok(parsed) = serde_json::from_str::<VaultPathOnly>(raw_obsidian) {
+                        if let Some(vp) = parsed.vault_path {
+                            let p = PathBuf::from(vp.trim());
+                            if p.exists() {
+                                expand_tauri_fs_scope(&app.handle(), &p);
+                            }
+                        }
+                    }
+                }
             }
 
             let diagnostics_enabled = diagnostics_enabled();

@@ -16,6 +16,16 @@ import {
     type SystemCalendarInfo,
     type SystemCalendarPermissionStatus,
 } from '@/lib/external-calendar';
+import {
+    deleteMindwtrCalendar,
+    getCalendarPushEnabled,
+    getCalendarWritePermissionStatus,
+    requestCalendarWritePermission,
+    runFullCalendarSync,
+    setCalendarPushEnabled,
+    startCalendarPushSync,
+    stopCalendarPushSync,
+} from '@/lib/calendar-push-sync';
 import { useToast } from '@/contexts/toast-context';
 import { maskCalendarUrl } from '@/lib/settings-utils';
 import { useThemeColors } from '@/hooks/use-theme-colors';
@@ -39,6 +49,69 @@ export function CalendarSettingsScreen() {
     const [systemCalendarPermission, setSystemCalendarPermission] = useState<SystemCalendarPermissionStatus>('undetermined');
     const [systemCalendars, setSystemCalendars] = useState<SystemCalendarInfo[]>([]);
     const [isSystemCalendarLoading, setIsSystemCalendarLoading] = useState(false);
+
+    // Push-to-calendar state
+    const [calendarPushEnabled, setCalendarPushEnabledState] = useState(false);
+    const [calendarPushPermission, setCalendarPushPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+
+    useEffect(() => {
+        void (async () => {
+            const [enabled, permission] = await Promise.all([
+                getCalendarPushEnabled(),
+                getCalendarWritePermissionStatus(),
+            ]);
+            setCalendarPushEnabledState(enabled);
+            setCalendarPushPermission(permission);
+        })();
+    }, []);
+
+    const handleToggleCalendarPush = async (enabled: boolean) => {
+        if (enabled) {
+            const granted = calendarPushPermission === 'granted'
+                ? true
+                : await requestCalendarWritePermission();
+            if (!granted) {
+                setCalendarPushPermission('denied');
+                showToast({
+                    title: localize('Permission Required', '需要权限'),
+                    message: localize('Calendar access is required to push tasks to your calendar.', '需要日历访问权限才能将任务推送到您的日历。'),
+                    tone: 'warning',
+                    durationMs: 4200,
+                });
+                return;
+            }
+            setCalendarPushPermission('granted');
+            await setCalendarPushEnabled(true);
+            setCalendarPushEnabledState(true);
+            startCalendarPushSync();
+            void runFullCalendarSync();
+        } else {
+            await setCalendarPushEnabled(false);
+            setCalendarPushEnabledState(false);
+            stopCalendarPushSync();
+            showToast({
+                title: localize('Calendar sync disabled', '日历同步已禁用'),
+                message: localize('Tasks will no longer be pushed to your calendar. Existing events were kept.', '任务将不再推送到您的日历。已创建的日程已保留。'),
+                tone: 'info',
+                durationMs: 4200,
+            });
+        }
+    };
+
+    const handleDeleteMindwtrCalendar = async () => {
+        // Disable push sync first so the calendar is not recreated on the next
+        // startup or task change.
+        await setCalendarPushEnabled(false);
+        setCalendarPushEnabledState(false);
+        stopCalendarPushSync();
+        await deleteMindwtrCalendar();
+        showToast({
+            title: localize('Calendar deleted', '日历已删除'),
+            message: localize('The Mindwtr calendar and all its events have been removed.', 'Mindwtr 日历及其所有日程已删除。'),
+            tone: 'success',
+            durationMs: 3500,
+        });
+    };
 
     const loadSystemCalendarState = useCallback(async (requestAccess = false) => {
         setIsSystemCalendarLoading(true);
@@ -222,6 +295,52 @@ export function CalendarSettingsScreen() {
             <SubHeader title={t('settings.calendar')} />
             <ScrollView style={styles.scrollView} contentContainerStyle={scrollContentStyle}>
                 <Text style={[styles.description, { color: tc.secondaryText }]}>{t('settings.calendarDesc')}</Text>
+
+                {/* Push tasks to calendar */}
+                <View style={[styles.settingCard, { backgroundColor: tc.cardBg, marginBottom: 16 }]}>
+                    <View style={styles.settingRow}>
+                        <View style={styles.settingInfo}>
+                            <Text style={[styles.settingLabel, { color: tc.text }]}>
+                                {localize('Push tasks to calendar', '将任务推送到日历')}
+                            </Text>
+                            <Text style={[styles.settingDescription, { color: tc.secondaryText }]}>
+                                {localize(
+                                    'Tasks with due dates are added to a dedicated "Mindwtr" calendar on your device.',
+                                    '有截止日期的任务将添加到设备上专用的"Mindwtr"日历中。'
+                                )}
+                            </Text>
+                        </View>
+                        <Switch
+                            value={calendarPushEnabled}
+                            onValueChange={(v) => void handleToggleCalendarPush(v)}
+                            trackColor={{ false: '#767577', true: '#3B82F6' }}
+                        />
+                    </View>
+
+                    {calendarPushEnabled && calendarPushPermission === 'denied' && (
+                        <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: tc.border }}>
+                            <Text style={[styles.settingDescription, { color: tc.secondaryText }]}>
+                                {localize(
+                                    'Calendar access was denied. Please grant access in Settings.',
+                                    '日历访问被拒绝。请在设置中授予访问权限。'
+                                )}
+                            </Text>
+                        </View>
+                    )}
+
+                    {calendarPushEnabled && calendarPushPermission === 'granted' && (
+                        <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: tc.border }}>
+                            <TouchableOpacity
+                                onPress={() => void handleDeleteMindwtrCalendar()}
+                                style={{ alignSelf: 'flex-start' }}
+                            >
+                                <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600' }}>
+                                    {localize('Delete Mindwtr calendar…', '删除 Mindwtr 日历…')}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
 
                 <View style={[styles.settingCard, { backgroundColor: tc.cardBg }]}>
                     <View style={styles.settingRow}>
