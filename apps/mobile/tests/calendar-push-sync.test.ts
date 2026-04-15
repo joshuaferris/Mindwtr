@@ -195,7 +195,8 @@ describe('buildEventDetails — date-only due date stays on correct local day', 
         await runFullCalendarSync();
 
         expect(mockCreateEventAsync).toHaveBeenCalledOnce();
-        const [, eventData] = mockCreateEventAsync.mock.calls[0] as [string, { startDate: Date; endDate: Date; allDay: boolean }];
+        const call = mockCreateEventAsync.mock.calls[0] as unknown as [string, { startDate: Date; endDate: Date; allDay: boolean }];
+        const [, eventData] = call;
 
         expect(eventData.allDay).toBe(true);
         expect(eventData.startDate.getFullYear()).toBe(2026);
