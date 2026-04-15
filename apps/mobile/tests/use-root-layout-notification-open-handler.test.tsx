@@ -4,6 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useRootLayoutNotificationOpenHandler } from '@/app/_effects/use-root-layout-notification-open-handler';
 
+type PendingNotificationOpenPayload = {
+  kind?: string;
+  notificationId?: string;
+  taskId?: string;
+  projectId?: string;
+} | null;
+
 const {
   setNotificationOpenHandler,
   setHighlightTask,
@@ -11,7 +18,7 @@ const {
 } = vi.hoisted(() => ({
   setNotificationOpenHandler: vi.fn(),
   setHighlightTask: vi.fn(),
-  consumePendingNotificationOpenPayload: vi.fn(async (): Promise<{ kind?: string; notificationId?: string; taskId?: string; projectId?: string; actionIdentifier?: string } | null> => null),
+  consumePendingNotificationOpenPayload: vi.fn<() => Promise<PendingNotificationOpenPayload>>(async () => null),
 }));
 
 vi.mock('@mindwtr/core', () => ({
