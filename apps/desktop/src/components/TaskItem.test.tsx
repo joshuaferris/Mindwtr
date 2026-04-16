@@ -187,9 +187,10 @@ describe('TaskItem', () => {
             const updatedTask = useTaskStore.getState()._allTasks.find((task) => task.id === 'next-task');
             expect(updatedTask?.status).toBe('waiting');
         });
-        expect(getByText('Set follow-up / review date')).toBeInTheDocument();
-        expect(container.querySelector('input[type="date"]')).toBeTruthy();
-        expect(getByRole('button', { name: /skip/i })).toBeInTheDocument();
+        await waitFor(() => {
+            expect(container.querySelector('input[type="date"]')).toBeTruthy();
+            expect(getByRole('button', { name: /skip/i })).toBeInTheDocument();
+        });
     });
 
     it('shows today focus toggle outside focus view for active tasks', () => {

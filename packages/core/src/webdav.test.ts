@@ -17,6 +17,21 @@ describe('webdav http helpers', () => {
         expect(fetcher).toHaveBeenCalledOnce();
     });
 
+    it('allows HTTP for local hostnames', async () => {
+        const fetcher = vi.fn(
+            async () =>
+                ({
+                    ok: false,
+                    status: 404,
+                    statusText: 'Not Found',
+                    text: async () => '',
+                }) as Response,
+        );
+
+        await expect(webdavGetJson('http://nas.local/dav/data.json', { fetcher })).resolves.toBeNull();
+        expect(fetcher).toHaveBeenCalledOnce();
+    });
+
     it('rejects HTTP for public targets', async () => {
         const fetcher = vi.fn();
         await expect(webdavGetJson('http://8.8.8.8/dav/data.json', { fetcher })).rejects.toThrow(

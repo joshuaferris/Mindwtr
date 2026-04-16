@@ -1,7 +1,6 @@
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, Alert } from 'react-native';
 import { useTaskStore } from '@mindwtr/core';
 import type { Task } from '@mindwtr/core';
-import { useTheme } from '../../contexts/theme-context';
 import { useLanguage } from '../../contexts/language-context';
 
 import { useMobileAreaFilter } from '@/hooks/use-mobile-area-filter';
@@ -9,18 +8,16 @@ import { useThemeColors, ThemeColors } from '@/hooks/use-theme-colors';
 import { taskMatchesAreaFilter } from '@/lib/area-filter';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Archive } from 'lucide-react-native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo, useCallback } from 'react';
 
 function ArchivedTaskItem({
     task,
-    isDark,
     tc,
     onRestore,
     onDelete,
     isHighlighted
 }: {
     task: Task;
-    isDark: boolean;
     tc: ThemeColors;
     onRestore: () => void;
     onDelete: () => void;
@@ -86,18 +83,23 @@ function ArchivedTaskItem({
 
 export default function ArchivedScreen() {
     const { _allTasks, projects, updateTask, purgeTask, highlightTaskId, setHighlightTask } = useTaskStore();
-    const { isDark } = useTheme();
     const { t } = useLanguage();
 
     const tc = useThemeColors();
     const { areaById, resolvedAreaFilter } = useMobileAreaFilter();
-    const projectById = new Map(projects.map((project) => [project.id, project]));
+    const projectById = useMemo(
+        () => new Map(projects.map((project) => [project.id, project])),
+        [projects],
+    );
 
-    const archivedTasks = _allTasks.filter((task) => (
-        task.status === 'archived'
-        && !task.deletedAt
-        && taskMatchesAreaFilter(task, resolvedAreaFilter, projectById, areaById)
-    ));
+    const archivedTasks = useMemo(
+        () => _allTasks.filter((task) => (
+            task.status === 'archived'
+            && !task.deletedAt
+            && taskMatchesAreaFilter(task, resolvedAreaFilter, projectById, areaById)
+        )),
+        [_allTasks, resolvedAreaFilter, projectById, areaById],
+    );
 
     const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
@@ -115,11 +117,11 @@ export default function ArchivedScreen() {
         };
     }, [highlightTaskId, setHighlightTask]);
 
-    const handleRestore = (taskId: string) => {
+    const handleRestore = useCallback((taskId: string) => {
         updateTask(taskId, { status: 'inbox' });
-    };
+    }, [updateTask]);
 
-    const handleDelete = (taskId: string) => {
+    const handleDelete = useCallback((taskId: string) => {
         Alert.alert(
             'Delete Permanently?',
             'This action cannot be undone.',
@@ -132,7 +134,17 @@ export default function ArchivedScreen() {
                 },
             ]
         );
-    };
+    }, [purgeTask]);
+
+    const renderArchivedTask = useCallback(({ item }: { item: Task }) => (
+        <ArchivedTaskItem
+            task={item}
+            tc={tc}
+            onRestore={() => handleRestore(item.id)}
+            onDelete={() => handleDelete(item.id)}
+            isHighlighted={item.id === highlightTaskId}
+        />
+    ), [tc, handleDelete, handleRestore, highlightTaskId]);
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
@@ -144,20 +156,23 @@ export default function ArchivedScreen() {
                         </Text>
                     </View>
                 )}
-                <ScrollView style={styles.taskList} showsVerticalScrollIndicator={false}>
-                    {archivedTasks.length > 0 ? (
-                        archivedTasks.map((task) => (
-                            <ArchivedTaskItem
-                                key={task.id}
-                                task={task}
-                                isDark={isDark}
-                                tc={tc}
-                                onRestore={() => handleRestore(task.id)}
-                                onDelete={() => handleDelete(task.id)}
-                                isHighlighted={task.id === highlightTaskId}
-                            />
-                        ))
-                    ) : (
+                <FlatList
+                    data={archivedTasks}
+                    renderItem={renderArchivedTask}
+                    keyExtractor={(item) => item.id}
+                    extraData={highlightTaskId}
+                    style={styles.taskList}
+                    contentContainerStyle={[
+                        styles.taskListContent,
+                        archivedTasks.length === 0 && styles.emptyContent,
+                    ]}
+                    initialNumToRender={12}
+                    maxToRenderPerBatch={12}
+                    windowSize={5}
+                    updateCellsBatchingPeriod={50}
+                    removeClippedSubviews={archivedTasks.length >= 25}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
                         <View style={styles.emptyState}>
                             <Archive size={48} color={tc.secondaryText} strokeWidth={1.5} style={styles.emptyIcon} />
                             <Text style={[styles.emptyTitle, { color: tc.text }]}>
@@ -167,8 +182,8 @@ export default function ArchivedScreen() {
                                 {t('archived.emptyHint') || 'Tasks you archive will appear here'}
                             </Text>
                         </View>
-                    )}
-                </ScrollView>
+                    }
+                />
             </View>
         </GestureHandlerRootView>
     );
@@ -189,7 +204,12 @@ const styles = StyleSheet.create({
     },
     taskList: {
         flex: 1,
+    },
+    taskListContent: {
         padding: 16,
+    },
+    emptyContent: {
+        flexGrow: 1,
     },
     taskItem: {
         flexDirection: 'row',

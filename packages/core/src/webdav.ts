@@ -72,8 +72,8 @@ function buildHeaders(options: WebDavOptions): Record<string, string> {
     return headers;
 }
 
-const WEBDAV_HTTPS_ERROR = 'WebDAV requires HTTPS for public URLs (HTTP allowed for localhost/private IPs).';
-const WEBDAV_INSECURE_OPTIONS = { allowAndroidEmulatorInDev: true, allowPrivateIpRanges: true };
+const WEBDAV_HTTPS_ERROR = 'WebDAV requires HTTPS for public URLs (HTTP allowed for localhost, private IPs, and local hostnames).';
+const WEBDAV_INSECURE_OPTIONS = { allowAndroidEmulatorInDev: true, allowLocalHostnames: true, allowPrivateIpRanges: true };
 const WEBDAV_TIMEOUT_ERROR = 'WebDAV request timed out';
 const UTF8_BOM = '\uFEFF';
 

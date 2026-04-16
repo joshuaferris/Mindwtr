@@ -8,16 +8,19 @@ type VirtualTaskRowProps = {
     project?: Project;
     index: number;
     top: number;
-    isSelected: boolean;
-    selectionMode: boolean;
-    isMultiSelected: boolean;
-    onSelectIndex: (index: number) => void;
+    isSelected?: boolean;
+    selectionMode?: boolean;
+    isMultiSelected?: boolean;
+    onSelectIndex?: (index: number) => void;
     onToggleSelectId: (id: string) => void;
     onMeasure: (id: string, height: number) => void;
-    showQuickDone: boolean;
-    readOnly: boolean;
+    showQuickDone?: boolean;
+    readOnly?: boolean;
     compactMetaEnabled?: boolean;
     dense?: boolean;
+    showProjectBadgeInActions?: boolean;
+    gapClassName?: string;
+    showDivider?: boolean;
 };
 
 export const VirtualTaskRow = React.memo(function VirtualTaskRow({
@@ -26,18 +29,21 @@ export const VirtualTaskRow = React.memo(function VirtualTaskRow({
     index,
     top,
     isSelected,
-    selectionMode,
-    isMultiSelected,
+    selectionMode = false,
+    isMultiSelected = false,
     onSelectIndex,
     onToggleSelectId,
     onMeasure,
-    showQuickDone,
-    readOnly,
+    showQuickDone = true,
+    readOnly = false,
     compactMetaEnabled = true,
     dense = false,
+    showProjectBadgeInActions = true,
+    gapClassName,
+    showDivider = true,
 }: VirtualTaskRowProps) {
     const rowRef = useRef<HTMLDivElement | null>(null);
-    const handleSelect = useCallback(() => onSelectIndex(index), [index, onSelectIndex]);
+    const handleSelect = useCallback(() => onSelectIndex?.(index), [index, onSelectIndex]);
     const handleToggleSelect = useCallback(() => onToggleSelectId(task.id), [onToggleSelectId, task.id]);
 
     useLayoutEffect(() => {
@@ -52,21 +58,22 @@ export const VirtualTaskRow = React.memo(function VirtualTaskRow({
 
     return (
         <div ref={rowRef} style={{ position: 'absolute', top, left: 0, right: 0 }}>
-            <div className={cn(dense ? "pb-1" : "pb-1.5")}>
+            <div className={cn(gapClassName ?? (dense ? "pb-1" : "pb-1.5"))}>
                 <TaskItem
                     key={task.id}
                     task={task}
                     project={project}
                     isSelected={isSelected}
-                    onSelect={handleSelect}
+                    onSelect={onSelectIndex ? handleSelect : undefined}
                     selectionMode={selectionMode}
                     isMultiSelected={isMultiSelected}
                     onToggleSelect={handleToggleSelect}
                     showQuickDone={showQuickDone}
                     readOnly={readOnly}
                     compactMetaEnabled={compactMetaEnabled}
+                    showProjectBadgeInActions={showProjectBadgeInActions}
                 />
-                <div className="mx-3 mt-1 h-px bg-border/30" />
+                {showDivider ? <div className="mx-3 mt-1 h-px bg-border/30" /> : null}
             </div>
         </div>
     );

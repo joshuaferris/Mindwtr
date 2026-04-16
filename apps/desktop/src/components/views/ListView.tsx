@@ -24,6 +24,7 @@ import { cn } from '../../lib/utils';
 import { sortDoneTasksForListView } from './list/done-sort';
 import { groupTasksByArea, groupTasksByContext, groupTasksByProject, type NextGroupBy, type TaskGroup } from './list/next-grouping';
 import { useListSelection } from './list/useListSelection';
+import { LIST_VIRTUALIZATION_THRESHOLD, LIST_VIRTUAL_ROW_ESTIMATE, LIST_VIRTUAL_OVERSCAN } from './list/useVirtualList';
 
 
 interface ListViewProps {
@@ -33,10 +34,6 @@ interface ListViewProps {
 
 const EMPTY_PRIORITIES: TaskPriority[] = [];
 const EMPTY_ESTIMATES: TimeEstimate[] = [];
-const VIRTUALIZATION_THRESHOLD = 25;
-const VIRTUAL_ROW_ESTIMATE = 120;
-const VIRTUAL_OVERSCAN = 600;
-
 type ShowToast = (
     message: string,
     tone?: 'success' | 'error' | 'info',
@@ -482,12 +479,12 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
             });
     }, [showToast, t, updateProject]);
 
-    const shouldVirtualize = !isReferenceAreaGrouping && !isNextGrouping && filteredTasks.length > VIRTUALIZATION_THRESHOLD;
+    const shouldVirtualize = !isReferenceAreaGrouping && !isNextGrouping && filteredTasks.length > LIST_VIRTUALIZATION_THRESHOLD;
     const rowVirtualizer = useVirtualizer({
         count: shouldVirtualize ? filteredTasks.length : 0,
         getScrollElement: () => listScrollRef.current,
-        estimateSize: () => (isCompact ? 90 : VIRTUAL_ROW_ESTIMATE),
-        overscan: Math.max(2, Math.ceil(VIRTUAL_OVERSCAN / VIRTUAL_ROW_ESTIMATE)),
+        estimateSize: () => (isCompact ? 90 : LIST_VIRTUAL_ROW_ESTIMATE),
+        overscan: Math.max(2, Math.ceil(LIST_VIRTUAL_OVERSCAN / LIST_VIRTUAL_ROW_ESTIMATE)),
         getItemKey: (index) => filteredTasks[index]?.id ?? index,
     });
     const virtualRows = shouldVirtualize ? rowVirtualizer.getVirtualItems() : [];

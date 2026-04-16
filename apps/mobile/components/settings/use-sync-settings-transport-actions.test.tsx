@@ -22,10 +22,18 @@ const mocked = vi.hoisted(() => ({
         removeItem: vi.fn(),
         setItem: vi.fn(),
     },
+    cloudGetJson: vi.fn(),
+    normalizeWebdavUrl: vi.fn((url: string) => {
+        const trimmed = url.replace(/\/+$/, '');
+        return trimmed.toLowerCase().endsWith('/data.json') || trimmed.toLowerCase().endsWith('.json')
+            ? trimmed
+            : `${trimmed}/data.json`;
+    }),
     resetSyncStatusForBackendSwitch: vi.fn(),
     showSettingsErrorToast: vi.fn(),
     showSettingsWarning: vi.fn(),
     showToast: vi.fn(),
+    webdavGetJson: vi.fn(),
 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
@@ -35,8 +43,9 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 vi.mock('@mindwtr/core', () => ({
     addBreadcrumb: mocked.addBreadcrumb,
     CLOCK_SKEW_THRESHOLD_MS: 60_000,
-    cloudGetJson: vi.fn(),
-    webdavGetJson: vi.fn(),
+    cloudGetJson: mocked.cloudGetJson,
+    normalizeWebdavUrl: mocked.normalizeWebdavUrl,
+    webdavGetJson: mocked.webdavGetJson,
 }));
 
 vi.mock('@/lib/storage-file', () => ({
@@ -138,10 +147,13 @@ beforeEach(() => {
     mocked.asyncStorage.removeItem.mockResolvedValue(undefined);
     mocked.asyncStorage.setItem.mockResolvedValue(undefined);
     mocked.addBreadcrumb.mockReset();
+    mocked.cloudGetJson.mockReset();
+    mocked.normalizeWebdavUrl.mockClear();
     mocked.resetSyncStatusForBackendSwitch.mockReset();
     mocked.showSettingsErrorToast.mockReset();
     mocked.showSettingsWarning.mockReset();
     mocked.showToast.mockReset();
+    mocked.webdavGetJson.mockReset();
 });
 
 afterEach(() => {
@@ -207,5 +219,35 @@ describe('useSyncSettingsTransportActions', () => {
         expect(mocked.asyncStorage.setItem).toHaveBeenCalledWith(SYNC_BACKEND_KEY, 'cloudkit');
         expect(mocked.addBreadcrumb).toHaveBeenCalledWith('settings:syncBackend:cloudkit');
         expect(mocked.resetSyncStatusForBackendSwitch).toHaveBeenCalledTimes(2);
+    });
+
+    it('normalizes the WebDAV url before testing the mobile connection', async () => {
+        mocked.webdavGetJson.mockResolvedValue(null);
+        await renderHarness();
+
+        await act(async () => {
+            await latestHookResult?.handleTestConnection('webdav', {
+                webdav: {
+                    password: 'secret',
+                    url: 'http://nas.local/remote.php/dav/files/alice/mindwtr/',
+                    username: 'alice',
+                },
+            });
+        });
+
+        expect(mocked.normalizeWebdavUrl).toHaveBeenCalledWith('http://nas.local/remote.php/dav/files/alice/mindwtr/');
+        expect(mocked.webdavGetJson).toHaveBeenCalledWith(
+            'http://nas.local/remote.php/dav/files/alice/mindwtr/data.json',
+            expect.objectContaining({
+                password: 'secret',
+                timeoutMs: 10_000,
+                username: 'alice',
+            }),
+        );
+        expect(mocked.showToast).toHaveBeenCalledWith(expect.objectContaining({
+            message: 'WebDAV endpoint is reachable.',
+            title: 'Connection OK',
+            tone: 'success',
+        }));
     });
 });

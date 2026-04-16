@@ -6,6 +6,7 @@ import {
     addBreadcrumb,
     CLOCK_SKEW_THRESHOLD_MS,
     cloudGetJson,
+    normalizeWebdavUrl,
     webdavGetJson,
     type AppData,
 } from '@mindwtr/core';
@@ -748,7 +749,7 @@ export function useSyncSettingsTransportActions({
                     showSettingsWarning(localize('Invalid URL', '地址无效'), localize('Please enter a valid WebDAV URL (http/https).', '请输入有效的 WebDAV 地址（http/https）。'));
                     return;
                 }
-                await webdavGetJson<unknown>(trimmedWebDavUrl.replace(/\/+$/, ''), {
+                await webdavGetJson<unknown>(normalizeWebdavUrl(trimmedWebDavUrl), {
                     username: effectiveWebdav.username.trim(),
                     password: effectiveWebdav.password,
                     timeoutMs: 10_000,
