@@ -12,7 +12,7 @@ import { checkBudget } from '../../config/performanceBudgets';
 import { TaskItem } from '../TaskItem';
 import { projectMatchesAreaFilter, resolveAreaFilter, taskMatchesAreaFilter } from '../../lib/area-filter';
 import { PomodoroPanel } from './PomodoroPanel';
-import { AgendaFiltersPanel, type AgendaProjectFilterOption } from './agenda/AgendaFiltersPanel';
+import { AgendaFiltersPanel, type AgendaActiveFilterChip, type AgendaProjectFilterOption } from './agenda/AgendaFiltersPanel';
 import { AgendaHeader } from './agenda/AgendaHeader';
 import { AgendaCollapsibleSection, AgendaProjectSection } from './agenda/AgendaSections';
 import { groupTasksByArea, groupTasksByContext, groupTasksByProject, type TaskGroup } from './list/next-grouping';
@@ -285,6 +285,61 @@ export function AgendaView() {
         const value = t(key);
         return value === key ? fallback : value;
     }, [t]);
+    const activeFilterChips = useMemo<AgendaActiveFilterChip[]>(() => {
+        const chips: AgendaActiveFilterChip[] = [];
+        selectedTokens.forEach((token) => {
+            chips.push({
+                id: `token:${token}`,
+                label: token,
+            });
+        });
+        selectedProjects.forEach((projectId) => {
+            if (projectId === NO_PROJECT_FILTER_ID) {
+                chips.push({
+                    id: `project:${projectId}`,
+                    label: resolveText('taskEdit.noProjectOption', 'No project'),
+                });
+                return;
+            }
+            const project = projectMap.get(projectId);
+            if (!project) return;
+            chips.push({
+                id: `project:${project.id}`,
+                label: project.title,
+                dotColor: (project.areaId ? areaById.get(project.areaId)?.color : undefined) || project.color || undefined,
+            });
+        });
+        activePriorities.forEach((priority) => {
+            chips.push({
+                id: `priority:${priority}`,
+                label: t(`priority.${priority}`),
+            });
+        });
+        selectedEnergyLevels.forEach((energyLevel) => {
+            chips.push({
+                id: `energy:${energyLevel}`,
+                label: t(`energyLevel.${energyLevel}`),
+            });
+        });
+        activeTimeEstimates.forEach((estimate) => {
+            chips.push({
+                id: `time:${estimate}`,
+                label: formatEstimate(estimate),
+            });
+        });
+        return chips;
+    }, [
+        activePriorities,
+        activeTimeEstimates,
+        areaById,
+        formatEstimate,
+        projectMap,
+        resolveText,
+        selectedEnergyLevels,
+        selectedProjects,
+        selectedTokens,
+        t,
+    ]);
 
     const { filteredActiveTasks, reviewDueCandidates } = useMemo(() => {
         const now = new Date();
@@ -335,7 +390,7 @@ export function AgendaView() {
         || activeTimeEstimates.length > 0
     );
     const hasTaskFilters = hasFilters || Boolean(normalizedSearchQuery);
-    const showFiltersPanel = filtersOpen || hasFilters;
+    const showFiltersPanel = filtersOpen;
     const toggleTokenFilter = (token: string) => {
         setSelectedTokens((prev) =>
             prev.includes(token) ? prev.filter((item) => item !== token) : [...prev, token]
@@ -660,6 +715,7 @@ export function AgendaView() {
 
             <AgendaFiltersPanel
                 allTokens={allTokens}
+                activeFilterChips={activeFilterChips}
                 energyLevelOptions={energyLevelOptions}
                 formatEstimate={formatEstimate}
                 hasFilters={hasFilters}

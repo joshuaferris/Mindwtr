@@ -9,8 +9,15 @@ export type AgendaProjectFilterOption = {
     dotColor?: string;
 };
 
+export type AgendaActiveFilterChip = {
+    id: string;
+    label: string;
+    dotColor?: string;
+};
+
 type AgendaFiltersPanelProps = {
     allTokens: string[];
+    activeFilterChips: AgendaActiveFilterChip[];
     energyLevelOptions: TaskEnergyLevel[];
     formatEstimate: (estimate: TimeEstimate) => string;
     hasFilters: boolean;
@@ -40,6 +47,7 @@ type AgendaFiltersPanelProps = {
 
 export function AgendaFiltersPanel({
     allTokens,
+    activeFilterChips,
     energyLevelOptions,
     formatEstimate,
     hasFilters,
@@ -101,6 +109,25 @@ export function AgendaFiltersPanel({
                 onChange={(event) => onSearchChange(event.target.value)}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
+            {!showFiltersPanel && activeFilterChips.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                    {activeFilterChips.map((chip) => (
+                        <span
+                            key={chip.id}
+                            className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground"
+                        >
+                            {chip.dotColor && (
+                                <span
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ backgroundColor: chip.dotColor }}
+                                    aria-hidden="true"
+                                />
+                            )}
+                            {chip.label}
+                        </span>
+                    ))}
+                </div>
+            )}
             {showFiltersPanel && (
                 <div className="space-y-4">
                     <div className="space-y-2">

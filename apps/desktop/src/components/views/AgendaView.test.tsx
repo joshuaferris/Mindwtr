@@ -489,6 +489,42 @@ describe('AgendaView', () => {
         expect(getByRole('button', { name: /hide/i })).toHaveAttribute('aria-expanded', 'true');
     });
 
+    it('allows hiding the filter panel after selecting a filter', () => {
+        const filteredTask: Task = {
+            id: 'filtered-task',
+            title: 'Filtered task',
+            status: 'next',
+            energyLevel: 'high',
+            contexts: [],
+            tags: [],
+            createdAt: nowIso,
+            updatedAt: nowIso,
+        };
+
+        useTaskStore.setState({
+            tasks: [filteredTask],
+            _allTasks: [filteredTask],
+            projects: [],
+            _allProjects: [],
+            areas: [],
+            _allAreas: [],
+            settings: {},
+            highlightTaskId: null,
+        });
+
+        const { getByRole, queryByRole } = renderAgenda();
+
+        fireEvent.click(getByRole('button', { name: /^show$/i }));
+        fireEvent.click(getByRole('button', { name: 'High energy' }));
+        fireEvent.click(getByRole('button', { name: /^hide$/i }));
+
+        expect(getByRole('button', { name: /^show$/i })).toHaveAttribute('aria-expanded', 'false');
+        expect(queryByRole('button', { name: 'Low energy' })).not.toBeInTheDocument();
+        expect(getByRole('textbox')).toBeInTheDocument();
+        expect(queryByRole('button', { name: 'High energy' })).not.toBeInTheDocument();
+        expect(document.body).toHaveTextContent('High energy');
+    });
+
     it('renders every grouped no-context task when the list is large', () => {
         const tasks = Array.from({ length: 30 }, (_, index) => ({
             id: `next-task-${index + 1}`,

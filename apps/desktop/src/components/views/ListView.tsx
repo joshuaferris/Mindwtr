@@ -627,7 +627,7 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
     const hasFilters = filterSummary.length > 0;
     const filterSummaryLabel = filterSummary.slice(0, 3).join(', ');
     const filterSummarySuffix = filterSummary.length > 3 ? ` +${filterSummary.length - 3}` : '';
-    const showFiltersPanel = filtersOpen || hasFilters;
+    const showFiltersPanel = filtersOpen;
     const toggleTokenFilter = useCallback((token: string) => {
         const nextTokens = selectedTokens.includes(token)
             ? selectedTokens.filter((item) => item !== token)
