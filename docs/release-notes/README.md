@@ -2,10 +2,6 @@
 
 Versioned notes for desktop/mobile/core/cloud releases live in this folder.
 
-## Drafts
-
-- [v0.8.3 draft](./0.8.3.md)
-
 ## Versions
 
 - [v0.4.2](./0.4.2.md)
@@ -62,6 +58,8 @@ Versioned notes for desktop/mobile/core/cloud releases live in this folder.
 - [v0.8.0](./0.8.0.md)
 - [v0.8.1](./0.8.1.md)
 - [v0.8.2](./0.8.2.md)
+- [v0.8.3](./0.8.3.md)
+- [v0.8.4](./0.8.4.md)
 
 ## Store-Specific Notes
 

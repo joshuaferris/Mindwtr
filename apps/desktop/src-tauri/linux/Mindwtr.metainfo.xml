@@ -51,6 +51,17 @@
   <url type="bugtracker">https://github.com/dongdongbh/Mindwtr/issues</url>
   <url type="vcs-browser">https://github.com/dongdongbh/Mindwtr</url>
   <releases>
+    <release version="0.8.4" date="2026-04-16">
+      <url type="details">https://github.com/dongdongbh/Mindwtr/releases/tag/v0.8.4</url>
+      <description translate="no">
+        <p>Mindwtr 0.8.4 is a maintenance release focused on sync documentation and regression coverage for desktop builds.</p>
+        <ul>
+          <li>Documented the SQLite-to-JSON bridge so the local-store and sync-snapshot contract is easier to reason about.</li>
+          <li>Clarified the current sync behavior and roadmap wording in the main docs.</li>
+          <li>Added regression coverage to ensure device-local sync history does not trigger unnecessary remote writes.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.3" date="2026-04-14">
       <url type="details">https://github.com/dongdongbh/Mindwtr/releases/tag/v0.8.3</url>
       <description translate="no">

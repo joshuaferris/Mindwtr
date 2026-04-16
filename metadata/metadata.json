@@ -30,7 +30,7 @@
           "完全离线可用，无需互联网连接",
           "完全开源，安全透明"
         ],
-        "ReleaseNotes": "• 桌面端 Markdown 备注现已支持扩展编辑器、工具栏操作、自动续写列表，以及任务/项目内部链接。\n• 新增区域筛选快捷键、任务日期清除按钮、按情境批量设置能量值，以及新的能量等级筛选。\n• 侧边栏分组可保持折叠，原生日期输入已本地化，区域折叠状态也能更稳定地保留。\n• 同步恢复更安全：会保留可恢复的 createdAt，在重试恢复前先刷新待写入数据，并增强 MCP SQLite 启动恢复。",
+        "ReleaseNotes": "• 文档现已更清楚说明移动端已上线的日历同步行为。\n• 新增 SQLite 与 JSON 同步桥接 ADR，并明确同步诊断只保留在本机。\n• 增加同步回归覆盖，避免设备本地同步历史差异触发不必要的远端写入。\n• 本次是一次以同步维护和文档澄清为主的小版本更新。",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
@@ -82,7 +82,7 @@
           "No internet connection required to function",
           "Open source and transparent"
         ],
-        "ReleaseNotes": "• Expanded Markdown notes on desktop with fullscreen editors, toolbar actions, automatic list continuation, and task/project links.\n• Added area filter keyboard chords, task date clear buttons, contexts bulk energy assignment, and a new energy-level focus filter.\n• Sidebar sections can stay collapsed, native date inputs are localized, and area collapse state persists more reliably.\n• Sync recovery is safer with recoverable createdAt preservation, pending-write flushes before retry recovery, and sturdier MCP SQLite bootstrap handling.",
+        "ReleaseNotes": "• Clarified the shipped mobile calendar sync behavior in the docs and roadmap.\n• Documented the SQLite-to-JSON sync bridge and kept sync diagnostics explicitly device-local.\n• Added regression coverage so device-local sync history does not trigger unnecessary remote writes.\n• This release stays focused on sync maintenance and documentation polish rather than UI changes.",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
@@ -130,7 +130,7 @@
           "No requiere conexión a internet para funcionar",
           "Código abierto y transparente"
         ],
-        "ReleaseNotes": "• Las notas Markdown de escritorio ahora tienen editores ampliados, acciones de barra, continuacion automatica de listas y enlaces a tareas/proyectos.\n• Agregamos atajos de teclado para filtrar areas, botones para limpiar fechas, asignacion masiva de energia por contexto y un nuevo filtro por nivel de energia.\n• Las secciones laterales pueden quedar plegadas, los campos nativos de fecha estan localizados y el estado de plegado de areas se conserva mejor.\n• La recuperacion de sync es mas segura al preservar createdAt recuperables, vaciar escrituras pendientes antes de reintentar y reforzar el arranque SQLite del MCP.",
+        "ReleaseNotes": "• La documentacion ahora aclara mejor el comportamiento ya publicado de sync con calendario en movil.\n• Tambien documenta el puente SQLite-JSON y deja explicito que el diagnostico de sync queda solo en el dispositivo.\n• Agregamos cobertura para evitar escrituras remotas innecesarias por historial local de sync.\n• Esta version se enfoca en mantenimiento de sync y documentacion, sin cambios grandes de interfaz.",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
