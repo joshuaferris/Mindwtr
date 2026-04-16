@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type UIEvent } from 'react';
 import {
     useTaskStore,
     matchesHierarchicalToken,
@@ -22,6 +22,13 @@ import { checkBudget } from '../../config/performanceBudgets';
 import { resolveAreaFilter, taskMatchesAreaFilter } from '../../lib/area-filter';
 import { reportError } from '../../lib/report-error';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { VirtualTaskRow } from './list/VirtualTaskRow';
+import {
+    LIST_VIRTUALIZATION_THRESHOLD,
+    LIST_VIRTUAL_ROW_ESTIMATE,
+    LIST_VIRTUAL_OVERSCAN,
+    useVirtualList,
+} from './list/useVirtualList';
 
 type BulkTokenPickerState = {
     field: 'tags' | 'contexts';
@@ -46,6 +53,11 @@ export function ContextsView() {
     const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
     const [bulkTokenPicker, setBulkTokenPicker] = useState<BulkTokenPickerState>(null);
     const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+    const listScrollRef = useRef<HTMLDivElement>(null);
+    const rowHeightsRef = useRef<Map<string, number>>(new Map());
+    const [measureVersion, setMeasureVersion] = useState(0);
+    const [listScrollTop, setListScrollTop] = useState(0);
+    const [listHeight, setListHeight] = useState(0);
     const { requestConfirmation, confirmModal } = useConfirmDialog();
     const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas]);
     const resolvedAreaFilter = useMemo(
@@ -60,6 +72,25 @@ export function ContextsView() {
         }, 0);
         return () => window.clearTimeout(timer);
     }, [perf.enabled]);
+
+    useEffect(() => {
+        const element = listScrollRef.current;
+        if (!element) return;
+        const updateHeight = () => {
+            const nextHeight = element.clientHeight;
+            setListHeight((current) => (current === nextHeight ? current : nextHeight));
+        };
+        updateHeight();
+        window.addEventListener('resize', updateHeight);
+        const resizeObserver = typeof ResizeObserver === 'function'
+            ? new ResizeObserver(() => updateHeight())
+            : null;
+        resizeObserver?.observe(element);
+        return () => {
+            window.removeEventListener('resize', updateHeight);
+            resizeObserver?.disconnect();
+        };
+    }, []);
 
     // Filter out deleted tasks first
     const projectMap = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
@@ -95,7 +126,26 @@ export function ContextsView() {
     const filteredTasks = normalizedSearchQuery
         ? contextFilteredTasks.filter((task) => task.title.toLowerCase().includes(normalizedSearchQuery))
         : contextFilteredTasks;
+    const shouldVirtualize = filteredTasks.length > LIST_VIRTUALIZATION_THRESHOLD;
     const tasksById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
+    const handleVirtualRowMeasure = useCallback((id: string, height: number) => {
+        if (rowHeightsRef.current.get(id) === height) return;
+        rowHeightsRef.current.set(id, height);
+        setMeasureVersion((current) => current + 1);
+    }, []);
+    const handleVirtualScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+        setListScrollTop(event.currentTarget.scrollTop);
+    }, []);
+    const { rowOffsets, totalHeight, startIndex, visibleTasks } = useVirtualList({
+        tasks: filteredTasks,
+        shouldVirtualize,
+        rowHeightsRef,
+        measureVersion,
+        listScrollTop,
+        listHeight,
+        rowEstimate: LIST_VIRTUAL_ROW_ESTIMATE,
+        overscan: LIST_VIRTUAL_OVERSCAN,
+    });
     const addTagOptions = useMemo(
         () => Array.from(new Set([
             ...getFrequentTaskTokens(activeTasks, (task) => task.tags, 12, { prefix: '#' }),
@@ -426,18 +476,47 @@ export function ContextsView() {
                             </div>
                         )}
 
-                        <div className="flex-1 overflow-y-auto divide-y divide-border/30 pr-2">
+                        <div
+                            ref={listScrollRef}
+                            onScroll={handleVirtualScroll}
+                            className={cn(
+                                "flex-1 min-h-0 overflow-y-auto pr-2",
+                                !shouldVirtualize && "divide-y divide-border/30",
+                            )}
+                        >
                             {filteredTasks.length > 0 ? (
-                                filteredTasks.map(task => (
-                                    <TaskItem
-                                        key={task.id}
-                                        task={task}
-                                        selectionMode={selectionMode}
-                                        isMultiSelected={multiSelectedIds.has(task.id)}
-                                        onToggleSelect={() => toggleMultiSelect(task.id)}
-                                        showProjectBadgeInActions={false}
-                                    />
-                                ))
+                                shouldVirtualize ? (
+                                    <div style={{ height: totalHeight, position: 'relative' }}>
+                                        {visibleTasks.map((task, visibleIndex) => {
+                                            const taskIndex = startIndex + visibleIndex;
+                                            return (
+                                                <VirtualTaskRow
+                                                    key={task.id}
+                                                    task={task}
+                                                    project={task.projectId ? projectMap.get(task.projectId) : undefined}
+                                                    index={taskIndex}
+                                                    top={rowOffsets[taskIndex] ?? 0}
+                                                    selectionMode={selectionMode}
+                                                    isMultiSelected={multiSelectedIds.has(task.id)}
+                                                    onToggleSelectId={toggleMultiSelect}
+                                                    onMeasure={handleVirtualRowMeasure}
+                                                    showProjectBadgeInActions={false}
+                                                />
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    filteredTasks.map(task => (
+                                        <TaskItem
+                                            key={task.id}
+                                            task={task}
+                                            selectionMode={selectionMode}
+                                            isMultiSelected={multiSelectedIds.has(task.id)}
+                                            onToggleSelect={() => toggleMultiSelect(task.id)}
+                                            showProjectBadgeInActions={false}
+                                        />
+                                    ))
+                                )
                             ) : (
                                 <div className="text-center text-muted-foreground py-12">
                                     {normalizedSearchQuery ? t('filters.noMatch') : t('contexts.noTasks')}
