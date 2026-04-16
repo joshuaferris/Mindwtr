@@ -44,6 +44,11 @@ export type MarkdownReferenceSearchResult = MarkdownReferenceTarget & {
     updatedAt: string;
 };
 
+export type MarkdownReferenceSearchOptions = {
+    excludeTaskIds?: string[];
+    excludeProjectIds?: string[];
+};
+
 export type ActiveMarkdownReferenceQuery = {
     start: number;
     end: number;
@@ -272,10 +277,13 @@ export function searchMarkdownReferences(
     projects: Project[],
     query: string,
     limit = 8,
+    options?: MarkdownReferenceSearchOptions,
 ): MarkdownReferenceSearchResult[] {
     const normalizedQuery = query.trim().toLowerCase();
+    const excludedTaskIds = new Set(options?.excludeTaskIds ?? []);
+    const excludedProjectIds = new Set(options?.excludeProjectIds ?? []);
     const taskCandidates: MarkdownReferenceSearchResult[] = tasks
-        .filter((task) => !task.deletedAt && Boolean(task.title?.trim()))
+        .filter((task) => !task.deletedAt && !excludedTaskIds.has(task.id) && Boolean(task.title?.trim()))
         .map((task) => ({
             entityType: 'task',
             id: task.id,
@@ -284,7 +292,7 @@ export function searchMarkdownReferences(
             updatedAt: task.updatedAt,
         }));
     const projectCandidates: MarkdownReferenceSearchResult[] = projects
-        .filter((project) => !project.deletedAt && Boolean(project.title?.trim()))
+        .filter((project) => !project.deletedAt && !excludedProjectIds.has(project.id) && Boolean(project.title?.trim()))
         .map((project) => ({
             entityType: 'project',
             id: project.id,

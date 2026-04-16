@@ -4,8 +4,8 @@ import { X } from 'lucide-react';
 
 import { cn } from '../lib/utils';
 import { MarkdownFormatToolbar } from './MarkdownFormatToolbar';
-import { Markdown } from './Markdown';
 import { MarkdownReferenceAutocompleteMenu, useMarkdownReferenceAutocomplete } from './MarkdownReferenceAutocomplete';
+import { RichMarkdown } from './RichMarkdown';
 import type { MarkdownSelection, MarkdownToolbarActionId, MarkdownToolbarResult } from '@mindwtr/core';
 
 type ExpandedMarkdownEditorProps = {
@@ -26,6 +26,7 @@ type ExpandedMarkdownEditorProps = {
     onApplyAction: (actionId: MarkdownToolbarActionId, selection: MarkdownSelection) => MarkdownToolbarResult | void;
     onSelectionChange: (selection: MarkdownSelection) => void;
     onEditorKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+    currentTaskId?: string;
 };
 
 export function ExpandedMarkdownEditor({
@@ -46,6 +47,7 @@ export function ExpandedMarkdownEditor({
     onApplyAction,
     onSelectionChange,
     onEditorKeyDown,
+    currentTaskId,
 }: ExpandedMarkdownEditorProps) {
     const [mode, setMode] = useState<'edit' | 'preview'>(initialMode);
     const modalRef = useRef<HTMLDivElement | null>(null);
@@ -55,6 +57,7 @@ export function ExpandedMarkdownEditor({
     const titleId = useId();
     const resolvedHeaderTitle = (headerTitle || '').trim() || title;
     const autocomplete = useMarkdownReferenceAutocomplete({
+        currentTaskId,
         value,
         selection,
         textareaRef,
@@ -227,6 +230,8 @@ export function ExpandedMarkdownEditor({
                                     selectedIndex={autocomplete.selectedIndex}
                                     setSelectedIndex={autocomplete.setSelectedIndex}
                                     applySuggestion={autocomplete.applySuggestion}
+                                    menuRef={autocomplete.menuRef}
+                                    position={autocomplete.position}
                                     t={t}
                                 />
                             </div>
@@ -239,7 +244,7 @@ export function ExpandedMarkdownEditor({
                                 isRtl && 'text-right',
                             )}
                         >
-                            <Markdown markdown={value} className={isRtl ? 'text-right' : undefined} />
+                            <RichMarkdown markdown={value} />
                         </div>
                     )}
                 </div>

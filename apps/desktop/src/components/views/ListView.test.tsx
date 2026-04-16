@@ -1,4 +1,4 @@
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import type { Task } from '@mindwtr/core';
 import { useTaskStore } from '@mindwtr/core';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -39,7 +39,7 @@ const renderStaticListView = (statusFilter: 'inbox' | 'done', title: string) =>
     </LanguageProvider>
   );
 
-const renderListView = (statusFilter: 'next' | 'done' | 'archived' = 'next', title = 'Next') =>
+const renderListView = (statusFilter: 'inbox' | 'next' | 'done' | 'archived' = 'next', title = 'Next') =>
   render(
     <LanguageProvider>
       <KeybindingProvider currentView={statusFilter} onNavigate={() => {}}>
@@ -115,6 +115,38 @@ describe('ListView', () => {
 
     await waitFor(() => {
       expect(queryByText('Filtering...')).not.toBeInTheDocument();
+    });
+  });
+
+  it('collapses expanded task details when page details are turned off', async () => {
+    const expandedTask = makeTask('1', {
+      title: 'Expanded task',
+      description: 'Expanded task note',
+    });
+    useTaskStore.setState({
+      tasks: [expandedTask],
+      _allTasks: [expandedTask],
+      lastDataChangeAt: 1,
+    });
+    useUiStore.setState((state) => ({
+      ...state,
+      listOptions: {
+        ...state.listOptions,
+        showDetails: true,
+      },
+      expandedTaskIds: { '1': true },
+    }));
+
+    const { getByRole, queryByText } = renderListView();
+
+    expect(queryByText('Expanded task note')).toBeInTheDocument();
+
+    fireEvent.click(getByRole('button', { name: /^details$/i }));
+
+    await waitFor(() => {
+      expect(queryByText('Expanded task note')).not.toBeInTheDocument();
+      expect(useUiStore.getState().listOptions.showDetails).toBe(false);
+      expect(useUiStore.getState().expandedTaskIds).toEqual({});
     });
   });
 
@@ -208,5 +240,38 @@ describe('ListView', () => {
 
     expect(reportErrorMock).not.toHaveBeenCalled();
     expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('applies trailing date NLP in the desktop inline inbox quick add', async () => {
+    const addTask = vi.fn().mockResolvedValue({ success: true });
+    const now = new Date('2026-04-16T10:00:00Z');
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(now);
+
+      useTaskStore.setState({
+        addTask,
+      });
+
+      const { container, getByRole } = renderListView('inbox', 'Inbox');
+
+      const input = getByRole('combobox', { name: '' });
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'Tax deadline — April 15' } });
+      });
+
+      const form = container.querySelector('form');
+      expect(form).not.toBeNull();
+      await act(async () => {
+        fireEvent.submit(form!);
+      });
+
+      expect(addTask).toHaveBeenCalledWith('Tax deadline', expect.objectContaining({
+        dueDate: '2027-04-15T10:00:00.000Z',
+        status: 'inbox',
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

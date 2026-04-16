@@ -274,6 +274,8 @@ export function ProjectNotesSection({
                             selectedIndex={notesAutocomplete.selectedIndex}
                             setSelectedIndex={notesAutocomplete.setSelectedIndex}
                             applySuggestion={notesAutocomplete.applySuggestion}
+                            menuRef={notesAutocomplete.menuRef}
+                            position={notesAutocomplete.position}
                             t={t}
                         />
                     </div>

@@ -182,7 +182,7 @@ export function BoardView() {
     const COLUMNS = getColumns(t);
     const NO_PROJECT_FILTER = '__no_project__';
     const hasProjectFilters = boardFilters.selectedProjectIds.length > 0;
-    const showFiltersPanel = boardFilters.open || hasProjectFilters;
+    const showFiltersPanel = boardFilters.open;
     const areaById = React.useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas]);
     const projectMap = React.useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
     const resolvedAreaFilter = React.useMemo(

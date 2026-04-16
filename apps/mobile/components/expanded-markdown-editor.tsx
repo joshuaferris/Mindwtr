@@ -53,6 +53,7 @@ type ExpandedMarkdownEditorProps = {
     canUndo: boolean;
     onUndo: () => MarkdownSelection | undefined;
     onApplyAction?: (actionId: MarkdownToolbarActionId, selection: MarkdownSelection) => MarkdownToolbarResult | void;
+    currentTaskId?: string;
 };
 
 export function ExpandedMarkdownEditor({
@@ -72,6 +73,7 @@ export function ExpandedMarkdownEditor({
     canUndo,
     onUndo,
     onApplyAction,
+    currentTaskId,
 }: ExpandedMarkdownEditorProps) {
     const tc = useThemeColors();
     const inputRef = React.useRef<TextInput | null>(null);
@@ -367,6 +369,7 @@ export function ExpandedMarkdownEditor({
                                     onInteractionStart={handleToolbarInteractionStart}
                                 />
                                 <MarkdownReferenceAutocomplete
+                                    currentTaskId={currentTaskId}
                                     value={editorValue}
                                     selection={editorSelection}
                                     inputRef={inputRef}

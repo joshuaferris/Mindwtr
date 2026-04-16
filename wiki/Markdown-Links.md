@@ -24,11 +24,26 @@ Mindwtr also normalizes those tokens into regular Markdown links during renderin
 
 ## Creating Links
 
-When editing a Markdown field on desktop, type `[[` and start searching.
+When editing a supported Markdown field, type `[[` and start searching.
 
 - Search matches task and project titles.
+- Desktop shows a floating suggestion popup near the cursor and flips it above the caret when space is tight.
+- Mobile shows the same suggestions in a bottom sheet above the keyboard.
+- Task editors exclude the task you are currently editing, so you do not link a task to itself by accident.
 - Inserted links always use the stable `[[task:...|label]]` or `[[project:...|label]]` token.
 - Code spans and fenced code blocks are left untouched.
+
+## Where It Works
+
+- Task descriptions on desktop and mobile
+- Project notes on desktop and mobile
+- Read-only previews, expanded task details, and Focus/List "Details on" rendering on desktop
+- Preview rendering inside the mobile task/project editors
+
+## What It Does Not Do
+
+- Markdown links are navigational references only.
+- They do not create dependency graphs, auto-complete linked tasks, or bind checklist state across tasks.
 
 ## Navigation Behavior
 

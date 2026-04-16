@@ -149,4 +149,32 @@ describe('markdown references', () => {
             },
         ]);
     });
+
+    it('can exclude the current task from markdown reference results', () => {
+        const results = searchMarkdownReferences(
+            [
+                baseTask,
+                {
+                    ...baseTask,
+                    id: 'task-2',
+                    title: 'Quarterly review follow-up',
+                    updatedAt: '2026-04-11T10:00:00.000Z',
+                },
+            ],
+            [baseProject],
+            'quarterly',
+            8,
+            { excludeTaskIds: ['task-1'] },
+        );
+
+        expect(results).toEqual([
+            {
+                entityType: 'task',
+                id: 'task-2',
+                title: 'Quarterly review follow-up',
+                status: 'next',
+                updatedAt: '2026-04-11T10:00:00.000Z',
+            },
+        ]);
+    });
 });

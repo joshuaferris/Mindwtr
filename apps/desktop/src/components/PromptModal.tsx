@@ -9,6 +9,7 @@ interface PromptModalProps {
     placeholder?: string;
     defaultValue?: string;
     inputType?: 'text' | 'date' | 'datetime-local';
+    allowEmptyConfirm?: boolean;
     secondaryLabel?: string;
     onSecondary?: () => void;
     confirmLabel: string;
@@ -24,6 +25,7 @@ export function PromptModal({
     placeholder,
     defaultValue,
     inputType = 'text',
+    allowEmptyConfirm = false,
     secondaryLabel,
     onSecondary,
     confirmLabel,
@@ -44,8 +46,8 @@ export function PromptModal({
             setHasInteracted(false);
         }
     }, [isOpen, defaultValue]);
-    const canConfirm = value.trim().length > 0;
-    const showValidation = hasInteracted && !canConfirm;
+    const canConfirm = allowEmptyConfirm || value.trim().length > 0;
+    const showValidation = !allowEmptyConfirm && hasInteracted && !canConfirm;
 
     if (!isOpen) return null;
 

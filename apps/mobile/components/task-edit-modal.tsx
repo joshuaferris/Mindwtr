@@ -830,6 +830,7 @@ function TaskEditModalInner({
                 canUndo={descriptionEditor.descriptionUndoDepth > 0}
                 onUndo={descriptionEditor.handleDescriptionUndo}
                 onApplyAction={descriptionEditor.handleDescriptionApplyAction}
+                currentTaskId={task?.id}
             />
         ) : null}
         </>

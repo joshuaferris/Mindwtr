@@ -222,7 +222,9 @@ export const TaskItem = memo(function TaskItem({
     });
     const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showWaitingAssignmentPrompt, setShowWaitingAssignmentPrompt] = useState(false);
     const [showWaitingDuePrompt, setShowWaitingDuePrompt] = useState(false);
+    const [waitingTransitionMode, setWaitingTransitionMode] = useState<'status-change' | 'status-and-due' | null>(null);
     const prioritiesEnabled = settings?.features?.priorities !== false;
     const timeEstimatesEnabled = settings?.features?.timeEstimates !== false;
     const undoNotificationsEnabled = settings?.undoNotificationsEnabled !== false;
@@ -674,13 +676,46 @@ export const TaskItem = memo(function TaskItem({
         if (translated === 'common.undo') return 'Undo';
         return translated;
     }, [t]);
+    const closeWaitingAssignmentPrompt = useCallback(() => {
+        setShowWaitingAssignmentPrompt(false);
+        setWaitingTransitionMode(null);
+    }, []);
+    const applyWaitingAssignment = useCallback((value: string) => {
+        const assignedTo = value.trim() || undefined;
+        const openDuePrompt = waitingTransitionMode === 'status-and-due';
+        setShowWaitingAssignmentPrompt(false);
+        setWaitingTransitionMode(null);
+        void moveTask(task.id, 'waiting')
+            .then(async (result) => {
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to change task status');
+                }
+                const updateResult = await updateTask(task.id, { assignedTo });
+                if (!updateResult.success) {
+                    throw new Error(updateResult.error || 'Failed to update waiting assignee');
+                }
+                if (openDuePrompt) {
+                    setShowWaitingDuePrompt(true);
+                }
+            })
+            .catch((error) => reportError('Failed to move task to waiting', error));
+    }, [moveTask, task.id, updateTask, waitingTransitionMode]);
     const handleMoveToWaitingWithPrompt = useCallback(() => {
-        setShowWaitingDuePrompt(true);
+        setWaitingTransitionMode('status-and-due');
+        setShowWaitingAssignmentPrompt(true);
     }, []);
     const handleStatusChange = useCallback((nextStatus: TaskStatus) => {
+        if (nextStatus === 'waiting' && task.status !== 'waiting') {
+            setWaitingTransitionMode('status-change');
+            setShowWaitingAssignmentPrompt(true);
+            return;
+        }
         const previousStatus = task.status;
         void moveTask(task.id, nextStatus)
-            .then(() => {
+            .then((result) => {
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to change task status');
+                }
                 if (!undoNotificationsEnabled || nextStatus !== 'done' || previousStatus === 'done') return;
                 showToast(
                     `${task.title} marked Done`,
@@ -972,14 +1007,17 @@ export const TaskItem = memo(function TaskItem({
                 handleOpenDiscardConfirm={setShowDiscardConfirm}
                 imageAttachment={imageAttachment}
                 imageSource={imageSource}
-                moveTask={moveTask}
                 onOpenImageExternally={openImageExternally}
                 onOpenTextExternally={openTextExternally}
                 openAudioExternally={openAudioExternally}
                 openDeleteConfirm={showDeleteConfirm}
                 openDiscardConfirm={showDiscardConfirm}
                 openLinkPrompt={showLinkPrompt}
+                openWaitingAssignmentPrompt={showWaitingAssignmentPrompt}
                 openWaitingDuePrompt={showWaitingDuePrompt}
+                onCancelWaitingAssignmentPrompt={closeWaitingAssignmentPrompt}
+                onConfirmWaitingAssignmentPrompt={applyWaitingAssignment}
+                waitingAssignmentDefaultValue={task.assignedTo || ''}
                 openWaitingDuePromptSetter={setShowWaitingDuePrompt}
                 restoreTask={restoreTask}
                 retryAudioTranscription={retryAudioTranscription}

@@ -31,14 +31,17 @@ type TaskItemOverlaysProps = {
     handleOpenDiscardConfirm: (open: boolean) => void;
     imageAttachment: any;
     imageSource: string | null;
-    moveTask: (taskId: string, status: any) => Promise<unknown>;
     onOpenImageExternally: () => void;
     onOpenTextExternally: () => void;
     openAudioExternally: () => void;
     openDeleteConfirm: boolean;
     openDiscardConfirm: boolean;
     openLinkPrompt: boolean;
+    openWaitingAssignmentPrompt: boolean;
     openWaitingDuePrompt: boolean;
+    onCancelWaitingAssignmentPrompt: () => void;
+    onConfirmWaitingAssignmentPrompt: (value: string) => void;
+    waitingAssignmentDefaultValue: string;
     openWaitingDuePromptSetter: (open: boolean) => void;
     restoreTask: (taskId: string) => Promise<unknown>;
     retryAudioTranscription: () => void;
@@ -87,14 +90,17 @@ export function TaskItemOverlays({
     handleOpenDiscardConfirm,
     imageAttachment,
     imageSource,
-    moveTask,
     onOpenImageExternally,
     onOpenTextExternally,
     openAudioExternally,
     openDeleteConfirm,
     openDiscardConfirm,
     openLinkPrompt,
+    openWaitingAssignmentPrompt,
     openWaitingDuePrompt,
+    onCancelWaitingAssignmentPrompt,
+    onConfirmWaitingAssignmentPrompt,
+    waitingAssignmentDefaultValue,
     openWaitingDuePromptSetter,
     restoreTask,
     retryAudioTranscription,
@@ -125,6 +131,15 @@ export function TaskItemOverlays({
     const waitingDuePromptDescription = resolveText(
         'task.waitingDuePromptDescription',
         'This sets the task review date. When should this waiting task resurface?',
+    );
+    const waitingAssignmentPromptTitle = resolveText('process.waitingFor', 'Who/what are you waiting for?');
+    const waitingAssignmentPromptDescription = resolveText(
+        'process.waitingForDesc',
+        "Add a note to remember what you're waiting on",
+    );
+    const waitingAssignmentPlaceholder = resolveText(
+        'taskEdit.assignedToPlaceholder',
+        'Who is this waiting for?',
     );
     const skipLabel = resolveText('common.skip', 'Skip');
 
@@ -169,6 +184,20 @@ export function TaskItemOverlays({
                     }}
                 />
             )}
+            {openWaitingAssignmentPrompt && (
+                <PromptModal
+                    isOpen={openWaitingAssignmentPrompt}
+                    title={waitingAssignmentPromptTitle}
+                    description={waitingAssignmentPromptDescription}
+                    placeholder={waitingAssignmentPlaceholder}
+                    defaultValue={waitingAssignmentDefaultValue}
+                    allowEmptyConfirm
+                    confirmLabel={t('common.save')}
+                    cancelLabel={t('common.cancel')}
+                    onCancel={onCancelWaitingAssignmentPrompt}
+                    onConfirm={onConfirmWaitingAssignmentPrompt}
+                />
+            )}
             {openWaitingDuePrompt && (
                 <PromptModal
                     isOpen={openWaitingDuePrompt}
@@ -177,10 +206,7 @@ export function TaskItemOverlays({
                     inputType="date"
                     defaultValue=""
                     secondaryLabel={skipLabel}
-                    onSecondary={() => {
-                        openWaitingDuePromptSetter(false);
-                        void moveTask(taskId, 'waiting');
-                    }}
+                    onSecondary={() => openWaitingDuePromptSetter(false)}
                     confirmLabel={t('common.save')}
                     cancelLabel={t('common.cancel')}
                     onCancel={() => openWaitingDuePromptSetter(false)}
@@ -188,7 +214,6 @@ export function TaskItemOverlays({
                         const input = value.trim();
                         if (!input) return;
                         openWaitingDuePromptSetter(false);
-                        void moveTask(taskId, 'waiting');
                         void updateTask(taskId, { reviewAt: input });
                     }}
                 />

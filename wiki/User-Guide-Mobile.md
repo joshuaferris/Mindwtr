@@ -250,6 +250,8 @@ Checklist-first tasks default to View mode for faster checking.
 The editor starts minimal. Tap **More options** to reveal advanced fields; any field with existing content stays visible.
 
 Description markdown supports unordered lists and task checkboxes (`- item`, `[ ] item`, `[x] item`).
+Type `[[` in task descriptions or project notes to link another task or project from the link picker sheet.
+Those links are navigational only; they do not sync completion state between tasks.
 Markdown checkbox lines can populate checklist items when you save.
 
 Recurring tasks support two strategies:

@@ -96,6 +96,7 @@ export function TaskEditContentField({
                                 onApplyAction={handleDescriptionApplyAction}
                             />
                             <MarkdownReferenceAutocomplete
+                                currentTaskId={editedTask.id}
                                 value={descriptionDraft}
                                 selection={descriptionSelection}
                                 inputRef={descriptionInputRef}

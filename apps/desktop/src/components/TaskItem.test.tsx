@@ -1,6 +1,6 @@
 import { Profiler } from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { act, render, fireEvent } from '@testing-library/react';
+import { act, render, fireEvent, waitFor } from '@testing-library/react';
 import { TaskItem } from '../components/TaskItem';
 import { Project, Task, configureDateFormatting, safeFormatDate, useTaskStore } from '@mindwtr/core';
 import { LanguageProvider } from '../contexts/language-context';
@@ -124,12 +124,56 @@ describe('TaskItem', () => {
         expect(archivedOption).toBeTruthy();
     });
 
-    it('shows quick NEXT to WAITING action and opens due-date picker prompt', () => {
+    it('prompts for assigned to when changing status to waiting', async () => {
+        const nextTask: Task = {
+            ...mockTask,
+            id: 'waiting-select-task',
+            status: 'next',
+        };
+        act(() => {
+            useTaskStore.setState((state) => ({
+                ...state,
+                tasks: [nextTask],
+                _allTasks: [nextTask],
+                projects: [],
+                _allProjects: [],
+            }));
+        });
+
+        const { getByLabelText, getByPlaceholderText, getByRole, getByText } = render(
+            <LanguageProvider>
+                <TaskItem task={nextTask} />
+            </LanguageProvider>
+        );
+
+        fireEvent.change(getByLabelText(/task status/i), { target: { value: 'waiting' } });
+
+        expect(getByText('Who/what are you waiting for?')).toBeInTheDocument();
+        fireEvent.change(getByPlaceholderText('Who is this waiting for?'), { target: { value: 'Alex' } });
+        fireEvent.click(getByRole('button', { name: 'Save' }));
+
+        await waitFor(() => {
+            const updatedTask = useTaskStore.getState()._allTasks.find((task) => task.id === 'waiting-select-task');
+            expect(updatedTask?.status).toBe('waiting');
+            expect(updatedTask?.assignedTo).toBe('Alex');
+        });
+    });
+
+    it('shows quick NEXT to WAITING action and then opens due-date picker prompt', async () => {
         const nextTask: Task = {
             ...mockTask,
             id: 'next-task',
             status: 'next',
         };
+        act(() => {
+            useTaskStore.setState((state) => ({
+                ...state,
+                tasks: [nextTask],
+                _allTasks: [nextTask],
+                projects: [],
+                _allProjects: [],
+            }));
+        });
         const { getByRole, getByText, container } = render(
             <LanguageProvider>
                 <TaskItem task={nextTask} />
@@ -137,6 +181,12 @@ describe('TaskItem', () => {
         );
         const waitingButton = getByRole('button', { name: /move to waiting and set due date/i });
         fireEvent.click(waitingButton);
+        expect(getByText('Who/what are you waiting for?')).toBeInTheDocument();
+        fireEvent.click(getByRole('button', { name: 'Save' }));
+        await waitFor(() => {
+            const updatedTask = useTaskStore.getState()._allTasks.find((task) => task.id === 'next-task');
+            expect(updatedTask?.status).toBe('waiting');
+        });
         expect(getByText('Set follow-up / review date')).toBeInTheDocument();
         expect(container.querySelector('input[type="date"]')).toBeTruthy();
         expect(getByRole('button', { name: /skip/i })).toBeInTheDocument();

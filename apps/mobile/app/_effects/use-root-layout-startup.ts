@@ -4,6 +4,7 @@ import * as Application from 'expo-application';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+    type AppData,
     generateUUID,
     sendDailyHeartbeat,
     SQLITE_SCHEMA_VERSION,
@@ -11,6 +12,7 @@ import {
 } from '@mindwtr/core';
 
 import { startMobileNotifications } from '@/lib/notification-service';
+import { getMobileStartupSnapshotFromBackup } from '@/lib/storage-adapter';
 import { updateMobileWidgetFromStore } from '@/lib/widget-service';
 import { markStartupPhase, measureStartupPhase } from '@/lib/startup-profiler';
 import { verifyPolyfills } from '@/utils/verify-polyfills';
@@ -93,6 +95,41 @@ const getDeviceLocale = (): string => {
 const getStartupLoggingReason = (loggingEnabled: boolean): string =>
     loggingEnabled ? 'user-enabled' : 'startup-force';
 
+const selectVisibleStartupTasks = (tasks: AppData['tasks']): AppData['tasks'] => (
+    tasks.filter((task) => !task.deletedAt && !task.purgedAt && task.status !== 'archived')
+);
+
+const hasRenderableStartupSnapshot = (data: AppData | null): data is AppData => {
+    if (!data) return false;
+    return data.tasks.length > 0
+        || data.projects.length > 0
+        || data.sections.length > 0
+        || data.areas.length > 0;
+};
+
+const applyStartupSnapshotToStore = (data: AppData): void => {
+    const allTasks = Array.isArray(data.tasks) ? data.tasks : [];
+    const allProjects = Array.isArray(data.projects) ? data.projects : [];
+    const allSections = Array.isArray(data.sections) ? data.sections : [];
+    const allAreas = Array.isArray(data.areas) ? data.areas : [];
+    const settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
+
+    // Keep lastDataChangeAt untouched so the canonical storage fetch can still apply.
+    useTaskStore.setState({
+        tasks: selectVisibleStartupTasks(allTasks),
+        projects: allProjects.filter((project) => !project.deletedAt),
+        sections: allSections.filter((section) => !section.deletedAt),
+        areas: allAreas.filter((area) => !area.deletedAt),
+        settings,
+        _allTasks: allTasks,
+        _allProjects: allProjects,
+        _allSections: allSections,
+        _allAreas: allAreas,
+        isLoading: false,
+        error: null,
+    });
+};
+
 export function useRootLayoutStartup({
     analyticsHeartbeatUrl,
     appVersion,
@@ -135,10 +172,26 @@ export function useRootLayoutStartup({
                 }
 
                 const store = useTaskStore.getState();
-                await measureStartupPhase('js.store.fetch_data', async () => {
-                    await store.fetchData();
+                let canonicalFetchCompleted = false;
+                const fetchPromise = measureStartupPhase('js.store.fetch_data', async () => {
+                    await store.fetchData({ silent: true });
+                    canonicalFetchCompleted = true;
                 });
+                void measureStartupPhase('js.store.backup_snapshot.read', async () =>
+                    getMobileStartupSnapshotFromBackup()
+                ).then((startupSnapshot) => {
+                    if (cancelled || canonicalFetchCompleted || !hasRenderableStartupSnapshot(startupSnapshot)) {
+                        return;
+                    }
+                    applyStartupSnapshotToStore(startupSnapshot);
+                    setDataReady(true);
+                    markStartupPhase('js.store.backup_snapshot.applied');
+                }).catch((error) => {
+                    void logError(error, { scope: 'app', extra: { message: 'Failed to read startup backup snapshot' } });
+                });
+                await fetchPromise;
                 if (cancelled) return;
+                const loadedStore = useTaskStore.getState();
                 setDataReady(true);
                 markStartupPhase('js.store.fetch_data.applied');
                 if (!startupContextLogged.current) {
@@ -159,7 +212,7 @@ export function useRootLayoutStartup({
                             schemaVersion: String(SQLITE_SCHEMA_VERSION),
                             deviceClass: getMobileDeviceClass(),
                             buildType: isFossBuild ? 'foss' : 'standard',
-                            loggingReason: getStartupLoggingReason(store.settings.diagnostics?.loggingEnabled === true),
+                            loggingReason: getStartupLoggingReason(loadedStore.settings.diagnostics?.loggingEnabled === true),
                         },
                     }).catch(() => {});
                 }
@@ -187,7 +240,7 @@ export function useRootLayoutStartup({
                         // Keep analytics heartbeat failures silent on mobile.
                     }
                 }
-                if (store.settings.notificationsEnabled !== false) {
+                if (loadedStore.settings.notificationsEnabled !== false) {
                     startMobileNotifications().catch((error) => {
                         void logError(error, { scope: 'app' });
                     });

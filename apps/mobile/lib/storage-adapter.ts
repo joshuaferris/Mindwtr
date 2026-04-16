@@ -240,6 +240,32 @@ const getLegacyJson = async (AsyncStorage: any): Promise<string | null> => {
     return null;
 };
 
+const normalizeStoredAppData = (data: AppData): AppData => ({
+    tasks: Array.isArray(data.tasks) ? data.tasks : [],
+    projects: Array.isArray(data.projects) ? data.projects : [],
+    sections: Array.isArray(data.sections) ? data.sections : [],
+    areas: Array.isArray(data.areas) ? data.areas : [],
+    settings: data.settings && typeof data.settings === 'object' ? data.settings : {},
+});
+
+const parseStoredAppDataJson = (jsonValue: string): AppData => (
+    normalizeStoredAppData(JSON.parse(jsonValue) as AppData)
+);
+
+export const getMobileStartupSnapshotFromBackup = async (): Promise<AppData | null> => {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const jsonValue = await getLegacyJson(AsyncStorage);
+    if (jsonValue == null) {
+        return null;
+    }
+    try {
+        return parseStoredAppDataJson(jsonValue);
+    } catch (error) {
+        logStorageWarn('[Storage] Failed to parse startup JSON backup snapshot', error);
+        return null;
+    }
+};
+
 const initSqliteState = async (): Promise<SqliteState> => {
     markStartupPhase('mobile.storage.sqlite_init.start');
     const AsyncStorage = require('@react-native-async-storage/async-storage').default;
@@ -334,9 +360,7 @@ const createStorage = (): StorageAdapter => {
                     return { tasks: [], projects: [], sections: [], areas: [], settings: {} };
                 }
                 try {
-                    const data = JSON.parse(jsonValue) as AppData;
-                    data.areas = Array.isArray(data.areas) ? data.areas : [];
-                    data.sections = Array.isArray(data.sections) ? data.sections : [];
+                    const data = parseStoredAppDataJson(jsonValue);
                     return data;
                 } catch (e) {
                     // JSON parse error - data corrupted, throw so user is notified
@@ -372,8 +396,7 @@ const createStorage = (): StorageAdapter => {
                 }
                 if (jsonValue != null) {
                     try {
-                        const data = JSON.parse(jsonValue) as AppData;
-                        data.areas = Array.isArray(data.areas) ? data.areas : [];
+                        const data = parseStoredAppDataJson(jsonValue);
                         updateMobileWidgetFromData(data).catch((error) => {
                             logStorageWarn('[Widgets] Failed to update mobile widget from backup', error);
                         });

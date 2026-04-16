@@ -22,7 +22,7 @@ import { reportError } from '../../lib/report-error';
 import { AREA_FILTER_ALL, AREA_FILTER_NONE, projectMatchesAreaFilter, resolveAreaFilter, taskMatchesAreaFilter } from '../../lib/area-filter';
 import { cn } from '../../lib/utils';
 import { sortDoneTasksForListView } from './list/done-sort';
-import { groupTasksByArea, groupTasksByContext, type NextGroupBy, type TaskGroup } from './list/next-grouping';
+import { groupTasksByArea, groupTasksByContext, groupTasksByProject, type NextGroupBy, type TaskGroup } from './list/next-grouping';
 import { useListSelection } from './list/useListSelection';
 
 
@@ -113,6 +113,7 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
     const showListDetails = useUiStore((state) => state.listOptions.showDetails);
     const nextGroupBy = useUiStore((state) => state.listOptions.nextGroupBy);
     const setListOptions = useUiStore((state) => state.setListOptions);
+    const collapseAllTaskDetails = useUiStore((state) => state.collapseAllTaskDetails);
     const setProjectView = useUiStore((state) => state.setProjectView);
     const [baseTasks, setBaseTasks] = useState<Task[]>(() => (statusFilter === 'archived' ? [] : tasks));
     const queryCacheRef = useRef<Map<string, Task[]>>(new Map());
@@ -441,6 +442,13 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
                 generalLabel: resolveText('settings.general', 'General'),
             });
         }
+        if (activeNextGroupBy === 'project') {
+            return groupTasksByProject({
+                tasks: filteredTasks,
+                projectMap,
+                noProjectLabel: resolveText('taskEdit.noProjectOption', 'No project'),
+            });
+        }
         return groupTasksByContext({
             tasks: filteredTasks,
             noContextLabel: resolveText('contexts.none', 'No context'),
@@ -554,13 +562,19 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
         e.preventDefault();
         if (!newTaskTitle.trim()) return;
         try {
-            const { title: parsedTitle, props, projectTitle, invalidDateCommands } = parseQuickAdd(newTaskTitle, projects, new Date(), areas);
+            const { title: parsedTitle, props, projectTitle, invalidDateCommands, detectedDate } = parseQuickAdd(newTaskTitle, projects, new Date(), areas);
             if (invalidDateCommands && invalidDateCommands.length > 0) {
                 showToast(`${t('quickAdd.invalidDateCommand')}: ${invalidDateCommands.join(', ')}`, 'error');
                 return;
             }
-            const finalTitle = parsedTitle || newTaskTitle;
             const initialProps: Partial<Task> = { ...props };
+            const shouldApplyDetectedDate = Boolean(detectedDate?.date && !initialProps.dueDate);
+            if (shouldApplyDetectedDate && detectedDate) {
+                initialProps.dueDate = detectedDate.date;
+            }
+            const finalTitle = shouldApplyDetectedDate && detectedDate
+                ? detectedDate.titleWithoutDate
+                : (parsedTitle || newTaskTitle);
             if (!initialProps.projectId && projectTitle) {
                 const created = await addProject(projectTitle, DEFAULT_AREA_COLOR);
                 if (!created) return;
@@ -614,7 +628,7 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
     const hasFilters = filterSummary.length > 0;
     const filterSummaryLabel = filterSummary.slice(0, 3).join(', ');
     const filterSummarySuffix = filterSummary.length > 3 ? ` +${filterSummary.length - 3}` : '';
-    const showFiltersPanel = filtersOpen || hasFilters;
+    const showFiltersPanel = filtersOpen;
     const toggleTokenFilter = useCallback((token: string) => {
         const nextTokens = selectedTokens.includes(token)
             ? selectedTokens.filter((item) => item !== token)
@@ -698,6 +712,14 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
                 };
         }
     }, [resolveText, statusFilter, t]);
+    const handleToggleDetails = useCallback(() => {
+        if (showListDetails) {
+            collapseAllTaskDetails();
+            setListOptions({ showDetails: false });
+            return;
+        }
+        setListOptions({ showDetails: true });
+    }, [collapseAllTaskDetails, setListOptions, showListDetails]);
 
     return (
         <ErrorBoundary>
@@ -717,7 +739,7 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
                     selectionMode={selectionMode}
                     onToggleSelection={toggleSelectionMode}
                     showListDetails={showListDetails}
-                    onToggleDetails={() => setListOptions({ showDetails: !showListDetails })}
+                    onToggleDetails={handleToggleDetails}
                     densityMode={densityMode}
                     onToggleDensity={() => {
                         void updateSettings({

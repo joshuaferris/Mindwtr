@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { CheckSquare2, Folder } from 'lucide-react';
 import {
     getActiveMarkdownReferenceQuery,
@@ -12,15 +13,29 @@ import {
 } from '@mindwtr/core';
 
 import { cn } from '../lib/utils';
+import {
+    getTextareaCaretViewportRect,
+    resolveAutocompletePopoverPosition,
+    type AutocompletePopoverPosition,
+} from './markdown-reference-autocomplete-position';
 
 type UseMarkdownReferenceAutocompleteOptions = {
+    currentTaskId?: string;
     value: string;
     selection: MarkdownSelection;
     textareaRef: React.RefObject<HTMLTextAreaElement | null>;
     onApplyResult: (result: MarkdownToolbarResult) => void;
 };
 
+const AUTOCOMPLETE_MENU_ITEM_HEIGHT = 52;
+const AUTOCOMPLETE_MENU_PADDING = 8;
+
+const estimateAutocompleteMenuHeight = (count: number) => (
+    Math.min(count, 6) * AUTOCOMPLETE_MENU_ITEM_HEIGHT + AUTOCOMPLETE_MENU_PADDING
+);
+
 export function useMarkdownReferenceAutocomplete({
+    currentTaskId,
     value,
     selection,
     textareaRef,
@@ -37,6 +52,8 @@ export function useMarkdownReferenceAutocomplete({
     const activeKey = activeQuery ? `${activeQuery.start}:${activeQuery.query}` : null;
     const [selectedIndex, setSelectedIndex] = React.useState(0);
     const [dismissedKey, setDismissedKey] = React.useState<string | null>(null);
+    const [position, setPosition] = React.useState<AutocompletePopoverPosition | null>(null);
+    const menuRef = React.useRef<HTMLDivElement | null>(null);
 
     React.useEffect(() => {
         if (!activeKey) {
@@ -49,11 +66,18 @@ export function useMarkdownReferenceAutocomplete({
     }, [activeKey, dismissedKey]);
 
     const suggestions = React.useMemo(
-        () => (activeQuery ? searchMarkdownReferences(tasks, projects, activeQuery.query) : []),
-        [activeQuery, projects, tasks],
+        () => (activeQuery
+            ? searchMarkdownReferences(tasks, projects, activeQuery.query, 8, {
+                excludeTaskIds: currentTaskId ? [currentTaskId] : undefined,
+            })
+            : []),
+        [activeQuery, currentTaskId, projects, tasks],
     );
     const isFocused = typeof document !== 'undefined' && textareaRef.current === document.activeElement;
     const isOpen = Boolean(isFocused && activeQuery && activeKey !== dismissedKey && suggestions.length > 0);
+    const dismiss = React.useCallback(() => {
+        setDismissedKey(activeKey ?? null);
+    }, [activeKey]);
 
     const applySuggestion = React.useCallback((suggestion: MarkdownReferenceSearchResult) => {
         if (!activeQuery) return;
@@ -71,10 +95,58 @@ export function useMarkdownReferenceAutocomplete({
         });
     }, [activeQuery, onApplyResult, textareaRef, value]);
 
+    React.useLayoutEffect(() => {
+        const textarea = textareaRef.current;
+        if (!isOpen || !activeQuery || !textarea || typeof window === 'undefined') {
+            setPosition(null);
+            return;
+        }
+
+        const updatePosition = () => {
+            const anchorRect = getTextareaCaretViewportRect(textarea, activeQuery.end);
+            if (!anchorRect) return;
+            setPosition(resolveAutocompletePopoverPosition({
+                anchorRect,
+                estimatedHeight: estimateAutocompleteMenuHeight(suggestions.length),
+                viewportHeight: window.innerHeight,
+                viewportWidth: window.innerWidth,
+            }));
+        };
+
+        updatePosition();
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition, true);
+        textarea.addEventListener('scroll', updatePosition);
+
+        return () => {
+            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('scroll', updatePosition, true);
+            textarea.removeEventListener('scroll', updatePosition);
+        };
+    }, [activeQuery, isOpen, suggestions.length, textareaRef]);
+
+    React.useEffect(() => {
+        if (!isOpen || typeof document === 'undefined') return;
+
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node | null;
+            if (!target) return;
+            if (textareaRef.current?.contains(target) || menuRef.current?.contains(target)) {
+                return;
+            }
+            dismiss();
+        };
+
+        document.addEventListener('pointerdown', handlePointerDown, true);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown, true);
+        };
+    }, [dismiss, isOpen, textareaRef]);
+
     const handleKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (!activeQuery || textareaRef.current !== document.activeElement) return false;
         if (event.key === 'Escape') {
-            setDismissedKey(activeKey);
+            dismiss();
             if (suggestions.length > 0) {
                 event.preventDefault();
                 return true;
@@ -107,6 +179,9 @@ export function useMarkdownReferenceAutocomplete({
         setSelectedIndex,
         applySuggestion,
         handleKeyDown,
+        dismiss,
+        menuRef,
+        position,
     };
 }
 
@@ -117,6 +192,8 @@ type MarkdownReferenceAutocompleteMenuProps = {
     setSelectedIndex: React.Dispatch<React.SetStateAction<number>>;
     applySuggestion: (suggestion: MarkdownReferenceSearchResult) => void;
     t: (key: string) => string;
+    menuRef?: React.RefObject<HTMLDivElement | null>;
+    position?: AutocompletePopoverPosition | null;
     className?: string;
 };
 
@@ -127,9 +204,12 @@ export function MarkdownReferenceAutocompleteMenu({
     setSelectedIndex,
     applySuggestion,
     t,
+    menuRef,
+    position,
     className,
 }: MarkdownReferenceAutocompleteMenuProps) {
-    if (!isOpen || suggestions.length === 0) return null;
+    if (!isOpen || suggestions.length === 0 || !position) return null;
+    if (typeof document === 'undefined') return null;
 
     const taskLabel = (() => {
         const translated = t('taskEdit.tab.task');
@@ -140,12 +220,20 @@ export function MarkdownReferenceAutocompleteMenu({
         return translated === 'taskEdit.projectLabel' ? 'Project' : translated;
     })();
 
-    return (
+    return createPortal(
         <div
+            ref={menuRef}
             className={cn(
-                'absolute left-0 right-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-xl',
+                'fixed z-[80] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-xl',
                 className,
             )}
+            style={{
+                left: `${position.left}px`,
+                maxHeight: `${position.maxHeight}px`,
+                top: `${position.top}px`,
+                width: `${position.width}px`,
+            }}
+            data-placement={position.placement}
         >
             {suggestions.map((suggestion, index) => {
                 const statusKey = `status.${suggestion.status}` as const;
@@ -182,6 +270,7 @@ export function MarkdownReferenceAutocompleteMenu({
                     </button>
                 );
             })}
-        </div>
+        </div>,
+        document.body,
     );
 }
