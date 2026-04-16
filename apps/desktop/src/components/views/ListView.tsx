@@ -3,7 +3,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { shallow, useTaskStore, TaskPriority, TimeEstimate, DEFAULT_AREA_COLOR, sortTasksBy, parseQuickAdd, matchesHierarchicalToken, safeParseDate, isTaskInActiveProject, getWaitingPerson } from '@mindwtr/core';
 import type { Task, TaskStatus } from '@mindwtr/core';
 import type { TaskSortBy } from '@mindwtr/core';
-import { TaskItem } from '../TaskItem';
 import { ConfirmModal } from '../ConfirmModal';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { ListEmptyState } from './list/ListEmptyState';
@@ -24,6 +23,7 @@ import { cn } from '../../lib/utils';
 import { sortDoneTasksForListView } from './list/done-sort';
 import { groupTasksByArea, groupTasksByContext, groupTasksByProject, type NextGroupBy, type TaskGroup } from './list/next-grouping';
 import { useListSelection } from './list/useListSelection';
+import { StoreTaskItem } from './list/StoreTaskItem';
 import { LIST_VIRTUALIZATION_THRESHOLD, LIST_VIRTUAL_ROW_ESTIMATE, LIST_VIRTUAL_OVERSCAN } from './list/useVirtualList';
 
 
@@ -881,15 +881,14 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
                                     }}
                                 >
                                     <div className={cn(isCompact ? "pb-1" : "pb-1.5")}>
-                                        <TaskItem
-                                            key={task.id}
-                                            task={task}
-                                            project={task.projectId ? projectMap.get(task.projectId) : undefined}
+                                        <StoreTaskItem
+                                            taskId={task.id}
                                             isSelected={virtualRow.index === selectedIndex}
-                                            onSelect={() => handleSelectIndex(virtualRow.index)}
+                                            index={virtualRow.index}
+                                            onSelectIndex={handleSelectIndex}
                                             selectionMode={selectionMode}
                                             isMultiSelected={multiSelectedIds.has(task.id)}
-                                            onToggleSelect={() => toggleMultiSelect(task.id)}
+                                            onToggleSelectId={toggleMultiSelect}
                                             showQuickDone={showQuickDone}
                                             readOnly={readOnly}
                                             compactMetaEnabled={showListDetails}
@@ -921,15 +920,15 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
                                     {group.tasks.map((task) => {
                                         const index = taskIndexById.get(task.id) ?? 0;
                                         return (
-                                            <TaskItem
+                                            <StoreTaskItem
                                                 key={task.id}
-                                                task={task}
-                                                project={task.projectId ? projectMap.get(task.projectId) : undefined}
+                                                taskId={task.id}
                                                 isSelected={index === selectedIndex}
-                                                onSelect={() => handleSelectIndex(index)}
+                                                index={index}
+                                                onSelectIndex={handleSelectIndex}
                                                 selectionMode={selectionMode}
                                                 isMultiSelected={multiSelectedIds.has(task.id)}
-                                                onToggleSelect={() => toggleMultiSelect(task.id)}
+                                                onToggleSelectId={toggleMultiSelect}
                                                 showQuickDone={showQuickDone}
                                                 readOnly={readOnly}
                                                 compactMetaEnabled={showListDetails}
@@ -944,15 +943,15 @@ export const ListView = memo(function ListView({ title, statusFilter }: ListView
                 ) : (
                     <div className="divide-y divide-border/30">
                         {filteredTasks.map((task, index) => (
-                            <TaskItem
+                            <StoreTaskItem
                                 key={task.id}
-                                task={task}
-                                project={task.projectId ? projectMap.get(task.projectId) : undefined}
+                                taskId={task.id}
                                 isSelected={index === selectedIndex}
-                                onSelect={() => handleSelectIndex(index)}
+                                index={index}
+                                onSelectIndex={handleSelectIndex}
                                 selectionMode={selectionMode}
                                 isMultiSelected={multiSelectedIds.has(task.id)}
-                                onToggleSelect={() => toggleMultiSelect(task.id)}
+                                onToggleSelectId={toggleMultiSelect}
                                 showQuickDone={showQuickDone}
                                 readOnly={readOnly}
                                 compactMetaEnabled={showListDetails}

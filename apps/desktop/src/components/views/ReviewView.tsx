@@ -61,7 +61,7 @@ export function ReviewView() {
         return () => window.clearTimeout(timer);
     }, [perf.enabled]);
 
-    const { projectMap, tasksById, statusCounts, filteredTasks } = useMemo(() => {
+    const { tasksById, statusCounts, filteredTasks } = useMemo(() => {
         perf.trackUseMemo();
         return perf.measure('reviewData', () => {
             const nextProjectMap: Record<string, Project> = {};
@@ -102,7 +102,6 @@ export function ReviewView() {
                 : sortedTasks;
 
             return {
-                projectMap: nextProjectMap,
                 tasksById: nextTasksById,
                 statusCounts: nextStatusCounts,
                 filteredTasks: searchFilteredTasks,
@@ -204,7 +203,6 @@ export function ReviewView() {
 
                 <ReviewTaskList
                     tasks={filteredTasks}
-                    projectMap={projectMap}
                     selectionMode={selectionMode}
                     multiSelectedIds={multiSelectedIds}
                     highlightTaskId={highlightTaskId}

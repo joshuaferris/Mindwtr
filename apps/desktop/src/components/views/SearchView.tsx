@@ -276,8 +276,7 @@ export function SearchView({ savedSearchId, onDelete }: SearchViewProps) {
                             return (
                                 <VirtualTaskRow
                                     key={task.id}
-                                    task={task}
-                                    project={task.projectId ? projectMap[task.projectId] : undefined}
+                                    taskId={task.id}
                                     index={taskIndex}
                                     top={rowOffsets[taskIndex] ?? 0}
                                     selectionMode={selectionMode}

@@ -492,8 +492,7 @@ export function ContextsView() {
                                             return (
                                                 <VirtualTaskRow
                                                     key={task.id}
-                                                    task={task}
-                                                    project={task.projectId ? projectMap.get(task.projectId) : undefined}
+                                                    taskId={task.id}
                                                     index={taskIndex}
                                                     top={rowOffsets[taskIndex] ?? 0}
                                                     selectionMode={selectionMode}
