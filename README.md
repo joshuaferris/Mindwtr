@@ -361,6 +361,7 @@ You can help in several ways:
 ## Roadmap
 
 - 🤖 Add to F-Droid ([#219](https://github.com/dongdongbh/Mindwtr/issues/219))
+- 🗣️ iOS Reminders Inbox import (Siri capture -> Mindwtr Inbox) ([#387](https://github.com/dongdongbh/Mindwtr/issues/387))
 - ✉️ Email to Inbox ([#35](https://github.com/dongdongbh/Mindwtr/issues/35))
 - 🗓️ Expand one-way Mindwtr -> local system calendar sync beyond the shipped mobile implementation ([#361](https://github.com/dongdongbh/Mindwtr/issues/361))
 
