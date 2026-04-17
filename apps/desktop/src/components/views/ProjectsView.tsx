@@ -412,7 +412,7 @@ export function ProjectsView() {
             <div className="h-full px-4 py-3">
                 <div
                     ref={projectsLayoutRef}
-                    className="mx-auto flex h-full w-full max-w-[84rem] min-w-0 gap-5 xl:gap-6 2xl:max-w-[88rem]"
+                    className="flex h-full w-full min-w-0 gap-5 xl:gap-6"
                 >
                     <div className="relative min-h-0 flex-none" style={{ width: `${sidebarWidth}px` }}>
                         <div id="projects-sidebar-panel" className="h-full min-w-0">
