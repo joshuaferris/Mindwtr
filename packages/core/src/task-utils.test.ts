@@ -41,6 +41,11 @@ describe('task-utils', () => {
             const inboxColor = getStatusColor('inbox');
             expect(color).toEqual(inboxColor);
         });
+
+        it('uses distinct default colors for next and done', () => {
+            expect(getStatusColor('next')).not.toEqual(getStatusColor('done'));
+            expect(getStatusColor('next').text).toBe('#2563EB');
+        });
     });
 
     describe('getTaskAgeLabel', () => {

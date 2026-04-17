@@ -274,6 +274,50 @@ describe('TaskStore', () => {
         expect(updatedProject?.tagIds).toEqual(['#bar']);
     });
 
+    it('allows case-only tag renames', async () => {
+        const { addProject, addTask, renameTag } = useTaskStore.getState();
+
+        const project = await addProject('Tagged Project', '#123456', {
+            status: 'active',
+            tagIds: ['#help'],
+        });
+        expect(project).not.toBeNull();
+        if (!project) return;
+
+        const taskResult = await addTask('Tagged Task', {
+            status: 'next',
+            projectId: project.id,
+            tags: ['#help'],
+        });
+        expect(taskResult.success).toBe(true);
+        expect(taskResult.id).toBeTruthy();
+        if (!taskResult.id) return;
+
+        await renameTag('#help', '#Help');
+
+        const updatedTask = useTaskStore.getState()._allTasks.find((task) => task.id === taskResult.id);
+        const updatedProject = useTaskStore.getState()._allProjects.find((item) => item.id === project.id);
+        expect(updatedTask?.tags).toEqual(['#Help']);
+        expect(updatedProject?.tagIds).toEqual(['#Help']);
+    });
+
+    it('allows case-only context renames', async () => {
+        const { addTask, renameContext } = useTaskStore.getState();
+
+        const taskResult = await addTask('Context Task', {
+            status: 'next',
+            contexts: ['@help'],
+        });
+        expect(taskResult.success).toBe(true);
+        expect(taskResult.id).toBeTruthy();
+        if (!taskResult.id) return;
+
+        await renameContext('@help', '@Help');
+
+        const updatedTask = useTaskStore.getState()._allTasks.find((task) => task.id === taskResult.id);
+        expect(updatedTask?.contexts).toEqual(['@Help']);
+    });
+
     it('filters soft-deleted attachments from visible tasks while preserving tombstones in _allTasks', async () => {
         const now = '2026-03-01T10:00:00.000Z';
         mockStorage.getData = vi.fn().mockResolvedValue({

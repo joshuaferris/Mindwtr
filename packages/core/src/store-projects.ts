@@ -46,6 +46,12 @@ type ProjectActionContext = {
 const actionOk = (extra?: Omit<StoreActionResult, 'success'>): StoreActionResult => ({ success: true, ...extra });
 const actionFail = (error: string): StoreActionResult => ({ success: false, error });
 
+const formatTagIdPreservingCase = (value: string): string => {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
+    return trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+};
+
 const dedupeTagValuesLastWins = (values: string[], preferredValue?: string): string[] => {
     const preferredNormalized = preferredValue ? normalizeTagId(preferredValue) : '';
     const seen = new Set<string>();
@@ -1379,7 +1385,9 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
     renameTag: async (oldTagId: string, newTagId: string) => {
         const normalizedOld = normalizeTagId(oldTagId);
         const normalizedNew = normalizeTagId(newTagId);
-        if (!normalizedOld || !normalizedNew || normalizedOld === normalizedNew) return;
+        const nextTagId = formatTagIdPreservingCase(newTagId);
+        if (!normalizedOld || !normalizedNew || !nextTagId) return;
+        if (normalizedOld === normalizedNew && formatTagIdPreservingCase(oldTagId) === nextTagId) return;
         const changeAt = Date.now();
         const now = new Date().toISOString();
         let snapshot: AppData | null = null;
@@ -1390,10 +1398,10 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
                 const idx = task.tags.findIndex((tag) => normalizeTagId(tag) === normalizedOld);
                 if (idx === -1) return task;
                 const newTags = [...task.tags];
-                newTags[idx] = normalizedNew;
+                newTags[idx] = nextTagId;
                 return {
                     ...task,
-                    tags: dedupeTagValuesLastWins(newTags, normalizedNew),
+                    tags: dedupeTagValuesLastWins(newTags, nextTagId),
                     updatedAt: now,
                     rev: normalizeRevision(task.rev) + 1,
                     revBy: deviceState.deviceId,
@@ -1405,10 +1413,10 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
                 const idx = project.tagIds.findIndex((tag) => normalizeTagId(tag) === normalizedOld);
                 if (idx === -1) return project;
                 const newTagIds = [...project.tagIds];
-                newTagIds[idx] = normalizedNew;
+                newTagIds[idx] = nextTagId;
                 return {
                     ...project,
-                    tagIds: dedupeTagValuesLastWins(newTagIds, normalizedNew),
+                    tagIds: dedupeTagValuesLastWins(newTagIds, nextTagId),
                     updatedAt: now,
                     rev: normalizeRevision(project.rev) + 1,
                     revBy: deviceState.deviceId,
@@ -1479,7 +1487,8 @@ export const createProjectActions = ({ set, get, debouncedSave }: ProjectActionC
     renameContext: async (oldContext: string, newContext: string) => {
         const normalizedOld = oldContext.trim().toLowerCase();
         const normalizedNew = newContext.trim();
-        if (!normalizedOld || !normalizedNew || normalizedOld === normalizedNew.toLowerCase()) return;
+        if (!normalizedOld || !normalizedNew) return;
+        if (normalizedOld === normalizedNew.toLowerCase() && oldContext.trim() === normalizedNew) return;
         const changeAt = Date.now();
         const now = new Date().toISOString();
         let snapshot: AppData | null = null;
