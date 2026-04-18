@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AppData } from '@mindwtr/core';
 
 const fileSystemMock = vi.hoisted(() => ({
   __esModule: true,
@@ -219,7 +220,7 @@ describe('attachment sync', () => {
 
     const { syncFileAttachments } = await import('./attachment-sync');
 
-    const appData = {
+    const appData: AppData = {
       tasks: [
         {
           id: 'task-1',

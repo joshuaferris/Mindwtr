@@ -122,11 +122,15 @@ describe('CaptureScreen', () => {
   });
 
   it('adds keyboard-aware layout and exposes a dismiss action while the keyboard is visible', () => {
-    const listeners = new Map<string, (() => void) | undefined>();
-    vi.spyOn(Keyboard, 'addListener').mockImplementation((eventName: string, listener: () => void) => {
+    const listeners = new Map<string, ((event?: unknown) => void) | undefined>();
+    vi.spyOn(Keyboard, 'addListener').mockImplementation(((eventName: string, listener: (event?: unknown) => void) => {
       listeners.set(eventName, listener);
-      return { remove: () => listeners.delete(eventName) };
-    });
+      return {
+        remove: () => {
+          listeners.delete(eventName);
+        },
+      };
+    }) as any);
     const dismissSpy = vi.spyOn(Keyboard, 'dismiss');
 
     let tree!: ReturnType<typeof create>;
