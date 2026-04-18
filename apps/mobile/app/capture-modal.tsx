@@ -1,5 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { createAIProvider, getUsedTaskTokens, parseQuickAdd, type Task, type TimeEstimate, type AIProviderId, useTaskStore } from '@mindwtr/core';
 import { useThemeColors } from '@/hooks/use-theme-colors';
@@ -24,6 +34,7 @@ export default function CaptureScreen() {
   const [copilotEstimate, setCopilotEstimate] = useState<TimeEstimate | undefined>(undefined);
   const [copilotTags, setCopilotTags] = useState<string[]>([]);
   const [showHelp, setShowHelp] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const copilotMountedRef = useRef(true);
   const copilotAbortRef = useRef<AbortController | null>(null);
@@ -37,6 +48,15 @@ export default function CaptureScreen() {
       setValue(decodeURIComponent(params.text));
     }
   }, [params.text]);
+
+  useEffect(() => {
+    const showListener = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideListener = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      showListener.remove();
+      hideListener.remove();
+    };
+  }, []);
 
   const aiEnabled = settings.ai?.enabled === true;
   const aiProvider = (settings.ai?.provider ?? 'openai') as AIProviderId;
@@ -184,78 +204,102 @@ export default function CaptureScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: tc.bg }]}>
-      <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: tc.text }]}>{t('nav.addTask')}</Text>
-          <TouchableOpacity
-            onPress={() => setShowHelp((prev) => !prev)}
-            style={[styles.helpToggle, { borderColor: tc.border, backgroundColor: tc.inputBg }]}
-          >
-            <Text style={[styles.helpToggleText, { color: tc.secondaryText }]}>?</Text>
-          </TouchableOpacity>
-        </View>
-        <TextInput
-          ref={inputRef}
-          style={[styles.input, { backgroundColor: tc.inputBg, borderColor: tc.border, color: tc.text }]}
-          placeholder={t('quickAdd.example')}
-          placeholderTextColor={placeholderColor}
-          value={value}
-          onChangeText={handleInputChange}
-          onSubmitEditing={handleSave}
-          returnKeyType="done"
-          multiline
-        />
-        {copilotSuggestion && !copilotApplied && (
-          <TouchableOpacity
-            style={[styles.copilotPill, { borderColor: tc.border, backgroundColor: tc.inputBg }]}
-            onPress={() => {
-              setCopilotContext(copilotSuggestion.context);
-              if (timeEstimatesEnabled) setCopilotEstimate(copilotSuggestion.timeEstimate);
-              setCopilotTags(copilotSuggestion.tags ?? []);
-              setCopilotApplied(true);
-            }}
-          >
-            <Text style={[styles.copilotText, { color: tc.text }]}>
-              ✨ {t('copilot.suggested')}{' '}
-              {copilotSuggestion.context ? `${copilotSuggestion.context} ` : ''}
-              {timeEstimatesEnabled && copilotSuggestion.timeEstimate ? `${copilotSuggestion.timeEstimate}` : ''}
-              {copilotSuggestion.tags?.length ? copilotSuggestion.tags.join(' ') : ''}
-            </Text>
-            <Text style={[styles.copilotHint, { color: tc.secondaryText }]}>
-              {t('copilot.applyHint')}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {copilotApplied && (
-          <View style={[styles.copilotPill, { borderColor: tc.border, backgroundColor: tc.inputBg }]}>
-            <Text style={[styles.copilotText, { color: tc.text }]}>
-              ✅ {t('copilot.applied')}{' '}
-              {copilotContext ? `${copilotContext} ` : ''}
-              {timeEstimatesEnabled && copilotEstimate ? `${copilotEstimate}` : ''}
-              {copilotTags.length ? copilotTags.join(' ') : ''}
-            </Text>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: tc.bg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: tc.text }]}>{t('nav.addTask')}</Text>
+            <View style={styles.headerActions}>
+              {keyboardVisible && (
+                <TouchableOpacity
+                  onPress={Keyboard.dismiss}
+                  style={[styles.dismissKeyboardButton, { borderColor: tc.border, backgroundColor: tc.inputBg }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.done')}
+                >
+                  <Text style={[styles.dismissKeyboardText, { color: tc.text }]}>{t('common.done')}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => setShowHelp((prev) => !prev)}
+                style={[styles.helpToggle, { borderColor: tc.border, backgroundColor: tc.inputBg }]}
+              >
+                <Text style={[styles.helpToggleText, { color: tc.secondaryText }]}>?</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
-        {showHelp && (
-          <Text style={[styles.help, { color: tc.secondaryText }]}>{t('quickAdd.help')}</Text>
-        )}
-        <View style={styles.actions}>
-          <TouchableOpacity onPress={handleCancel} style={[styles.button, styles.cancel, { backgroundColor: tc.inputBg }]}>
-            <Text style={{ color: tc.text }}>{t('common.cancel')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleSave} style={[styles.button, styles.save]}>
-            <Text style={styles.saveText}>{t('common.save')}</Text>
-          </TouchableOpacity>
+          <TextInput
+            ref={inputRef}
+            style={[styles.input, { backgroundColor: tc.inputBg, borderColor: tc.border, color: tc.text }]}
+            placeholder={t('quickAdd.example')}
+            placeholderTextColor={placeholderColor}
+            value={value}
+            onChangeText={handleInputChange}
+            onSubmitEditing={handleSave}
+            returnKeyType="done"
+            multiline
+          />
+          {copilotSuggestion && !copilotApplied && (
+            <TouchableOpacity
+              style={[styles.copilotPill, { borderColor: tc.border, backgroundColor: tc.inputBg }]}
+              onPress={() => {
+                setCopilotContext(copilotSuggestion.context);
+                if (timeEstimatesEnabled) setCopilotEstimate(copilotSuggestion.timeEstimate);
+                setCopilotTags(copilotSuggestion.tags ?? []);
+                setCopilotApplied(true);
+              }}
+            >
+              <Text style={[styles.copilotText, { color: tc.text }]}>
+                ✨ {t('copilot.suggested')}{' '}
+                {copilotSuggestion.context ? `${copilotSuggestion.context} ` : ''}
+                {timeEstimatesEnabled && copilotSuggestion.timeEstimate ? `${copilotSuggestion.timeEstimate}` : ''}
+                {copilotSuggestion.tags?.length ? copilotSuggestion.tags.join(' ') : ''}
+              </Text>
+              <Text style={[styles.copilotHint, { color: tc.secondaryText }]}>
+                {t('copilot.applyHint')}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {copilotApplied && (
+            <View style={[styles.copilotPill, { borderColor: tc.border, backgroundColor: tc.inputBg }]}>
+              <Text style={[styles.copilotText, { color: tc.text }]}>
+                ✅ {t('copilot.applied')}{' '}
+                {copilotContext ? `${copilotContext} ` : ''}
+                {timeEstimatesEnabled && copilotEstimate ? `${copilotEstimate}` : ''}
+                {copilotTags.length ? copilotTags.join(' ') : ''}
+              </Text>
+            </View>
+          )}
+          {showHelp && (
+            <Text style={[styles.help, { color: tc.secondaryText }]}>{t('quickAdd.help')}</Text>
+          )}
+          <View style={styles.actions}>
+            <TouchableOpacity onPress={handleCancel} style={[styles.button, styles.cancel, { backgroundColor: tc.inputBg }]}>
+              <Text style={{ color: tc.text }}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSave} style={[styles.button, styles.save]}>
+              <Text style={styles.saveText}>{t('common.save')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     padding: 16,
     justifyContent: 'center',
   },
@@ -270,8 +314,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   title: {
     fontSize: 20,
+    fontWeight: '600',
+  },
+  dismissKeyboardButton: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dismissKeyboardText: {
+    fontSize: 12,
     fontWeight: '600',
   },
   helpToggle: {
