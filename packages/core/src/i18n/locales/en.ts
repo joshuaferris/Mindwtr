@@ -223,7 +223,7 @@ export const en: Record<string, string> = {
         'taskEdit.locationPlaceholder': 'e.g. Office',
         'taskEdit.projectLabel': 'Project',
         'taskEdit.noProjectOption': 'No Project',
-        'taskEdit.sectionLabel': 'Section',
+        'taskEdit.sectionLabel': 'Project section',
         'taskEdit.noSectionOption': 'No Section',
         'taskEdit.areaLabel': 'Area',
         'taskEdit.noAreaOption': 'No Area',
