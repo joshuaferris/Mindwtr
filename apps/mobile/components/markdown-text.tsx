@@ -11,6 +11,7 @@ const TASK_LIST_RE = /^\s{0,3}(?:[-*+]\s+)?\[( |x|X)\]\s+(.+)$/;
 const BULLET_LIST_RE = /^\s{0,3}[-*+]\s+(.+)$/;
 const HEADING_RE = /^(#{1,3})\s+(.+)$/;
 const HORIZONTAL_RULE_RE = /^(?:-{3,}|\*{3,}|_{3,})$/;
+const FENCED_CODE_RE = /^```.*$/;
 
 function isBlockBoundary(line: string): boolean {
   const trimmed = line.trim();
@@ -202,6 +203,30 @@ export function MarkdownText({
       continue;
     }
 
+    if (FENCED_CODE_RE.test(line.trim())) {
+      const start = i;
+      const codeLines: string[] = [];
+      i += 1;
+      while (i < lines.length && !FENCED_CODE_RE.test(lines[i].trim())) {
+        codeLines.push(lines[i]);
+        i += 1;
+      }
+      if (i < lines.length && FENCED_CODE_RE.test(lines[i].trim())) {
+        i += 1;
+      }
+      blocks.push(
+        <View
+          key={`code-${start}`}
+          style={[styles.codeBlock, { backgroundColor: tc.filterBg, borderColor: tc.border }]}
+        >
+          <Text style={[styles.codeBlockText, { color: tc.text }, directionStyle]}>
+            {codeLines.join('\n')}
+          </Text>
+        </View>
+      );
+      continue;
+    }
+
     const taskListMatch = TASK_LIST_RE.exec(line);
     if (taskListMatch) {
       const items: { checked: boolean; text: string }[] = [];
@@ -308,6 +333,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 4,
+  },
+  codeBlock: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  codeBlockText: {
+    fontFamily: 'monospace',
+    fontSize: 12,
+    lineHeight: 18,
   },
   link: {
     textDecorationLine: 'underline',
