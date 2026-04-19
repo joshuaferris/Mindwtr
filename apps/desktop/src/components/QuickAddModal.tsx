@@ -14,11 +14,12 @@ import { BaseDirectory, mkdir, readFile, remove, writeFile } from '@tauri-apps/p
 import { dataDir, join } from '@tauri-apps/api/path';
 import { useLanguage } from '../contexts/language-context';
 import { cn } from '../lib/utils';
-import { isTauriRuntime } from '../lib/runtime';
+import { isFlatpakRuntime, isTauriRuntime } from '../lib/runtime';
 import { reportError } from '../lib/report-error';
 import { logWarn } from '../lib/app-log';
 import { loadAIKey } from '../lib/ai-config';
 import { encodeWav, resampleAudio } from '../lib/audio-utils';
+import { getPreferredDesktopAudioCaptureBackend } from '../lib/audio-capture-backend';
 import { processAudioCapture, type SpeechToTextResult } from '../lib/speech-to-text';
 import { DEFAULT_WHISPER_MODEL } from '../lib/speech-models';
 import { TaskInput } from './Task/TaskInput';
@@ -199,12 +200,27 @@ export function QuickAddModal() {
         if (recordingBusy || isRecording) return;
         setRecordingError(null);
         try {
-            if (isTauriRuntime()) {
-                const { invoke } = await import('@tauri-apps/api/core');
-                await invoke('start_audio_recording');
-                setRecordingBackend('native');
-                setIsRecording(true);
-                return;
+            const preferredBackend = getPreferredDesktopAudioCaptureBackend({
+                isTauriRuntime: isTauriRuntime(),
+                isFlatpakRuntime: isFlatpakRuntime(),
+            });
+
+            if (preferredBackend === 'native') {
+                try {
+                    const { invoke } = await import('@tauri-apps/api/core');
+                    await invoke('start_audio_recording');
+                    setRecordingBackend('native');
+                    setIsRecording(true);
+                    return;
+                } catch (error) {
+                    void logWarn('Native audio recording failed, falling back to web capture', {
+                        scope: 'audio',
+                        extra: {
+                            error: error instanceof Error ? error.message : String(error),
+                            preferredBackend,
+                        },
+                    });
+                }
             }
             if (!navigator.mediaDevices?.getUserMedia) {
                 setRecordingError(t('quickAdd.audioErrorBody'));
