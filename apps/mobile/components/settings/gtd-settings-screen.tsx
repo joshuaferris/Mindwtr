@@ -514,6 +514,7 @@ export function GtdSettingsScreen({
         '编辑任务时默认展开此分组。'
     );
     const showInEditorLabel = localize('Show in editor', '在编辑器中显示');
+    const hideInEditorLabel = localize('Hide from editor', '在编辑器中隐藏');
     const moveUpLabel = localize('Move up', '上移');
     const moveDownLabel = localize('Move down', '下移');
     const doneLabel = t('common.done') === 'common.done' ? localize('Done', '完成') : t('common.done');
@@ -673,38 +674,53 @@ export function GtdSettingsScreen({
         const visible = !hiddenSet.has(fieldId);
 
         return (
-            <TouchableOpacity
+            <View
                 style={[
                     styles.taskEditorCompactRow,
                     { borderTopColor: tc.border },
                     (showTopBorder || !isFirst) && styles.taskEditorCompactRowBorder,
                 ]}
-                onPress={() => setTaskEditorSelectedField(fieldId)}
-                activeOpacity={0.8}
             >
-                <View
-                    style={[
-                        styles.taskEditorVisibilityBadge,
-                        {
-                            backgroundColor: visible ? tc.filterBg : 'transparent',
-                            borderColor: visible ? tc.tint : tc.border,
-                        },
-                    ]}
+                <TouchableOpacity
+                    testID={`task-editor-visibility-${fieldId}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${visible ? hideInEditorLabel : showInEditorLabel}: ${fieldLabel(fieldId)}`}
+                    accessibilityState={{ selected: visible }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={() => toggleFieldVisibility(fieldId)}
+                    activeOpacity={0.8}
                 >
-                    <Ionicons
-                        name={visible ? 'eye-outline' : 'eye-off-outline'}
-                        size={16}
-                        color={visible ? tc.tint : tc.secondaryText}
-                    />
-                </View>
-                <View style={styles.settingInfo}>
-                    <Text style={[styles.settingLabel, { color: tc.text }]}>{fieldLabel(fieldId)}</Text>
-                    <Text style={[styles.settingDescription, { color: tc.secondaryText }]}>
-                        {visible ? t('settings.visible') : t('settings.hidden')}
-                    </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={tc.secondaryText} />
-            </TouchableOpacity>
+                    <View
+                        style={[
+                            styles.taskEditorVisibilityBadge,
+                            {
+                                backgroundColor: visible ? tc.filterBg : 'transparent',
+                                borderColor: visible ? tc.tint : tc.border,
+                            },
+                        ]}
+                    >
+                        <Ionicons
+                            name={visible ? 'eye-outline' : 'eye-off-outline'}
+                            size={16}
+                            color={visible ? tc.tint : tc.secondaryText}
+                        />
+                    </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    testID={`task-editor-row-${fieldId}`}
+                    style={styles.taskEditorCompactRowMain}
+                    onPress={() => setTaskEditorSelectedField(fieldId)}
+                    activeOpacity={0.8}
+                >
+                    <View style={styles.settingInfo}>
+                        <Text style={[styles.settingLabel, { color: tc.text }]}>{fieldLabel(fieldId)}</Text>
+                        <Text style={[styles.settingDescription, { color: tc.secondaryText }]}>
+                            {visible ? t('settings.visible') : t('settings.hidden')}
+                        </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={tc.secondaryText} />
+                </TouchableOpacity>
+            </View>
         );
     }
 
