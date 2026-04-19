@@ -72,7 +72,6 @@ export function GtdSettingsScreen({
     const inboxProjectFirst = inboxProcessing.projectFirst === true;
     const inboxContextStepEnabled = inboxProcessing.contextStepEnabled !== false;
     const inboxScheduleEnabled = inboxProcessing.scheduleEnabled === true;
-    const inboxReferenceEnabled = inboxProcessing.referenceEnabled === true;
     const includeContextStep = settings.gtd?.weeklyReview?.includeContextStep !== false;
     const autoArchiveDays = Number.isFinite(settings.gtd?.autoArchiveDays)
         ? Math.max(0, Math.floor(settings.gtd?.autoArchiveDays as number))
@@ -341,16 +340,6 @@ export function GtdSettingsScreen({
                                     <Switch
                                         value={inboxScheduleEnabled}
                                         onValueChange={(value) => updateInboxProcessing({ scheduleEnabled: value })}
-                                        trackColor={{ false: '#767577', true: '#3B82F6' }}
-                                    />
-                                </View>
-                                <View style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: tc.border }]}>
-                                    <View style={styles.settingInfo}>
-                                        <Text style={[styles.settingLabel, { color: tc.text }]}>{t('settings.inboxReferenceEnabled')}</Text>
-                                    </View>
-                                    <Switch
-                                        value={inboxReferenceEnabled}
-                                        onValueChange={(value) => updateInboxProcessing({ referenceEnabled: value })}
                                         trackColor={{ false: '#767577', true: '#3B82F6' }}
                                     />
                                 </View>

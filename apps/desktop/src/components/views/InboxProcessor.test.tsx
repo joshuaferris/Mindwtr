@@ -192,13 +192,13 @@ describe('InboxProcessor', () => {
         });
     });
 
-    it('keeps scheduling and reference branches hidden by default', () => {
+    it('keeps scheduling hidden by default while reference stays available', () => {
         const { getByRole, getByText, queryByText } = renderInboxProcessor();
 
         fireEvent.click(getByRole('button', { name: /process\.btn/i }));
         fireEvent.click(getByText('process.refineNext'));
 
-        expect(queryByText('process.reference')).toBeNull();
+        expect(getByText('process.reference')).toBeTruthy();
 
         fireEvent.click(getByText('process.yesActionable'));
         fireEvent.click(getByText('process.moreThanOneStepNo'));
@@ -208,12 +208,26 @@ describe('InboxProcessor', () => {
         expect(queryByText('taskEdit.startDateLabel')).toBeNull();
     });
 
-    it('shows scheduling and reference options when enabled in settings and visible in the task editor layout', () => {
+    it('shows reference even when the old inbox reference setting is disabled', () => {
+        const { getByRole, getByText } = renderInboxProcessor({
+            gtd: {
+                inboxProcessing: {
+                    referenceEnabled: false,
+                },
+            },
+        });
+
+        fireEvent.click(getByRole('button', { name: /process\.btn/i }));
+        fireEvent.click(getByText('process.refineNext'));
+
+        expect(getByText('process.reference')).toBeTruthy();
+    });
+
+    it('shows scheduling options when enabled in settings and visible in the task editor layout', () => {
         const { getByRole, getByText } = renderInboxProcessor({
             gtd: {
                 inboxProcessing: {
                     scheduleEnabled: true,
-                    referenceEnabled: true,
                 },
                 taskEditor: {
                     hidden: [],

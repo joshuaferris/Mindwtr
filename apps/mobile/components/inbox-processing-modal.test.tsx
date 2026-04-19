@@ -223,6 +223,21 @@ describe('InboxProcessingModal', () => {
     expect(root.findAllByProps({ placeholder: 'inbox.addContextPlaceholder' })).toHaveLength(0);
   });
 
+  it('still shows reference during inbox processing when the old setting is disabled', () => {
+    mockSettings.features = undefined;
+    mockSettings.gtd.inboxProcessing = { referenceEnabled: false };
+    const onClose = vi.fn();
+    let tree: ReturnType<typeof create>;
+
+    act(() => {
+      tree = create(<InboxProcessingModal visible onClose={onClose} />);
+    });
+
+    const root = tree!.root;
+
+    expect(findNodeWithText(root, 'nav.reference')).toBeTruthy();
+  });
+
   it('starts mobile inbox processing at the refine form without duplicating the task preview', () => {
     const onClose = vi.fn();
     let tree: ReturnType<typeof create>;

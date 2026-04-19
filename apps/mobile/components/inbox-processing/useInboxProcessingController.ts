@@ -96,7 +96,7 @@ export function useInboxProcessingController({
   const projectFirst = inboxProcessing.projectFirst === true;
   const contextStepEnabled = inboxProcessing.contextStepEnabled !== false;
   const scheduleEnabled = inboxProcessing.scheduleEnabled === true;
-  const referenceEnabled = inboxProcessing.referenceEnabled === true;
+  const referenceEnabled = true;
   const prioritiesEnabled = settings?.features?.priorities !== false;
   const timeEstimatesEnabled = settings?.features?.timeEstimates !== false;
   const aiEnabled = settings?.ai?.enabled === true;
