@@ -208,6 +208,26 @@ describe('notification-service-local', () => {
     );
   });
 
+  it('schedules weekly review even when task reminders are disabled', async () => {
+    mockStoreState.settings = {
+      notificationsEnabled: false,
+      weeklyReviewEnabled: true,
+      weeklyReviewDay: 2,
+      weeklyReviewTime: '18:30',
+    };
+
+    await startLocalMobileNotifications();
+
+    expect(mockAlarmScheduleAlarm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auto_cancel: true,
+        channel: 'mindwtr_reminders_v2',
+        message: 'Weekly review body',
+        title: 'Weekly review',
+      })
+    );
+  });
+
   it('falls back to the title when sending an immediate notification without a message', async () => {
     await sendLocalMobileNotification('Focus session done');
 

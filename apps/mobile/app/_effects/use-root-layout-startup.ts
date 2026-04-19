@@ -12,6 +12,7 @@ import {
 } from '@mindwtr/core';
 
 import { startMobileNotifications } from '@/lib/notification-service';
+import { hasActiveMobileNotificationFeature } from '@/lib/mobile-notification-settings';
 import { getMobileStartupSnapshotFromBackup } from '@/lib/storage-adapter';
 import { updateMobileWidgetFromStore } from '@/lib/widget-service';
 import { markStartupPhase, measureStartupPhase } from '@/lib/startup-profiler';
@@ -240,7 +241,7 @@ export function useRootLayoutStartup({
                         // Keep analytics heartbeat failures silent on mobile.
                     }
                 }
-                if (loadedStore.settings.notificationsEnabled !== false) {
+                if (hasActiveMobileNotificationFeature(loadedStore.settings)) {
                     startMobileNotifications().catch((error) => {
                         void logError(error, { scope: 'app' });
                     });
