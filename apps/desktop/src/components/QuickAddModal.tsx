@@ -569,7 +569,7 @@ export function QuickAddModal() {
         >
             <div
                 ref={modalRef}
-                className="w-full max-w-lg bg-popover text-popover-foreground rounded-xl border shadow-2xl overflow-hidden flex flex-col"
+                className="w-full max-w-lg bg-popover text-popover-foreground rounded-xl border shadow-2xl overflow-visible flex flex-col"
                 role="dialog"
                 aria-modal="true"
                 onClick={(e) => e.stopPropagation()}
