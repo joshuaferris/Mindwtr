@@ -5,6 +5,7 @@ import { StoreTaskItem } from '../list/StoreTaskItem';
 
 type ReviewTaskListProps = {
     tasks: Task[];
+    showListDetails: boolean;
     selectionMode: boolean;
     multiSelectedIds: Set<string>;
     highlightTaskId?: string | null;
@@ -15,6 +16,7 @@ type ReviewTaskListProps = {
 
 export function ReviewTaskList({
     tasks,
+    showListDetails,
     selectionMode,
     multiSelectedIds,
     highlightTaskId,
@@ -27,7 +29,7 @@ export function ReviewTaskList({
     const rowVirtualizer = useVirtualizer({
         count: shouldVirtualize ? tasks.length : 0,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => 120,
+        estimateSize: () => (showListDetails ? 120 : 104),
         overscan: 6,
     });
 
@@ -72,6 +74,7 @@ export function ReviewTaskList({
                     <StoreTaskItem
                         key={task.id}
                         taskId={task.id}
+                        compactMetaEnabled={showListDetails}
                         showProjectBadgeInActions={false}
                         selectionMode={selectionMode}
                         isMultiSelected={multiSelectedIds.has(task.id)}
@@ -104,6 +107,7 @@ export function ReviewTaskList({
                             <div className="pb-1.5">
                                 <StoreTaskItem
                                     taskId={task.id}
+                                    compactMetaEnabled={showListDetails}
                                     showProjectBadgeInActions={false}
                                     selectionMode={selectionMode}
                                     isMultiSelected={multiSelectedIds.has(task.id)}

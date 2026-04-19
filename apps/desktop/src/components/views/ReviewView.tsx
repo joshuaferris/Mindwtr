@@ -222,6 +222,7 @@ export function ReviewView() {
 
                 <ReviewTaskList
                     tasks={filteredTasks}
+                    showListDetails={showListDetails}
                     selectionMode={selectionMode}
                     multiSelectedIds={multiSelectedIds}
                     highlightTaskId={highlightTaskId}
