@@ -1,6 +1,8 @@
 import type { AppData, TaskEditorFieldId, TaskEditorSectionId } from '@mindwtr/core';
 import { translateText } from '@mindwtr/core';
 
+import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { reportError } from '../../../lib/report-error';
 import type { Language } from '../../../contexts/language-context';
@@ -98,6 +100,8 @@ export function SettingsGtdPage({
     autoArchiveDays,
 }: SettingsGtdPageProps) {
     const safeSettings = settings ?? ({} as AppData['settings']);
+    const [inboxOpen, setInboxOpen] = useState(false);
+    const [taskEditorOpen, setTaskEditorOpen] = useState(false);
     const autoArchiveOptions = [0, 1, 3, 7, 14, 30, 60];
     const formatArchiveLabel = (days: number) => {
         if (days <= 0) return t.autoArchiveNever;
@@ -493,17 +497,20 @@ export function SettingsGtdPage({
                     </button>
                 </div>
             </div>
-            <details className="bg-card border border-border rounded-lg">
-                <summary className="list-none cursor-pointer p-4">
-                    <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                            <div className="text-sm font-medium">{t.inboxProcessing}</div>
-                            <div className="text-xs text-muted-foreground mt-1">{t.inboxProcessingDesc}</div>
-                        </div>
-                        <span className="text-xs text-muted-foreground">▸</span>
+            <div className="bg-card border border-border rounded-lg">
+                <button
+                    type="button"
+                    onClick={() => setInboxOpen((prev) => !prev)}
+                    aria-expanded={inboxOpen}
+                    className="w-full p-4 flex items-center justify-between gap-4 text-left"
+                >
+                    <div className="min-w-0">
+                        <div className="text-sm font-medium">{t.inboxProcessing}</div>
+                        <div className="text-xs text-muted-foreground mt-1">{t.inboxProcessingDesc}</div>
                     </div>
-                </summary>
-                <div className="divide-y divide-border border-t border-border">
+                    {inboxOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                </button>
+                {inboxOpen && <div className="divide-y divide-border border-t border-border">
                     <div className="p-4 space-y-3">
                         <div className="text-sm font-medium">{t.inboxDefaultMode}</div>
                         <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1">
@@ -645,20 +652,23 @@ export function SettingsGtdPage({
                             />
                         </button>
                     </div>
-                </div>
-            </details>
-            <details className="bg-card border border-border rounded-lg p-4">
-                <summary className="list-none cursor-pointer">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <div className="text-sm font-medium">{t.taskEditorLayout}</div>
-                            <div className="text-xs text-muted-foreground mt-1">{t.taskEditorLayoutDesc}</div>
-                            <div className="text-xs text-muted-foreground">{t.taskEditorLayoutHint}</div>
-                        </div>
-                        <span className="text-xs text-muted-foreground">▼</span>
+                </div>}
+            </div>
+            <div className="bg-card border border-border rounded-lg">
+                <button
+                    type="button"
+                    onClick={() => setTaskEditorOpen((prev) => !prev)}
+                    aria-expanded={taskEditorOpen}
+                    className="w-full p-4 flex items-center justify-between gap-4 text-left"
+                >
+                    <div className="min-w-0">
+                        <div className="text-sm font-medium">{t.taskEditorLayout}</div>
+                        <div className="text-xs text-muted-foreground mt-1">{t.taskEditorLayoutDesc}</div>
+                        <div className="text-xs text-muted-foreground">{t.taskEditorLayoutHint}</div>
                     </div>
-                </summary>
-                <div className="space-y-4 mt-4">
+                    {taskEditorOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                </button>
+                {taskEditorOpen && <div className="p-4 space-y-4">
                     <div className="flex justify-end">
                         <button
                             type="button"
@@ -785,8 +795,8 @@ export function SettingsGtdPage({
                             </div>
                         );
                     })}
-                </div>
-            </details>
+                </div>}
+            </div>
         </div>
     );
 }

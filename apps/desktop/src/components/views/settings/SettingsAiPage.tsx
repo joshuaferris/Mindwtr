@@ -1,6 +1,7 @@
 import type { AIProviderId, AIReasoningEffort, AppData } from '@mindwtr/core';
 
 import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { ConfirmModal } from '../../ConfirmModal';
 
@@ -189,7 +190,7 @@ export function SettingsAiPage({
                             <div className="text-sm font-medium">{t.aiEnable}</div>
                             <div className="text-xs text-muted-foreground mt-1">{t.aiDesc}</div>
                         </div>
-                        <span className="text-xs text-muted-foreground">{aiOpen ? '▾' : '▸'}</span>
+                        {aiOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
                     </button>
                     <button
                         type="button"
@@ -395,7 +396,7 @@ export function SettingsAiPage({
                             <div className="text-sm font-medium">{t.speechTitle}</div>
                             <div className="text-xs text-muted-foreground mt-1">{t.speechDesc}</div>
                         </div>
-                        <span className="text-xs text-muted-foreground">{speechOpen ? '▾' : '▸'}</span>
+                        {speechOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
                     </button>
                     <button
                         type="button"
