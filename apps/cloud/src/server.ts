@@ -279,7 +279,11 @@ export async function startCloudServer(options: CloudServerOptions = {}): Promis
     logInfo(`dataDir: ${dataDir}`);
     const usingLegacyTokenVar = options.allowedAuthTokens === undefined
         && !String(process.env.MINDWTR_CLOUD_AUTH_TOKENS || '').trim()
-        && String(process.env.MINDWTR_CLOUD_TOKEN || '').trim().length > 0;
+        && !String(process.env.MINDWTR_CLOUD_AUTH_TOKENS_FILE || '').trim()
+        && (
+            String(process.env.MINDWTR_CLOUD_TOKEN || '').trim().length > 0
+            || String(process.env.MINDWTR_CLOUD_TOKEN_FILE || '').trim().length > 0
+        );
     if (usingLegacyTokenVar) {
         logWarn('MINDWTR_CLOUD_TOKEN is deprecated; use MINDWTR_CLOUD_AUTH_TOKENS instead');
     }
