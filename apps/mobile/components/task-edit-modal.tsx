@@ -748,6 +748,7 @@ function TaskEditModalInner({
                                     onProjectPress={onProjectNavigate ? handlePreviewProjectPress : undefined}
                                     onContextPress={onContextNavigate ? handlePreviewContextPress : undefined}
                                     onTagPress={onTagNavigate ? handlePreviewTagPress : undefined}
+                                    onStatusUpdate={(status) => setEditedTask((prev) => ({ ...prev, status }))}
                                 />
                             </View>
                         </Animated.ScrollView>

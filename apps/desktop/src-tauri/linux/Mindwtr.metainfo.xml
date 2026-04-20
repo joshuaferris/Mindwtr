@@ -26,16 +26,36 @@
   </description>
   <screenshots>
     <screenshot type="default" xml:lang="en">
-      <caption>Review tasks across your lists</caption>
-      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/review_light.png</image>
+      <caption>Capture and triage tasks in Inbox</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/flathub/inbox_light.png</image>
     </screenshot>
     <screenshot xml:lang="en">
-      <caption>Capture tasks quickly in Inbox</caption>
-      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/inbox_light.png</image>
+      <caption>Focus on your next actions for today</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/flathub/focus_light.png</image>
     </screenshot>
     <screenshot xml:lang="en">
-      <caption>Learn the workflow with the built-in guide</caption>
-      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/tutorial_light.png</image>
+      <caption>Organize work in the projects workspace</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/flathub/projects_workspace_light.png</image>
+    </screenshot>
+    <screenshot xml:lang="en">
+      <caption>Plan visually with board view</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/flathub/board_view_light.png</image>
+    </screenshot>
+    <screenshot xml:lang="en">
+      <caption>Adjust appearance and workflow settings</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/flathub/settings_light.png</image>
+    </screenshot>
+    <screenshot xml:lang="en">
+      <caption>Keep supporting material in Reference</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/flathub/reference_light.png</image>
+    </screenshot>
+    <screenshot xml:lang="en">
+      <caption>Review due dates in calendar view</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/flathub/calendar_light.png</image>
+    </screenshot>
+    <screenshot xml:lang="en">
+      <caption>Group and filter work by context</caption>
+      <image>https://raw.githubusercontent.com/dongdongbh/Mindwtr/main/apps/desktop/screenshots/flathub/contexts_light.png</image>
     </screenshot>
   </screenshots>
   <branding>
@@ -51,6 +71,29 @@
   <url type="bugtracker">https://github.com/dongdongbh/Mindwtr/issues</url>
   <url type="vcs-browser">https://github.com/dongdongbh/Mindwtr</url>
   <releases>
+    <release version="0.8.5" date="2026-04-19">
+      <url type="details">https://github.com/dongdongbh/Mindwtr/releases/tag/v0.8.5</url>
+      <description translate="no">
+        <p>Mindwtr 0.8.5 sharpens desktop review and project planning while tightening attachment and sync behavior for Linux desktop users.</p>
+        <ul>
+          <li>Added review sort and detail controls plus a resizable projects sidebar with steadier width syncing.</li>
+          <li>Let the projects workspace use more width and improved task editing with inline image previews and undo support.</li>
+          <li>Improved desktop attachment-path handling and re-enabled CloudKit autosync on desktop builds.</li>
+          <li>Preferred the web audio backend on Flatpak and updated Flathub-facing release plumbing.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.8.4" date="2026-04-16">
+      <url type="details">https://github.com/dongdongbh/Mindwtr/releases/tag/v0.8.4</url>
+      <description translate="no">
+        <p>Mindwtr 0.8.4 is a maintenance release focused on sync documentation and regression coverage for desktop builds.</p>
+        <ul>
+          <li>Documented the SQLite-to-JSON bridge so the local-store and sync-snapshot contract is easier to reason about.</li>
+          <li>Clarified the current sync behavior and roadmap wording in the main docs.</li>
+          <li>Added regression coverage to ensure device-local sync history does not trigger unnecessary remote writes.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.3" date="2026-04-14">
       <url type="details">https://github.com/dongdongbh/Mindwtr/releases/tag/v0.8.3</url>
       <description translate="no">

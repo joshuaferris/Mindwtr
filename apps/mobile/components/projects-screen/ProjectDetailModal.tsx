@@ -538,6 +538,7 @@ export function ProjectDetailModal({
                                     statusFilter="all"
                                     title={selectedProject.title}
                                     showHeader={false}
+                                    showTimeEstimateFilters={false}
                                     projectId={selectedProject.id}
                                     allowAdd
                                     staticList

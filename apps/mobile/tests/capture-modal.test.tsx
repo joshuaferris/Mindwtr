@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, ScrollView, TouchableOpacity } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -39,6 +39,7 @@ vi.mock('@/contexts/language-context', () => ({
         'nav.addTask': 'Add Task',
         'quickAdd.example': 'Quick add',
         'common.cancel': 'Cancel',
+        'common.done': 'Done',
         'common.save': 'Save',
         'common.notice': 'Notice',
         'quickAdd.invalidDateCommand': 'Invalid date command',
@@ -118,5 +119,42 @@ describe('CaptureScreen', () => {
 
     expect(routerMocks.back).toHaveBeenCalledTimes(1);
     expect(routerMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it('adds keyboard-aware layout and exposes a dismiss action while the keyboard is visible', () => {
+    const listeners = new Map<string, ((event?: unknown) => void) | undefined>();
+    vi.spyOn(Keyboard, 'addListener').mockImplementation(((eventName: string, listener: (event?: unknown) => void) => {
+      listeners.set(eventName, listener);
+      return {
+        remove: () => {
+          listeners.delete(eventName);
+        },
+      };
+    }) as any);
+    const dismissSpy = vi.spyOn(Keyboard, 'dismiss');
+
+    let tree!: ReturnType<typeof create>;
+
+    act(() => {
+      tree = create(<CaptureScreen />);
+    });
+
+    expect(tree.root.findByType(KeyboardAvoidingView)).toBeTruthy();
+    expect(tree.root.findByType(ScrollView).props.keyboardShouldPersistTaps).toBe('handled');
+    expect(tree.root.findByType(ScrollView).props.keyboardDismissMode).toBe('on-drag');
+
+    act(() => {
+      listeners.get('keyboardDidShow')?.();
+    });
+
+    const doneButton = tree.root.find(
+      (node) => node.type === TouchableOpacity && node.props.accessibilityLabel === 'Done'
+    );
+
+    act(() => {
+      doneButton.props.onPress();
+    });
+
+    expect(dismissSpy).toHaveBeenCalledTimes(1);
   });
 });

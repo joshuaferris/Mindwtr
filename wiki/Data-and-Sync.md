@@ -229,6 +229,8 @@ Delete-vs-live conflicts use the **last operation time**, not just the raw `upda
 
 Clock-skewed future timestamps are clamped during merge safety checks so a bad device clock does not dominate forever. If both sides are clamped into the future, Mindwtr still preserves their relative ordering instead of treating them as a false tie.
 
+Detailed merge tie-breaks, retry behavior, and conflict examples live in [[Sync Algorithm]]. This page keeps the storage and operational overview only.
+
 ### Conflict Visibility & Clock Skew
 
 After each sync, Mindwtr stores sync stats in settings:
@@ -308,12 +310,16 @@ You can also tap **Sync** manually anytime in Settings.
 
 ## SQLite + JSON Sync Bridge
 
-Mindwtr uses SQLite as the primary local store. When sync is enabled, it keeps a JSON file in sync:
+Mindwtr uses SQLite as the primary local store. `data.json` is the sync and backup snapshot, not a second equal source of truth.
 
-- **Outgoing**: SQLite changes are exported to `data.json` (debounced).
-- **Incoming**: External changes to `data.json` are imported back into SQLite.
+- **Cold start / normal reads**: the app reads local SQLite-backed storage.
+- **Outgoing sync**: pending local saves are flushed first, then the current snapshot is exported to `data.json` / remote storage.
+- **Incoming sync**: external JSON is validated, normalized, merged with local data, and persisted back into SQLite-backed storage.
+- **Device-local sync diagnostics**: fields such as `lastSyncStats`, `lastSyncHistory`, and pending remote write recovery metadata stay local and are stripped from remote payloads.
 
-This preserves Dropbox/Syncthing/WebDAV workflows while improving speed and data safety.
+Desktop and mobile do **not** freeze editing during sync. Instead, if local data changes while a sync write is in progress, the app aborts that cycle and queues a fresh one so the newer local snapshot is not overwritten.
+
+See [ADR 0009](../docs/adr/0009-sqlite-json-sync-bridge.md) for the full contract.
 
 ---
 

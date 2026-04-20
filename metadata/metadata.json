@@ -30,7 +30,7 @@
           "完全离线可用，无需互联网连接",
           "完全开源，安全透明"
         ],
-        "ReleaseNotes": "• 桌面端 Markdown 备注现已支持扩展编辑器、工具栏操作、自动续写列表，以及任务/项目内部链接。\n• 新增区域筛选快捷键、任务日期清除按钮、按情境批量设置能量值，以及新的能量等级筛选。\n• 侧边栏分组可保持折叠，原生日期输入已本地化，区域折叠状态也能更稳定地保留。\n• 同步恢复更安全：会保留可恢复的 createdAt，在重试恢复前先刷新待写入数据，并增强 MCP SQLite 启动恢复。",
+        "ReleaseNotes": "• 新增桌面端回顾排序与详情控制，并让项目侧栏缩放与宽度同步更稳定。\n• 桌面端现可内联预览图片附件，并在任务编辑中支持撤销操作。\n• 改进桌面端附件路径与 CloudKit 自动同步行为，减少同步与附件相关的粗糙边缘。\n• 同步刷新截图、演示链接与发布元数据，保持桌面发布说明与当前体验一致。",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
@@ -82,7 +82,7 @@
           "No internet connection required to function",
           "Open source and transparent"
         ],
-        "ReleaseNotes": "• Expanded Markdown notes on desktop with fullscreen editors, toolbar actions, automatic list continuation, and task/project links.\n• Added area filter keyboard chords, task date clear buttons, contexts bulk energy assignment, and a new energy-level focus filter.\n• Sidebar sections can stay collapsed, native date inputs are localized, and area collapse state persists more reliably.\n• Sync recovery is safer with recoverable createdAt preservation, pending-write flushes before retry recovery, and sturdier MCP SQLite bootstrap handling.",
+        "ReleaseNotes": "• Added desktop review sorting/details controls and made project sidebar resizing behave more smoothly.\n• Added inline image previews for desktop attachments and undo support in task editors.\n• Improved desktop attachment-path handling and CloudKit autosync reliability.\n• Refreshed screenshots, demo links, and store/release metadata to match the current desktop experience.",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
@@ -130,7 +130,7 @@
           "No requiere conexión a internet para funcionar",
           "Código abierto y transparente"
         ],
-        "ReleaseNotes": "• Las notas Markdown de escritorio ahora tienen editores ampliados, acciones de barra, continuacion automatica de listas y enlaces a tareas/proyectos.\n• Agregamos atajos de teclado para filtrar areas, botones para limpiar fechas, asignacion masiva de energia por contexto y un nuevo filtro por nivel de energia.\n• Las secciones laterales pueden quedar plegadas, los campos nativos de fecha estan localizados y el estado de plegado de areas se conserva mejor.\n• La recuperacion de sync es mas segura al preservar createdAt recuperables, vaciar escrituras pendientes antes de reintentar y reforzar el arranque SQLite del MCP.",
+        "ReleaseNotes": "• Agregamos orden y control de detalles en la revision de escritorio, con un panel de proyectos que cambia de tamano con mas estabilidad.\n• El escritorio ahora puede previsualizar imagenes adjuntas en linea y admite deshacer dentro del editor de tareas.\n• Mejoramos el manejo de rutas de adjuntos y la fiabilidad del autosync con CloudKit en escritorio.\n• Tambien actualizamos capturas, enlaces de demo y metadatos de publicacion para reflejar mejor la experiencia actual.",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",

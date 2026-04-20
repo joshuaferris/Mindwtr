@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { type Area, type Project, type Task } from '@mindwtr/core';
+import * as Haptics from 'expo-haptics';
 import { Trash2, Star, AlertTriangle } from 'lucide-react-native';
 
 import { projectsScreenStyles as styles } from '@/components/projects-screen/projects-screen.styles';
@@ -26,6 +27,8 @@ type ProjectRowProps = {
     onOpenProject: (project: Project) => void;
     onToggleProjectFocus: (projectId: string) => void;
 };
+
+const ROW_ACTION_HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 } as const;
 
 function getStatusLabel(status: Project['status'], t: (key: string) => string) {
     if (status === 'active') return t('status.active');
@@ -65,13 +68,17 @@ export function ProjectRow({
             ]}
         >
             <TouchableOpacity
-                onPress={() => onToggleProjectFocus(project.id)}
+                testID={`project-row-focus-${project.id}`}
+                onPress={() => {
+                    void Haptics.selectionAsync().catch(() => {});
+                    onToggleProjectFocus(project.id);
+                }}
                 style={styles.focusButton}
                 disabled={!project.isFocused && focusedCount >= 5}
                 accessibilityRole="button"
                 accessibilityLabel={project.isFocused ? 'Unfocus project' : 'Focus project'}
                 accessibilityState={{ selected: project.isFocused, disabled: !project.isFocused && focusedCount >= 5 }}
-                hitSlop={8}
+                hitSlop={ROW_ACTION_HIT_SLOP}
             >
                 <Star
                     size={22}
@@ -122,7 +129,9 @@ export function ProjectRow({
                 </View>
             </TouchableOpacity>
             <TouchableOpacity
+                testID={`project-row-delete-${project.id}`}
                 onPress={() => {
+                    void Haptics.selectionAsync().catch(() => {});
                     Alert.alert(
                         t('projects.title'),
                         t('projects.deleteConfirm'),
@@ -131,13 +140,16 @@ export function ProjectRow({
                             {
                                 text: t('common.delete'),
                                 style: 'destructive',
-                                onPress: () => onDeleteProject(project.id),
+                                onPress: () => {
+                                    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                                    onDeleteProject(project.id);
+                                },
                             },
                         ],
                     );
                 }}
                 style={styles.deleteButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={ROW_ACTION_HIT_SLOP}
             >
                 <Trash2 size={18} color={tc.secondaryText} />
             </TouchableOpacity>

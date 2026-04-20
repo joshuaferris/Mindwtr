@@ -1,4 +1,3 @@
-- Added DGT GTD import plus task and project links inside Markdown notes.
-- Markdown editing is better with expanded editors, toolbar actions, and automatic list continuation.
-- Review notifications reopen the right flow again, reminder snooze actions are back, and AI clarify now shows loading feedback.
-- Today waits for local data before loading, and search/localization polish keeps mobile planning steadier.
+- Mobile project groups now match desktop, and the Manage section keeps its expanded state more reliably.
+- Mobile editing is smoother with fenced Markdown code blocks, quicker task field toggles, and better share-capture keyboard dismissal.
+- Calendar and sync flows are steadier with stronger due-date calendar push behavior, safer WebDAV handling, and better review/reminder coordination.

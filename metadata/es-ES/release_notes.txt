@@ -1,4 +1,3 @@
-- Agregamos importacion DGT GTD y enlaces a tareas y proyectos dentro de notas Markdown.
-- La edicion Markdown mejora con editores ampliados, acciones en la barra y continuacion automatica de listas.
-- Las notificaciones de revision vuelven al flujo correcto, regresa posponer recordatorios y AI clarify ahora muestra carga.
-- Hoy espera los datos locales antes de cargar, y los ajustes de busqueda/localizacion hacen mas estable la planificacion movil.
+- Los grupos de proyectos en movil ahora coinciden con escritorio y la seccion Manage conserva mejor su estado expandido.
+- Editar en movil es mas fluido con bloques Markdown con codigo, cambios rapidos de campos y mejor cierre del teclado al capturar contenido compartido.
+- Calendario y sync son mas estables con mejor comportamiento para tareas con fecha, WebDAV local mas seguro y mejor coordinacion entre revision y recordatorios.

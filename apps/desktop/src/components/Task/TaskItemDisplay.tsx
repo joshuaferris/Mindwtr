@@ -9,6 +9,8 @@ import { AttachmentProgressIndicator } from '../AttachmentProgressIndicator';
 import { RichMarkdown } from '../RichMarkdown';
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
+import { isImageAttachment } from './task-item-attachment-utils';
+import { AttachmentImage } from './AttachmentImage';
 
 interface TaskItemDisplayActions {
     onToggleSelect?: () => void;
@@ -149,6 +151,12 @@ export function TaskItemDisplay({
         const label = t('task.moveToWaitingWithDue');
         return label === 'task.moveToWaitingWithDue' ? 'Move to Waiting and set due date' : label;
     })();
+    const imageAttachments = visibleAttachments.filter((attachment) => {
+        if (!isImageAttachment(attachment)) return false;
+        if (!attachment.uri) return false;
+        return attachment.localStatus !== 'missing';
+    });
+    const otherAttachments = visibleAttachments.filter((attachment) => !imageAttachments.includes(attachment));
     const clickTimerRef = useRef<number | null>(null);
     const clearClickTimer = () => {
         if (clickTimerRef.current !== null) {
@@ -478,10 +486,48 @@ export function TaskItemDisplay({
                                 </div>
                             )}
                             {visibleAttachments.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground">
+                                <div className="mt-2 space-y-2 text-xs text-muted-foreground">
                                     <Paperclip className="w-3 h-3" aria-hidden="true" />
                                     <span className="sr-only">{t('attachments.title') || 'Attachments'}</span>
-                                    {visibleAttachments.map((attachment) => {
+                                    {imageAttachments.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                                            {imageAttachments.map((attachment) => {
+                                                const displayTitle = getAttachmentDisplayTitle(attachment);
+                                                const fullTitle = attachment.kind === 'link' ? attachment.uri : attachment.title;
+                                                const isDownloading = attachment.localStatus === 'downloading';
+                                                return (
+                                                    <button
+                                                        key={attachment.id}
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            openAttachment(attachment);
+                                                        }}
+                                                        className="group rounded-lg border border-border bg-card overflow-hidden text-left hover:border-primary/40 hover:bg-muted/20 transition-colors"
+                                                        title={fullTitle || displayTitle}
+                                                        aria-label={`${t('attachments.open') || 'Open'}: ${displayTitle}`}
+                                                    >
+                                                        <AttachmentImage
+                                                            attachment={attachment}
+                                                            alt={displayTitle}
+                                                            className="block h-28 w-full object-cover bg-muted/30"
+                                                        />
+                                                        <div className="flex items-start justify-between gap-2 px-2 py-1.5">
+                                                            <div className="min-w-0">
+                                                                <div className="truncate text-foreground">{displayTitle}</div>
+                                                                {isDownloading ? (
+                                                                    <div className="text-[11px] text-muted-foreground">{t('common.loading')}</div>
+                                                                ) : null}
+                                                            </div>
+                                                            <AttachmentProgressIndicator attachmentId={attachment.id} />
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : null}
+                                    {otherAttachments.map((attachment) => {
                                         const displayTitle = getAttachmentDisplayTitle(attachment);
                                         const fullTitle = attachment.kind === 'link' ? attachment.uri : attachment.title;
                                         return (

@@ -1,11 +1,10 @@
-import React, { useCallback, useLayoutEffect, useRef } from 'react';
-import type { Project, Task } from '@mindwtr/core';
-import { TaskItem } from '../../TaskItem';
+import React, { useLayoutEffect, useRef } from 'react';
+import { useTaskById } from '@mindwtr/core';
 import { cn } from '../../../lib/utils';
+import { StoreTaskItem } from './StoreTaskItem';
 
 type VirtualTaskRowProps = {
-    task: Task;
-    project?: Project;
+    taskId: string;
     index: number;
     top: number;
     isSelected?: boolean;
@@ -24,8 +23,7 @@ type VirtualTaskRowProps = {
 };
 
 export const VirtualTaskRow = React.memo(function VirtualTaskRow({
-    task,
-    project,
+    taskId,
     index,
     top,
     isSelected,
@@ -42,32 +40,34 @@ export const VirtualTaskRow = React.memo(function VirtualTaskRow({
     gapClassName,
     showDivider = true,
 }: VirtualTaskRowProps) {
+    const task = useTaskById(taskId);
     const rowRef = useRef<HTMLDivElement | null>(null);
-    const handleSelect = useCallback(() => onSelectIndex?.(index), [index, onSelectIndex]);
-    const handleToggleSelect = useCallback(() => onToggleSelectId(task.id), [onToggleSelectId, task.id]);
 
     useLayoutEffect(() => {
         const node = rowRef.current;
-        if (!node) return undefined;
+        if (!node || !task) return undefined;
+        // `useTaskById` preserves task object identity for unchanged rows, so `[task]`
+        // re-measures only when this row's task actually changes.
         const measure = () => {
             const nextHeight = Math.ceil(node.getBoundingClientRect().height);
             onMeasure(task.id, nextHeight);
         };
         measure();
-    }, [task.id, task.updatedAt, onMeasure]);
+    }, [task, onMeasure]);
+
+    if (!task) return null;
 
     return (
         <div ref={rowRef} style={{ position: 'absolute', top, left: 0, right: 0 }}>
             <div className={cn(gapClassName ?? (dense ? "pb-1" : "pb-1.5"))}>
-                <TaskItem
-                    key={task.id}
-                    task={task}
-                    project={project}
+                <StoreTaskItem
+                    taskId={taskId}
                     isSelected={isSelected}
-                    onSelect={onSelectIndex ? handleSelect : undefined}
+                    index={index}
+                    onSelectIndex={onSelectIndex}
                     selectionMode={selectionMode}
                     isMultiSelected={isMultiSelected}
-                    onToggleSelect={handleToggleSelect}
+                    onToggleSelectId={onToggleSelectId}
                     showQuickDone={showQuickDone}
                     readOnly={readOnly}
                     compactMetaEnabled={compactMetaEnabled}

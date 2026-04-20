@@ -55,6 +55,7 @@ export const styles = StyleSheet.create({
     },
     taskEditorSectionCountText: { fontSize: 12, fontWeight: '700' },
     taskEditorCompactRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
+    taskEditorCompactRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
     taskEditorCompactRowBorder: { borderTopWidth: 1 },
     taskEditorVisibilityBadge: {
         width: 34,

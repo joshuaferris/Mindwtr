@@ -54,6 +54,22 @@ sudo dnf install mindwtr
 
 Manual install: download the `.rpm` from [GitHub Releases](https://github.com/dongdongbh/Mindwtr/releases) and run `sudo rpm -i mindwtr-*.rpm`.
 
+### Flatpak (Flathub)
+
+Install from Flathub:
+
+```bash
+flatpak install flathub tech.dongdongbh.mindwtr
+```
+
+Run it with:
+
+```bash
+flatpak run tech.dongdongbh.mindwtr
+```
+
+📦 [Flathub Listing](https://flathub.org/apps/tech.dongdongbh.mindwtr)
+
 ### AppImage (Universal)
 
 Works on most Linux distributions:
@@ -152,6 +168,8 @@ After installation, your data is stored at:
 | **Windows** | `%APPDATA%/mindwtr/mindwtr.db`                 | `%APPDATA%/mindwtr/data.json`                |
 | **macOS**   | `~/Library/Application Support/mindwtr/mindwtr.db` | `~/Library/Application Support/mindwtr/data.json` |
 
+Flatpak installs use sandboxed XDG paths under `~/.var/app/tech.dongdongbh.mindwtr/`. You can always check the exact active paths in **Settings → Sync → Local Data**.
+
 Config is stored separately:
 
 | Platform    | Location                                       |
@@ -181,6 +199,9 @@ yay -R mindwtr-bin
 
 # Debian/Ubuntu
 sudo dpkg -r mindwtr
+
+# Flatpak
+flatpak uninstall tech.dongdongbh.mindwtr
 ```
 
 ### Windows

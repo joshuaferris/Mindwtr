@@ -57,6 +57,7 @@ export interface TaskListProps {
   statusFilter: TaskStatus | 'all';
   title: string;
   showHeader?: boolean;
+  showTimeEstimateFilters?: boolean;
   allowAdd?: boolean;
   projectId?: string;
   staticList?: boolean;
@@ -76,6 +77,7 @@ function TaskListComponent({
   statusFilter,
   title,
   showHeader = true,
+  showTimeEstimateFilters: showTimeEstimateFiltersProp = true,
   allowAdd = true,
   projectId,
   staticList = false,
@@ -238,7 +240,7 @@ function TaskListComponent({
   const aiProvider = (settings?.ai?.provider ?? 'openai') as AIProviderId;
   const keyRequired = isAIKeyRequired(settings);
   const timeEstimatesEnabled = settings?.features?.timeEstimates !== false;
-  const showTimeEstimateFilters = timeEstimatesEnabled && statusFilter !== 'inbox';
+  const showTimeEstimateFilters = showTimeEstimateFiltersProp && timeEstimatesEnabled && statusFilter !== 'inbox';
   const projectById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
   const hasActiveTimeEstimateFilters = showTimeEstimateFilters && selectedTimeEstimates.length > 0;
   const { areaById, resolvedAreaFilter, selectedAreaIdForNewTasks } = useMobileAreaFilter();

@@ -2,19 +2,19 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'reac
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { shallow, useTaskStore, TaskPriority, TimeEstimate, getUsedTaskTokens, matchesHierarchicalToken, safeParseDate, safeParseDueDate, isDueForReview, isTaskInActiveProject } from '@mindwtr/core';
-import type { Task, Project, TaskEnergyLevel } from '@mindwtr/core';
+import type { Task, TaskEnergyLevel } from '@mindwtr/core';
 import { useLanguage } from '../../contexts/language-context';
 import { cn } from '../../lib/utils';
 import { useUiStore } from '../../store/ui-store';
 import { Clock, Star, ArrowRight, Folder, CheckCircle2 } from 'lucide-react';
 import { usePerformanceMonitor } from '../../hooks/usePerformanceMonitor';
 import { checkBudget } from '../../config/performanceBudgets';
-import { TaskItem } from '../TaskItem';
 import { projectMatchesAreaFilter, resolveAreaFilter, taskMatchesAreaFilter } from '../../lib/area-filter';
 import { PomodoroPanel } from './PomodoroPanel';
 import { AgendaFiltersPanel, type AgendaActiveFilterChip, type AgendaProjectFilterOption } from './agenda/AgendaFiltersPanel';
 import { AgendaHeader } from './agenda/AgendaHeader';
 import { AgendaCollapsibleSection, AgendaProjectSection } from './agenda/AgendaSections';
+import { StoreTaskItem } from './list/StoreTaskItem';
 import { groupTasksByArea, groupTasksByContext, groupTasksByProject, type TaskGroup } from './list/next-grouping';
 
 const AGENDA_VIRTUALIZATION_THRESHOLD = 25;
@@ -37,13 +37,11 @@ function getAgendaScrollMargin(containerElement: HTMLDivElement, scrollElement: 
 
 function AgendaTaskList({
     tasks,
-    projectMap,
     buildFocusToggle,
     showListDetails,
     highlightTaskId,
 }: {
     tasks: Task[];
-    projectMap: Map<string, Project>;
     buildFocusToggle: (task: Task) => {
         isFocused: boolean;
         canToggle: boolean;
@@ -100,11 +98,10 @@ function AgendaTaskList({
         return (
             <div className="divide-y divide-border/30">
                 {tasks.map((task) => (
-                    <TaskItem
+                    <StoreTaskItem
                         key={task.id}
-                        task={task}
-                        project={task.projectId ? projectMap.get(task.projectId) : undefined}
-                        focusToggle={buildFocusToggle(task)}
+                        taskId={task.id}
+                        buildFocusToggle={buildFocusToggle}
                         showProjectBadgeInActions={false}
                         compactMetaEnabled={showListDetails}
                         enableDoubleClickEdit
@@ -139,10 +136,9 @@ function AgendaTaskList({
                             transform: `translateY(${virtualRow.start - scrollMargin}px)`,
                         }}
                     >
-                        <TaskItem
-                            task={task}
-                            project={task.projectId ? projectMap.get(task.projectId) : undefined}
-                            focusToggle={buildFocusToggle(task)}
+                        <StoreTaskItem
+                            taskId={task.id}
+                            buildFocusToggle={buildFocusToggle}
                             showProjectBadgeInActions={false}
                             compactMetaEnabled={showListDetails}
                             enableDoubleClickEdit
@@ -756,13 +752,12 @@ export function AgendaView() {
                 <div className="space-y-4">
                     <div className="space-y-2">
                         <h3 className="font-semibold">{t('agenda.top3Title')}</h3>
-                        {top3Tasks.length > 0 ? (
+                                {top3Tasks.length > 0 ? (
                             <div className="divide-y divide-border/30">
                                 {top3Tasks.map(task => (
-                                    <TaskItem
+                                    <StoreTaskItem
                                         key={task.id}
-                                        task={task}
-                                        project={task.projectId ? projectMap.get(task.projectId) : undefined}
+                                        taskId={task.id}
                                         showProjectBadgeInActions={false}
                                         compactMetaEnabled={showListDetails}
                                         enableDoubleClickEdit
@@ -797,11 +792,10 @@ export function AgendaView() {
 
                             <div className="divide-y divide-border/30">
                                 {focusedTasks.map(task => (
-                                    <TaskItem
+                                    <StoreTaskItem
                                         key={task.id}
-                                        task={task}
-                                        project={task.projectId ? projectMap.get(task.projectId) : undefined}
-                                        focusToggle={buildFocusToggle(task)}
+                                        taskId={task.id}
+                                        buildFocusToggle={buildFocusToggle}
                                         showProjectBadgeInActions={false}
                                         compactMetaEnabled={showListDetails}
                                         enableDoubleClickEdit
@@ -825,7 +819,6 @@ export function AgendaView() {
                             >
                                 <AgendaTaskList
                                     tasks={sections.schedule}
-                                    projectMap={projectMap}
                                     buildFocusToggle={buildFocusToggle}
                                     showListDetails={showListDetails}
                                     highlightTaskId={highlightTaskId}
@@ -846,7 +839,6 @@ export function AgendaView() {
                                 >
                                     <AgendaTaskList
                                         tasks={sections.nextActions}
-                                        projectMap={projectMap}
                                         buildFocusToggle={buildFocusToggle}
                                         showListDetails={showListDetails}
                                         highlightTaskId={highlightTaskId}
@@ -881,7 +873,6 @@ export function AgendaView() {
                                                 </div>
                                                 <AgendaTaskList
                                                     tasks={group.tasks}
-                                                    projectMap={projectMap}
                                                     buildFocusToggle={buildFocusToggle}
                                                     showListDetails={showListDetails}
                                                     highlightTaskId={highlightTaskId}
@@ -905,7 +896,6 @@ export function AgendaView() {
                             >
                                 <AgendaTaskList
                                     tasks={sections.reviewDue}
-                                    projectMap={projectMap}
                                     buildFocusToggle={buildFocusToggle}
                                     showListDetails={showListDetails}
                                     highlightTaskId={highlightTaskId}

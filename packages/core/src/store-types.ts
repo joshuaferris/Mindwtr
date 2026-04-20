@@ -34,6 +34,10 @@ export interface TaskStore {
     _allProjects: Project[];
     _allSections: Section[];
     _allAreas: Area[];
+    _tasksById: Map<string, Task>;
+    _projectsById: Map<string, Project>;
+    _sectionsById: Map<string, Section>;
+    _areasById: Map<string, Area>;
 
     // Actions
     /** Load all data from storage */
@@ -144,8 +148,9 @@ export type DerivedState = {
 };
 
 export type DerivedCache = {
-    tasksRef: Task[];
-    projectsRef: Project[];
+    visibleTasksRef: Task[];
+    taskLookupRef: Map<string, Task>;
+    projectLookupRef: Map<string, Project>;
     value: DerivedState;
 };
 

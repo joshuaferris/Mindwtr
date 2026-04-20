@@ -263,6 +263,37 @@ describe('desktop sync-service runtime', () => {
         });
     });
 
+    it('splits file backend cloud keys into native path segments for Windows sync folders', async () => {
+        const syncServiceModule = await syncServiceModulePromise;
+
+        invokeMock.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
+            if (command === 'get_sync_backend') return 'file';
+            if (command === 'get_sync_path') return 'C:\\Users\\Pjuter\\Documents\\Mindwtr_sync\\data.json';
+            if (command === 'create_data_snapshot') return undefined;
+            if (command === 'get_data') return structuredClone(localData);
+            if (command === 'save_data') return undefined;
+            throw new Error(`Unexpected command: ${command} ${JSON.stringify(args)}`);
+        });
+        pathMocks.join.mockImplementation(async (...parts: string[]) => {
+            if (parts.slice(1).some((part) => part.includes('/'))) {
+                throw new Error(`Invalid Windows path segment: ${parts.join(' | ')}`);
+            }
+            return `\\\\?\\${parts.join('\\')}`;
+        });
+
+        const result = await syncServiceModule.SyncService.performSync();
+
+        expect(result).toEqual({ success: true, skipped: 'requeued' });
+        expect(fsMocks.writeFile).toHaveBeenCalledWith(
+            expect.stringMatching(/^\\\\\?\\C:\\Users\\Pjuter\\Documents\\Mindwtr_sync\\attachments\\att-1\.txt\.tmp-/),
+            expect.any(Uint8Array),
+        );
+        expect(fsMocks.rename).toHaveBeenCalledWith(
+            expect.stringMatching(/^\\\\\?\\C:\\Users\\Pjuter\\Documents\\Mindwtr_sync\\attachments\\att-1\.txt\.tmp-/),
+            '\\\\?\\C:\\Users\\Pjuter\\Documents\\Mindwtr_sync\\attachments\\att-1.txt',
+        );
+    });
+
     it('cleans up the offline listener even when sync error logging fails', async () => {
         const syncServiceModule = await syncServiceModulePromise;
         const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
@@ -338,6 +369,83 @@ describe('desktop sync-service runtime', () => {
         expect(ensureCloudKitReadyMock).toHaveBeenCalledTimes(1);
         expect(readRemoteCloudKitMock).toHaveBeenCalledTimes(1);
         expect(invokeMock).not.toHaveBeenCalledWith('get_sync_backend', undefined);
+    });
+
+    it('skips file-sync writes when remote data only differs by device-local sync history', async () => {
+        const syncServiceModule = await syncServiceModulePromise;
+        const localSyncedData: AppData = {
+            tasks: [],
+            projects: [],
+            sections: [],
+            areas: [],
+            settings: {
+                syncPreferences: { appearance: true },
+                syncPreferencesUpdatedAt: {
+                    appearance: '2026-04-16T00:00:00.000Z',
+                    preferences: '2026-04-16T00:00:00.000Z',
+                },
+                theme: 'dark',
+                lastSyncHistory: [
+                    {
+                        at: '2026-04-16T00:00:00.000Z',
+                        status: 'success',
+                        conflicts: 0,
+                        conflictIds: [],
+                        maxClockSkewMs: 0,
+                        timestampAdjustments: 0,
+                    },
+                ],
+            },
+        };
+        const remoteSyncedData: AppData = {
+            ...localSyncedData,
+            settings: {
+                syncPreferences: { appearance: true },
+                syncPreferencesUpdatedAt: {
+                    appearance: '2026-04-16T00:00:00.000Z',
+                    preferences: '2026-04-16T00:00:00.000Z',
+                },
+                theme: 'dark',
+            },
+        };
+
+        storeStateRef.current = {
+            ...storeStateRef.current,
+            _allTasks: [],
+            _allProjects: [],
+            _allSections: [],
+            _allAreas: [],
+            settings: structuredClone(localSyncedData.settings),
+        };
+
+        invokeMock.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
+            if (command === 'get_sync_backend') return 'file';
+            if (command === 'get_sync_path') return '/sync/data.json';
+            if (command === 'create_data_snapshot') return undefined;
+            if (command === 'get_data') return structuredClone(localSyncedData);
+            if (command === 'read_sync_file') return structuredClone(remoteSyncedData);
+            if (command === 'save_data') return undefined;
+            if (command === 'write_sync_file') return undefined;
+            throw new Error(`Unexpected command: ${command} ${JSON.stringify(args)}`);
+        });
+        performSyncCycleMock.mockImplementation(async (io: {
+            readLocal: () => Promise<AppData>;
+            readRemote: () => Promise<AppData | null>;
+            writeLocal: (data: AppData) => Promise<void>;
+            writeRemote: (data: AppData) => Promise<void>;
+        }) => {
+            const local = await io.readLocal();
+            const remote = await io.readRemote();
+            expect(remote).toEqual(remoteSyncedData);
+            await io.writeRemote(local);
+            await io.writeLocal(local);
+            return { status: 'success', stats: emptyStats, data: local };
+        });
+
+        const result = await syncServiceModule.SyncService.performSync();
+
+        expect(result).toEqual({ success: true, stats: emptyStats });
+        expect(invokeMock.mock.calls.some(([command]) => command === 'write_sync_file')).toBe(false);
     });
 
     it('skips CloudKit writes when the sanitized remote payload is unchanged', async () => {

@@ -788,7 +788,7 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
             set({ error: message });
             return actionFail(message);
         }
-        const existingTaskIds = new Set(state._allTasks.map((task) => task.id));
+        const existingTaskIds = new Set(state._tasksById.keys());
         const missingIds = updatesList
             .map((update) => update.id)
             .filter((id, index, ids) => !existingTaskIds.has(id) && ids.indexOf(id) === index);
@@ -797,10 +797,9 @@ export const createTaskActions = ({ set, get, getStorage, debouncedSave }: TaskA
             set({ error: message });
             return actionFail(message);
         }
-        const tasksById = new Map(state._allTasks.map((task) => [task.id, task] as const));
         const preparedUpdatesById = new Map<string, Partial<Task>>();
         for (const { id, updates } of updatesList) {
-            const task = tasksById.get(id);
+            const task = state._tasksById.get(id);
             if (!task) continue;
             const preparedUpdates = prepareTaskUpdatesForStore({
                 task,

@@ -215,6 +215,8 @@ Available options follow platform conventions:
 - Windows/Linux: `Ctrl+Alt+M` (default), `Ctrl+Alt+N`, `Ctrl+Alt+Q`, or legacy `Ctrl+Shift+A`
 - Disabled (no system-wide Quick Add shortcut)
 
+**Flatpak/Wayland note:** Some compositors do not allow app-registered global shortcuts. In that case, bind your desktop shortcut to `flatpak run tech.dongdongbh.mindwtr --quick-add` instead.
+
 ### Tray Icon
 
 Click the system tray icon for instant capture:
@@ -296,8 +298,9 @@ Configure notifications in Settings:
 1. Use the input field at the bottom of any list view
 2. Use the global hotkey from anywhere
 3. Click the tray icon for quick capture
-4. Type your task title with quick-add syntax
-5. Press Enter to add
+4. On Flatpak/Wayland, bind `flatpak run tech.dongdongbh.mindwtr --quick-add` as a custom shortcut if the built-in hotkey is unavailable
+5. Type your task title with quick-add syntax
+6. Press Enter to add
 
 ### Editing Tasks
 

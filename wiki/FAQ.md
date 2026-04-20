@@ -203,6 +203,7 @@ Contexts are tags that indicate where or with what you can complete a task. Exam
 
 **Desktop:**
 - Use the global hotkey to open quick-add from anywhere
+- On Flatpak/Wayland, bind `flatpak run tech.dongdongbh.mindwtr --quick-add` as a custom system shortcut if the built-in hotkey is unavailable
 - Click the tray icon for instant capture
 - Type in any view's input field
 

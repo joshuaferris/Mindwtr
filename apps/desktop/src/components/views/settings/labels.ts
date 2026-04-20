@@ -85,7 +85,7 @@ export const labelFallback = {
         taskEditorDefaultOpenDesc: 'Keep these task editor sections expanded whenever they do not already have content.',
         taskEditorFieldStatus: 'Status',
         taskEditorFieldProject: 'Project',
-        taskEditorFieldSection: 'Section',
+        taskEditorFieldSection: 'Project section',
         taskEditorFieldArea: 'Area',
         taskEditorFieldPriority: 'Priority',
         taskEditorFieldEnergyLevel: 'Energy level',

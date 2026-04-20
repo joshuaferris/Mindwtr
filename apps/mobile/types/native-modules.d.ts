@@ -117,12 +117,15 @@ declare module 'expo-calendar' {
     allowsModifications?: boolean;
     ownerAccount?: string;
     accessLevel?: CalendarAccessLevel;
+    isVisible?: boolean;
+    isSynced?: boolean;
   }
 
   export interface Source {
-    id: string;
-    type: string;
+    id?: string;
+    type?: string;
     name: string;
+    isLocalAccount?: boolean;
   }
 
   export interface Event {

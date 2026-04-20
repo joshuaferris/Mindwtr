@@ -67,6 +67,7 @@ export const SectionList = ({
 export const Modal = createHostComponent('Modal');
 export const TouchableOpacity = createHostComponent('TouchableOpacity');
 export const Pressable = createHostComponent('Pressable');
+export const Switch = createHostComponent('Switch');
 export const KeyboardAvoidingView = createHostComponent('KeyboardAvoidingView');
 export const Image = createHostComponent('Image');
 export const ActivityIndicator = createHostComponent('ActivityIndicator');

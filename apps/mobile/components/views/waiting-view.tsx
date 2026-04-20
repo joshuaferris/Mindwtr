@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { getWaitingPerson, safeParseDueDate, useTaskStore } from '@mindwtr/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Task, TaskStatus, TimeEstimate } from '@mindwtr/core';
+import type { Task, TaskStatus } from '@mindwtr/core';
 import { useTheme } from '../../contexts/theme-context';
 import { useLanguage } from '../../contexts/language-context';
 import { Folder, PauseCircle } from 'lucide-react-native';
@@ -15,13 +15,6 @@ import { projectMatchesAreaFilter, taskMatchesAreaFilter } from '@/lib/area-filt
 import { openContextsScreen, openProjectScreen } from '@/lib/task-meta-navigation';
 import { SwipeableTaskItem } from '../swipeable-task-item';
 import { TaskEditModal } from '../task-edit-modal';
-import {
-  MOBILE_TIME_ESTIMATE_OPTIONS,
-  formatTimeEstimateChipLabel,
-  matchesSelectedTimeEstimates,
-} from '../time-estimate-filter-utils';
-
-
 
 export function WaitingView() {
   const { tasks, projects, updateTask, updateProject, deleteTask, highlightTaskId, setHighlightTask, settings } = useTaskStore();
@@ -29,11 +22,9 @@ export function WaitingView() {
   const { t } = useLanguage();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedWaitingPerson, setSelectedWaitingPerson] = useState('');
-  const [selectedTimeEstimates, setSelectedTimeEstimates] = useState<TimeEstimate[]>([]);
   const router = useRouter();
 
   const tc = useThemeColors();
-  const timeEstimatesEnabled = settings?.features?.timeEstimates !== false;
   const insets = useSafeAreaInsets();
   const navBarInset = Platform.OS === 'android' && insets.bottom >= 24 ? insets.bottom : 0;
   const { areaById, resolvedAreaFilter } = useMobileAreaFilter();
@@ -79,12 +70,9 @@ export function WaitingView() {
           return false;
         }
       }
-      if (timeEstimatesEnabled && !matchesSelectedTimeEstimates(task, selectedTimeEstimates)) {
-        return false;
-      }
       return true;
     });
-  }, [selectedTimeEstimates, selectedWaitingPerson, timeEstimatesEnabled, waitingTasks]);
+  }, [selectedWaitingPerson, waitingTasks]);
   const deferredProjects = useMemo(() => {
     return [...projects]
       .filter((project) => (
@@ -107,12 +95,6 @@ export function WaitingView() {
       setSelectedWaitingPerson('');
     }
   }, [selectedWaitingPerson, waitingPeople]);
-
-  useEffect(() => {
-    if (!timeEstimatesEnabled && selectedTimeEstimates.length > 0) {
-      setSelectedTimeEstimates([]);
-    }
-  }, [selectedTimeEstimates.length, timeEstimatesEnabled]);
 
   const handleStatusChange = (id: string, status: TaskStatus) => {
     updateTask(id, { status });
@@ -200,47 +182,6 @@ export function WaitingView() {
           >
             <Text style={[styles.clearFilterText, { color: tc.text }]}>{t('common.clear')}</Text>
           </TouchableOpacity>
-        )}
-        {timeEstimatesEnabled && (
-          <>
-            <Text style={[styles.filterLabel, { color: tc.secondaryText, marginTop: 4 }]}>
-              {t('filters.timeEstimate')}
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
-              <TouchableOpacity
-                onPress={() => setSelectedTimeEstimates([])}
-                style={[
-                  styles.filterChip,
-                  { borderColor: tc.border, backgroundColor: selectedTimeEstimates.length === 0 ? tc.tint : tc.filterBg },
-                ]}
-              >
-                <Text style={[styles.filterChipText, { color: selectedTimeEstimates.length === 0 ? tc.onTint : tc.text }]}>
-                  {t('common.all')}
-                </Text>
-              </TouchableOpacity>
-              {MOBILE_TIME_ESTIMATE_OPTIONS.map((estimate) => {
-                const isActive = selectedTimeEstimates.includes(estimate);
-                return (
-                  <TouchableOpacity
-                    key={estimate}
-                    onPress={() => setSelectedTimeEstimates((prev) => (
-                      prev.includes(estimate)
-                        ? prev.filter((value) => value !== estimate)
-                        : [...prev, estimate]
-                    ))}
-                    style={[
-                      styles.filterChip,
-                      { borderColor: tc.border, backgroundColor: isActive ? tc.tint : tc.filterBg },
-                    ]}
-                  >
-                    <Text style={[styles.filterChipText, { color: isActive ? tc.onTint : tc.text }]}>
-                      {formatTimeEstimateChipLabel(estimate)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </>
         )}
       </View>
 

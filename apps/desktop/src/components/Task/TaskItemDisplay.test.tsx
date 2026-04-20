@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import type { Task } from '@mindwtr/core';
 import { useTaskStore } from '@mindwtr/core';
 
@@ -175,5 +175,52 @@ describe('TaskItemDisplay', () => {
         );
 
         expect(getByRole('button', { name: 'Referenced task' })).toBeInTheDocument();
+    });
+
+    it('renders inline image attachment previews in expanded details', () => {
+        const openAttachment = vi.fn();
+        const imageAttachment = {
+            id: 'attachment-1',
+            kind: 'file' as const,
+            title: 'Sunset',
+            uri: 'file:///tmp/sunset.png',
+            mimeType: 'image/png',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        };
+
+        const { getByRole } = render(
+            <LanguageProvider>
+                <TaskItemDisplay
+                    task={baseTask}
+                    language="en"
+                    selectionMode={false}
+                    isViewOpen
+                    actions={{
+                        onToggleView: vi.fn(),
+                        onEdit: vi.fn(),
+                        onDelete: vi.fn(),
+                        onDuplicate: vi.fn(),
+                        onStatusChange: vi.fn(),
+                        openAttachment,
+                    }}
+                    visibleAttachments={[imageAttachment]}
+                    recurrenceRule=""
+                    recurrenceStrategy="strict"
+                    prioritiesEnabled={false}
+                    timeEstimatesEnabled={false}
+                    isStagnant={false}
+                    showQuickDone={false}
+                    readOnly={false}
+                    t={(key: string) => key}
+                />
+            </LanguageProvider>
+        );
+
+        expect(getByRole('img', { name: 'Sunset' })).toBeInTheDocument();
+
+        fireEvent.click(getByRole('button', { name: 'attachments.open: Sunset' }));
+
+        expect(openAttachment).toHaveBeenCalledWith(imageAttachment);
     });
 });

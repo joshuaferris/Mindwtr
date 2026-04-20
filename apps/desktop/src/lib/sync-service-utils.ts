@@ -178,6 +178,17 @@ export const buildCloudKey = (attachment: Attachment): string => {
     return `${ATTACHMENTS_DIR_NAME}/${attachment.id}${ext}`;
 };
 
+export const resolveFileBackendPath = async (
+    join: (...paths: string[]) => Promise<string>,
+    baseDir: string,
+    relativePath: string,
+): Promise<string> => {
+    const segments = relativePath
+        .split(/[\\/]+/)
+        .filter(Boolean);
+    return segments.length > 0 ? await join(baseDir, ...segments) : baseDir;
+};
+
 export const isTempAttachmentFile = (name: string): boolean => {
     return name.includes('.tmp-') || name.endsWith('.tmp') || name.endsWith('.partial');
 };

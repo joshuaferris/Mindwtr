@@ -187,6 +187,29 @@ export const extractExtension = (value?: string): string => {
   return match ? match[0].toLowerCase() : '';
 };
 
+const stripUriQueryAndFragment = (value: string): string => (
+  value.split('?')[0]?.split('#')[0] ?? value
+);
+
+const decodeUriSafe = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const getSafLeafName = (value: string): string => {
+  const decoded = decodeUriSafe(value);
+  const stripped = stripUriQueryAndFragment(decoded).replace(/\/+$/, '');
+  const lastSeparator = Math.max(stripped.lastIndexOf('/'), stripped.lastIndexOf(':'));
+  return lastSeparator >= 0 ? stripped.slice(lastSeparator + 1) : stripped;
+};
+
+const hasSafLeafName = (value: string, expected: string): boolean => (
+  getSafLeafName(value) === expected
+);
+
 const buildTempUri = (targetUri: string): string => {
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   return `${targetUri}.tmp-${suffix}`;
@@ -395,14 +418,8 @@ const resolveSafSyncDir = async (syncUri: string): Promise<Extract<ResolvedSyncD
   for (const candidate of directoryCandidates) {
     try {
       const entries = await StorageAccessFramework.readDirectoryAsync(candidate);
-      const decoded: Array<{ entry: string; decoded: string }> = entries.map((entry: string) => ({
-        entry,
-        decoded: decodeURIComponent(entry),
-      }));
-      const matchEntry = decoded.find((item) =>
-        item.decoded.endsWith(`/${ATTACHMENTS_DIR_NAME}`) || item.decoded.endsWith(`:${ATTACHMENTS_DIR_NAME}`)
-      );
-      attachmentsDirUri = matchEntry?.entry ?? null;
+      const matchEntry = entries.find((entry: string) => hasSafLeafName(entry, ATTACHMENTS_DIR_NAME));
+      attachmentsDirUri = matchEntry ?? null;
       if (attachmentsDirUri) break;
     } catch (error) {
       if (candidate === directoryCandidates[directoryCandidates.length - 1]) {
@@ -455,14 +472,8 @@ export const findSafEntry = async (dirUri: string, fileName: string): Promise<st
   if (!StorageAccessFramework?.readDirectoryAsync) return null;
   try {
     const entries = await StorageAccessFramework.readDirectoryAsync(dirUri);
-    const decoded: Array<{ entry: string; decoded: string }> = entries.map((entry: string) => ({
-      entry,
-      decoded: decodeURIComponent(entry),
-    }));
-    const matchEntry = decoded.find((item) =>
-      item.decoded.endsWith(`/${fileName}`) || item.decoded.endsWith(`:${fileName}`)
-    );
-    return matchEntry?.entry ?? null;
+    const matchEntry = entries.find((entry: string) => hasSafLeafName(entry, fileName));
+    return matchEntry ?? null;
   } catch (error) {
     logAttachmentWarn('Failed to read SAF directory', error);
     return null;

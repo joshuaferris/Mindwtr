@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import type { Task } from '@mindwtr/core';
 
 import {
@@ -30,6 +31,12 @@ const t = (key: string) => {
         'task.aria.dueTime': 'Due time',
         'task.aria.reviewDate': 'Review date',
         'task.aria.reviewTime': 'Review time',
+        'task.aria.description': 'Description',
+        'taskEdit.descriptionLabel': 'Description',
+        'taskEdit.descriptionPlaceholder': 'Add notes...',
+        'markdown.preview': 'Preview',
+        'markdown.edit': 'Edit',
+        'markdown.expand': 'Expand',
     };
     return labels[key] ?? key;
 };
@@ -87,6 +94,21 @@ const createHandlers = (): TaskItemFieldRendererHandlers => ({
     updateTask: vi.fn(),
     resetTaskChecklist: vi.fn(),
 });
+
+function DescriptionHarness() {
+    const [editDescription, setEditDescription] = useState('');
+
+    return (
+        <TaskItemFieldRenderer
+            fieldId="description"
+            data={createData({ editDescription })}
+            handlers={{
+                ...createHandlers(),
+                setEditDescription,
+            }}
+        />
+    );
+}
 
 describe('TaskItemFieldRenderer date clear buttons', () => {
     afterEach(() => {
@@ -158,5 +180,21 @@ describe('TaskItemFieldRenderer date clear buttons', () => {
 
         expect(getByLabelText('Due date')).toHaveAttribute('lang', 'en-CA-u-hc-h23-fw-mon');
         expect(getByLabelText('Due time')).toHaveAttribute('lang', 'en-CA-u-hc-h23-fw-mon');
+    });
+
+    it('undoes markdown description edits with Ctrl+Z', async () => {
+        const { getByRole } = render(<DescriptionHarness />);
+        const textarea = getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement;
+
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        fireEvent.change(textarea, { target: { value: 'First draft' } });
+
+        expect(textarea.value).toBe('First draft');
+
+        fireEvent.keyDown(textarea, { key: 'z', ctrlKey: true });
+
+        await waitFor(() => {
+            expect(textarea.value).toBe('');
+        });
     });
 });

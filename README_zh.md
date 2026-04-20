@@ -61,9 +61,9 @@
 </div>
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/8b067635-196e-4c9c-ad26-92ca92fef327" width="60%" autoplay loop muted playsinline></video>
+  <video src="https://github.com/user-attachments/assets/e62ac128-467d-4e2f-beb0-7fc3c947bfeb" width="60%" autoplay loop muted playsinline></video>
   
-  <video src="https://github.com/user-attachments/assets/08e4f821-0b1c-44f9-af58-0b727bc2bd91" width="25%" autoplay loop muted playsinline></video>
+  <video src="https://github.com/user-attachments/assets/d6688a01-989f-41b9-b190-94b21b0ae821" width="25%" autoplay loop muted playsinline></video>
 
   <p>
     <i>Arch Linux 与 Android 上的本地优先 GTD</i>
@@ -347,7 +347,8 @@ Mindwtr 的发展离不开用户与贡献者的支持，感谢大家一起把它
 ## 路线图
 
 - 🤖 上架 F-Droid（[#219](https://github.com/dongdongbh/Mindwtr/issues/219)）
-- 🗣️ iOS 提醒事项收件箱导入（Siri 收集 -> Mindwtr 收件箱）
+- 🗣️ Siri 直接收集到 Mindwtr 收件箱（[#388](https://github.com/dongdongbh/Mindwtr/issues/388)）
+- 📥 Apple 提醒事项导入到 Mindwtr 收件箱（[#387](https://github.com/dongdongbh/Mindwtr/issues/387)）
 - ✉️ 邮件添加到收件箱（[#35](https://github.com/dongdongbh/Mindwtr/issues/35)）
 - 🗓️ Mindwtr 单向同步到本地系统日历（移动端优先）（[#361](https://github.com/dongdongbh/Mindwtr/issues/361)）
 

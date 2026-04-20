@@ -61,9 +61,9 @@ _New to GTD? Read [GTD in 15 minutes](https://hamberg.no/gtd) for a quick introd
 </div>
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/8b067635-196e-4c9c-ad26-92ca92fef327" width="60%" autoplay loop muted playsinline></video>
+  <video src="https://github.com/user-attachments/assets/e62ac128-467d-4e2f-beb0-7fc3c947bfeb" width="60%" autoplay loop muted playsinline></video>
   
-  <video src="https://github.com/user-attachments/assets/08e4f821-0b1c-44f9-af58-0b727bc2bd91" width="25%" autoplay loop muted playsinline></video>
+  <video src="https://github.com/user-attachments/assets/d6688a01-989f-41b9-b190-94b21b0ae821" width="25%" autoplay loop muted playsinline></video>
 
   <p>
     <i>Local-First GTD on Arch Linux & Android</i>
@@ -160,7 +160,7 @@ _Don't show me a cockpit when I just want to ride a bike._
 - ♻️ **Restore from Backup** - Replace local data from a validated Mindwtr backup with a recovery snapshot first
 - 📥 **Todoist + DGT GTD Import** - Import Todoist CSV/ZIP exports or DGT GTD JSON/ZIP exports into Mindwtr
 - 🔗 **Obsidian Integration** - Desktop vault task import with deep links back to source notes
-- 🗓️ **External Calendars (System + ICS)** - Mobile reads system calendars; desktop supports ICS subscriptions
+- 🗓️ **External Calendars (System + ICS)** - Mobile reads system calendars and can push due-dated tasks to a dedicated device calendar; desktop supports ICS subscriptions
 
 ### Automation
 
@@ -361,8 +361,10 @@ You can help in several ways:
 ## Roadmap
 
 - 🤖 Add to F-Droid ([#219](https://github.com/dongdongbh/Mindwtr/issues/219))
+- 🗣️ Direct Siri capture -> Mindwtr Inbox ([#388](https://github.com/dongdongbh/Mindwtr/issues/388))
+- 📥 Apple Reminders -> Mindwtr Inbox import ([#387](https://github.com/dongdongbh/Mindwtr/issues/387))
 - ✉️ Email to Inbox ([#35](https://github.com/dongdongbh/Mindwtr/issues/35))
-- 🗓️ One-way Mindwtr -> local system calendar sync (mobile first) ([#361](https://github.com/dongdongbh/Mindwtr/issues/361))
+- 🗓️ Expand one-way Mindwtr -> local system calendar sync beyond the shipped mobile implementation ([#361](https://github.com/dongdongbh/Mindwtr/issues/361))
 
 ## Documentation
 

@@ -16,7 +16,7 @@ import type { Language } from './i18n/i18n-types';
  */
 export const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string; border: string }> = {
     'inbox': { bg: '#6B728020', text: '#6B7280', border: '#6B7280' },
-    'next': { bg: '#10B98120', text: '#10B981', border: '#10B981' },
+    'next': { bg: '#3B82F620', text: '#2563EB', border: '#2563EB' },
     'waiting': { bg: '#F59E0B20', text: '#F59E0B', border: '#F59E0B' },
     'someday': { bg: '#8B5CF620', text: '#8B5CF6', border: '#8B5CF6' },
     'reference': { bg: '#0EA5E920', text: '#0EA5E9', border: '#0EA5E9' },

@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 import { logWarn } from './app-log';
+import { areTaskRemindersEnabled, hasActiveMobileNotificationFeature, isWeeklyReviewReminderEnabled } from './mobile-notification-settings';
 import { getDuplicateAlarmRetryFireAt } from './notification-service-local-utils';
 
 type NotificationOpenPayload = {
@@ -446,8 +447,10 @@ async function runRescheduleCycle(api: AlarmNotificationsApi): Promise<void> {
 
   const { settings, tasks, projects } = useTaskStore.getState();
   const activeKeys = new Set<string>();
+  const taskRemindersEnabled = areTaskRemindersEnabled(settings);
+  const weeklyReviewEnabled = isWeeklyReviewReminderEnabled(settings);
 
-  if (settings.notificationsEnabled === false) {
+  if (!hasActiveMobileNotificationFeature(settings)) {
     for (const key of Array.from(alarmMap.keys())) {
       await cancelAlarmByKey(api, key);
     }
@@ -458,7 +461,7 @@ async function runRescheduleCycle(api: AlarmNotificationsApi): Promise<void> {
   const language: Language = await loadStoredLanguage(AsyncStorage, getSystemDefaultLanguage()).catch(() => getSystemDefaultLanguage());
   const tr = await getTranslations(language);
 
-  if (settings.dailyDigestMorningEnabled === true) {
+  if (taskRemindersEnabled && settings.dailyDigestMorningEnabled === true) {
     const { hour, minute } = parseTimeOfDay(settings.dailyDigestMorningTime, { hour: 9, minute: 0 });
     const key = LOCAL_DIGEST_MORNING_KEY;
     activeKeys.add(key);
@@ -471,7 +474,7 @@ async function runRescheduleCycle(api: AlarmNotificationsApi): Promise<void> {
     });
   }
 
-  if (settings.dailyDigestEveningEnabled === true) {
+  if (taskRemindersEnabled && settings.dailyDigestEveningEnabled === true) {
     const { hour, minute } = parseTimeOfDay(settings.dailyDigestEveningTime, { hour: 20, minute: 0 });
     const key = LOCAL_DIGEST_EVENING_KEY;
     activeKeys.add(key);
@@ -484,7 +487,7 @@ async function runRescheduleCycle(api: AlarmNotificationsApi): Promise<void> {
     });
   }
 
-  if (settings.weeklyReviewEnabled === true) {
+  if (weeklyReviewEnabled) {
     const { hour, minute } = parseTimeOfDay(settings.weeklyReviewTime, { hour: 18, minute: 0 });
     const day = Number.isFinite(settings.weeklyReviewDay)
       ? Math.max(0, Math.min(6, Math.floor(settings.weeklyReviewDay as number)))
@@ -501,23 +504,25 @@ async function runRescheduleCycle(api: AlarmNotificationsApi): Promise<void> {
   }
 
   const now = new Date();
-  const includeReviewAt = settings.reviewAtNotificationsEnabled !== false;
+  const includeReviewAt = taskRemindersEnabled && settings.reviewAtNotificationsEnabled !== false;
 
-  for (const task of tasks) {
-    const next = getNextScheduledAt(task, now, { includeReviewAt });
-    if (!next || next.getTime() <= now.getTime()) continue;
-    const key = getTaskKey(task.id);
-    activeKeys.add(key);
-    await scheduleAlarmForKey(api, key, {
-      title: task.title,
-      message: task.description || '',
-      fireAt: next,
-      hasSnoozeAction: true,
-      data: {
-        kind: 'task-reminder',
-        taskId: task.id,
-      },
-    });
+  if (taskRemindersEnabled) {
+    for (const task of tasks) {
+      const next = getNextScheduledAt(task, now, { includeReviewAt });
+      if (!next || next.getTime() <= now.getTime()) continue;
+      const key = getTaskKey(task.id);
+      activeKeys.add(key);
+      await scheduleAlarmForKey(api, key, {
+        title: task.title,
+        message: task.description || '',
+        fireAt: next,
+        hasSnoozeAction: true,
+        data: {
+          kind: 'task-reminder',
+          taskId: task.id,
+        },
+      });
+    }
   }
 
   if (includeReviewAt) {

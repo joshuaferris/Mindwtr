@@ -454,6 +454,116 @@ jobs:
               -Headers $headers
           }
 
+          $repoRoot = (Get-Location).Path
+          $submissionUploadFiles = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+          $preferredDesktopStoreScreenshots = @(
+            'inbox_sepia.png',
+            'review_process_inbox_sepia.png',
+            'reference_sepia.png',
+            'board_view_sepia.png',
+            'inbox_dark.png',
+            'focus_dark.png',
+            'settings_dark.png',
+            'projects_workspace_dark.png'
+          )
+
+          function Convert-ToSubmissionRelativePath {
+            param([string]$Path)
+            $resolved = (Resolve-Path $Path).Path
+            return [System.IO.Path]::GetRelativePath($repoRoot, $resolved).Replace('\', '/')
+          }
+
+          function Register-SubmissionUploadFile {
+            param([string]$Path)
+            $resolved = (Resolve-Path $Path).Path
+            $relative = Convert-ToSubmissionRelativePath -Path $resolved
+            if (-not $script:submissionUploadFiles.ContainsKey($relative)) {
+              $script:submissionUploadFiles[$relative] = $resolved
+            }
+            return $relative
+          }
+
+          function Get-DesktopStoreScreenshotPaths {
+            $screenshotsDir = Join-Path $repoRoot 'apps/desktop/screenshots'
+            if (-not (Test-Path $screenshotsDir)) {
+              return @()
+            }
+
+            $available = @(Get-ChildItem -Path $screenshotsDir -File | Where-Object {
+              $_.Extension.ToLowerInvariant() -in @('.png', '.jpg', '.jpeg')
+            } | Sort-Object Name)
+            if ($available.Count -eq 0) {
+              return @()
+            }
+
+            $byName = @{}
+            foreach ($file in $available) {
+              $byName[$file.Name.ToLowerInvariant()] = $file.FullName
+            }
+
+            $selected = [System.Collections.Generic.List[string]]::new()
+            foreach ($name in $preferredDesktopStoreScreenshots) {
+              if ($byName.ContainsKey($name)) {
+                $selected.Add($byName[$name])
+              }
+            }
+
+            if ($selected.Count -eq 0) {
+              foreach ($file in ($available | Select-Object -First 8)) {
+                $selected.Add($file.FullName)
+              }
+            }
+
+            return $selected.ToArray()
+          }
+
+          function Apply-RepoStoreListingAssets {
+            param([object]$Metadata)
+            if (-not $Metadata) { return }
+            if (-not ($Metadata.PSObject.Properties.Name -contains 'Listings') -or -not $Metadata.Listings) {
+              return
+            }
+
+            $screenshotPaths = @(Get-DesktopStoreScreenshotPaths)
+            $iconPath = Join-Path $repoRoot 'apps/desktop/src-tauri/icons/StoreLogo.png'
+            if (-not (Test-Path $iconPath)) {
+              $iconPath = $null
+            }
+            if ($screenshotPaths.Count -eq 0 -and -not $iconPath) {
+              return
+            }
+
+            foreach ($listingProp in $Metadata.Listings.PSObject.Properties) {
+              if (-not $listingProp.Value) { continue }
+              if (-not ($listingProp.Value.PSObject.Properties.Name -contains 'BaseListing')) { continue }
+              $baseListing = $listingProp.Value.BaseListing
+              if (-not $baseListing) { continue }
+
+              $images = [System.Collections.ArrayList]::new()
+              foreach ($screenshotPath in $screenshotPaths) {
+                [void]$images.Add([pscustomobject]@{
+                  FileName   = (Register-SubmissionUploadFile -Path $screenshotPath)
+                  FileStatus = 'PendingUpload'
+                  ImageType  = 'Screenshot'
+                })
+              }
+              if ($iconPath) {
+                [void]$images.Add([pscustomobject]@{
+                  FileName   = (Register-SubmissionUploadFile -Path $iconPath)
+                  FileStatus = 'PendingUpload'
+                  ImageType  = 'Icon'
+                })
+              }
+
+              if ($images.Count -gt 0) {
+                $baseListing.Images = $images.ToArray()
+              }
+            }
+
+            $iconNote = if ($iconPath) { ' and the desktop Store logo' } else { '' }
+            Write-Host "Using $($screenshotPaths.Count) screenshots from apps/desktop/screenshots$iconNote for Microsoft Store listings."
+          }
+
           $tokenBody = @{
             grant_type    = 'client_credentials'
             resource      = 'https://manage.devcenter.microsoft.com'
@@ -493,6 +603,9 @@ jobs:
               Write-Host "Deleted pending submission."
             } catch {
               $errText = $_.Exception.Message
+              if ($errText -match '(?i)created through the API') {
+                throw "Existing pending submission $pendingId was created or edited in Partner Center, so the submission API cannot delete or update it. Delete or publish that draft manually, then rerun this workflow. The workflow now sources listing screenshots from apps/desktop/screenshots instead of a Partner Center draft."
+              }
               if (& $isStoreBusy $errText) {
                 Write-Warning "Existing submission is in certification; cannot delete. Skipping publish."
                 exit 0
@@ -614,6 +727,8 @@ jobs:
               }
             }
 
+            Apply-RepoStoreListingAssets -Metadata $metadata
+
             $fieldMap = @{
               listings = 'Listings'
               applicationCategory = 'ApplicationCategory'
@@ -642,7 +757,7 @@ jobs:
             Write-Warning "metadata/metadata.json not found; submitting cloned metadata from last published version."
           }
 
-          foreach ($prop in @('id', 'status', 'statusDetails', 'fileUploadUrl', 'friendlyName', 'pendingApplicationId')) {
+          foreach ($prop in @('id', 'status', 'statusDetails', 'fileUploadUrl', 'friendlyName', 'pendingApplicationId', 'sales')) {
             if ($submission.PSObject.Properties.Name -contains $prop) {
               $submission.PSObject.Properties.Remove($prop)
             }
@@ -658,8 +773,21 @@ jobs:
 
           Write-Host "Creating ZIP archive for upload..."
           $zipPath = "$env:RUNNER_TEMP/submission-package.zip"
+          $uploadRoot = Join-Path $env:RUNNER_TEMP 'submission-package'
           if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-          Compress-Archive -Path $msixPath -DestinationPath $zipPath -Force
+          if (Test-Path $uploadRoot) { Remove-Item -Recurse -Force $uploadRoot }
+          New-Item -ItemType Directory -Force -Path $uploadRoot | Out-Null
+          Copy-Item $msixPath (Join-Path $uploadRoot $msixFileName)
+          foreach ($relativePath in ($submissionUploadFiles.Keys | Sort-Object)) {
+            $sourcePath = $submissionUploadFiles[$relativePath]
+            $destinationPath = Join-Path $uploadRoot ($relativePath -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+            $destinationDir = Split-Path -Parent $destinationPath
+            if (-not (Test-Path $destinationDir)) {
+              New-Item -ItemType Directory -Force -Path $destinationDir | Out-Null
+            }
+            Copy-Item $sourcePath $destinationPath -Force
+          }
+          Compress-Archive -Path (Join-Path $uploadRoot '*') -DestinationPath $zipPath -Force
           $zipBytes = [System.IO.File]::ReadAllBytes($zipPath)
 
           Write-Host "Uploading package payload..."

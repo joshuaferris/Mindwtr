@@ -192,13 +192,13 @@ describe('InboxProcessor', () => {
         });
     });
 
-    it('keeps scheduling and reference branches hidden by default', () => {
+    it('keeps scheduling hidden by default while reference stays available', () => {
         const { getByRole, getByText, queryByText } = renderInboxProcessor();
 
         fireEvent.click(getByRole('button', { name: /process\.btn/i }));
         fireEvent.click(getByText('process.refineNext'));
 
-        expect(queryByText('process.reference')).toBeNull();
+        expect(getByText('process.reference')).toBeTruthy();
 
         fireEvent.click(getByText('process.yesActionable'));
         fireEvent.click(getByText('process.moreThanOneStepNo'));
@@ -208,12 +208,29 @@ describe('InboxProcessor', () => {
         expect(queryByText('taskEdit.startDateLabel')).toBeNull();
     });
 
-    it('shows scheduling and reference options when enabled in settings', () => {
+    it('shows reference even when the old inbox reference setting is disabled', () => {
+        const { getByRole, getByText } = renderInboxProcessor({
+            gtd: {
+                inboxProcessing: {
+                    referenceEnabled: false,
+                },
+            },
+        });
+
+        fireEvent.click(getByRole('button', { name: /process\.btn/i }));
+        fireEvent.click(getByText('process.refineNext'));
+
+        expect(getByText('process.reference')).toBeTruthy();
+    });
+
+    it('shows scheduling options when enabled in settings and visible in the task editor layout', () => {
         const { getByRole, getByText } = renderInboxProcessor({
             gtd: {
                 inboxProcessing: {
                     scheduleEnabled: true,
-                    referenceEnabled: true,
+                },
+                taskEditor: {
+                    hidden: [],
                 },
             },
         });
@@ -232,11 +249,11 @@ describe('InboxProcessor', () => {
         expect(getByText('taskEdit.reviewDateLabel')).toBeTruthy();
     });
 
-    it('hides energy and assigned-to fields when the task editor layout disables them', () => {
+    it('hides organization fields when the task editor layout disables them', () => {
         const { getByRole, getByText, queryByLabelText } = renderInboxProcessor({
             gtd: {
                 taskEditor: {
-                    hidden: ['energyLevel', 'assignedTo'],
+                    hidden: ['energyLevel', 'assignedTo', 'timeEstimate'],
                 },
             },
         });
@@ -246,6 +263,7 @@ describe('InboxProcessor', () => {
 
         expect(queryByLabelText('taskEdit.energyLevel')).toBeNull();
         expect(queryByLabelText('taskEdit.assignedTo')).toBeNull();
+        expect(queryByLabelText('taskEdit.timeEstimateLabel')).toBeNull();
 
         fireEvent.click(getByRole('button', { name: 'process.modeGuided' }));
         fireEvent.click(getByText('process.refineNext'));
@@ -256,13 +274,17 @@ describe('InboxProcessor', () => {
 
         expect(queryByLabelText('taskEdit.energyLevel')).toBeNull();
         expect(queryByLabelText('taskEdit.assignedTo')).toBeNull();
+        expect(queryByLabelText('taskEdit.timeEstimateLabel')).toBeNull();
     });
 
-    it('processes a task from quick mode with start, due, review, contexts, tags, and priority by default', async () => {
+    it('processes a task from quick mode with all visible organization and scheduling fields', async () => {
         const { getByRole, getByLabelText, updateTask } = renderInboxProcessor({
             gtd: {
                 inboxProcessing: {
                     scheduleEnabled: true,
+                },
+                taskEditor: {
+                    hidden: [],
                 },
             },
         });
@@ -284,6 +306,9 @@ describe('InboxProcessor', () => {
         });
         fireEvent.change(getByLabelText('taskEdit.energyLevel'), {
             target: { value: 'medium' },
+        });
+        fireEvent.change(getByLabelText('taskEdit.timeEstimateLabel'), {
+            target: { value: '30min' },
         });
         fireEvent.change(getByLabelText('taskEdit.assignedTo'), {
             target: { value: 'Morgan' },
@@ -311,6 +336,7 @@ describe('InboxProcessor', () => {
                     contexts: ['@home', '@desk'],
                     tags: ['#deep', '#writing'],
                     energyLevel: 'medium',
+                    timeEstimate: '30min',
                     assignedTo: 'Morgan',
                     priority: 'high',
                     startTime: '2026-03-23',
@@ -377,7 +403,7 @@ describe('InboxProcessor', () => {
         expect(updateTask).not.toHaveBeenCalled();
     });
 
-    it('processes a task from guided mode with priority in the context step by default', async () => {
+    it('processes a task from guided mode with organization fields in the context step by default', async () => {
         const { getByRole, getByText, updateTask } = renderInboxProcessor();
 
         fireEvent.click(getByRole('button', { name: /process\.btn/i }));
@@ -388,6 +414,9 @@ describe('InboxProcessor', () => {
         fireEvent.click(getByText('process.doIt'));
         fireEvent.change(getByRole('combobox', { name: 'taskEdit.energyLevel' }), {
             target: { value: 'high' },
+        });
+        fireEvent.change(getByRole('combobox', { name: 'taskEdit.timeEstimateLabel' }), {
+            target: { value: '1hr' },
         });
         fireEvent.change(getByRole('textbox', { name: 'taskEdit.assignedTo' }), {
             target: { value: 'Casey' },
@@ -402,6 +431,7 @@ describe('InboxProcessor', () => {
                 expect.objectContaining({
                     status: 'next',
                     energyLevel: 'high',
+                    timeEstimate: '1hr',
                     assignedTo: 'Casey',
                     priority: 'urgent',
                 }),

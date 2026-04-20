@@ -9,12 +9,14 @@ import type {
   Section,
   RecurrenceRule,
   RecurrenceStrategy,
+  TaskStatus,
   Task,
   TimeEstimate,
 } from '@mindwtr/core';
 import type { ThemeColors } from '@/hooks/use-theme-colors';
 import { MarkdownText } from '../markdown-text';
 import { AttachmentProgressIndicator } from '../AttachmentProgressIndicator';
+import { TaskStatusBadge } from '../task-status-badge';
 
 type TaskEditViewTabProps = {
   t: (key: string) => string;
@@ -41,6 +43,7 @@ type TaskEditViewTabProps = {
   onProjectPress?: (projectId: string) => void;
   onContextPress?: (context: string) => void;
   onTagPress?: (tag: string) => void;
+  onStatusUpdate?: (status: TaskStatus) => void;
 };
 
 export function TaskEditViewTab({
@@ -68,6 +71,7 @@ export function TaskEditViewTab({
   onProjectPress,
   onContextPress,
   onTagPress,
+  onStatusUpdate,
 }: TaskEditViewTabProps) {
   const renderViewRow = (label: string, value?: string, onPress?: () => void, accessibilityLabel?: string) => {
     if (value === undefined || value === null || value === '') return null;
@@ -152,7 +156,16 @@ export function TaskEditViewTab({
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={nestedScrollEnabled}
     >
-      {renderViewRow(t('taskEdit.statusLabel'), statusLabel)}
+      {statusLabel ? (
+        <View style={[styles.viewRow, { backgroundColor: tc.inputBg, borderColor: tc.border }]}>
+          <Text style={[styles.viewLabel, { color: tc.secondaryText }]}>{t('taskEdit.statusLabel')}</Text>
+          {onStatusUpdate && mergedTask.status ? (
+            <TaskStatusBadge status={mergedTask.status as TaskStatus} onUpdate={onStatusUpdate} />
+          ) : (
+            <Text style={[styles.viewValue, { color: tc.text }]}>{statusLabel}</Text>
+          )}
+        </View>
+      ) : null}
       {!isReference && prioritiesEnabled ? renderViewRow(t('taskEdit.priorityLabel'), priorityLabel) : null}
       {!isReference ? renderViewRow(t('taskEdit.energyLevel'), energyLevelLabel) : null}
       {renderViewRow(t('taskEdit.assignedTo'), mergedTask.assignedTo)}

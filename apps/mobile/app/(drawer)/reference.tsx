@@ -27,6 +27,7 @@ export default function ReferenceScreen() {
         emptyHint={emptyHint}
         allowAdd={false}
         showQuickAddHelp={false}
+        showTimeEstimateFilters={false}
         contentPaddingBottom={navBarInset}
       />
     </View>

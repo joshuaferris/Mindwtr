@@ -11,7 +11,6 @@ import {
     buildBulkTaskTokenUpdates,
     collectBulkTaskTokens,
 } from '@mindwtr/core';
-import { TaskItem } from '../TaskItem';
 import { Tag, Filter } from 'lucide-react';
 import { TokenPickerModal } from '../TokenPickerModal';
 import { ListBulkActions } from './list/ListBulkActions';
@@ -29,6 +28,7 @@ import {
     LIST_VIRTUAL_OVERSCAN,
     useVirtualList,
 } from './list/useVirtualList';
+import { StoreTaskItem } from './list/StoreTaskItem';
 
 type BulkTokenPickerState = {
     field: 'tags' | 'contexts';
@@ -37,8 +37,14 @@ type BulkTokenPickerState = {
 
 export function ContextsView() {
     const perf = usePerformanceMonitor('ContextsView');
-    const { tasks, projects, areas, settings } = useTaskStore(
-        (state) => ({ tasks: state.tasks, projects: state.projects, areas: state.areas, settings: state.settings }),
+    const { tasks, tasksById, projects, areas, settings } = useTaskStore(
+        (state) => ({
+            tasks: state.tasks,
+            tasksById: state._tasksById,
+            projects: state.projects,
+            areas: state.areas,
+            settings: state.settings,
+        }),
         shallow
     );
     const batchMoveTasks = useTaskStore((state) => state.batchMoveTasks);
@@ -127,7 +133,6 @@ export function ContextsView() {
         ? contextFilteredTasks.filter((task) => task.title.toLowerCase().includes(normalizedSearchQuery))
         : contextFilteredTasks;
     const shouldVirtualize = filteredTasks.length > LIST_VIRTUALIZATION_THRESHOLD;
-    const tasksById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
     const handleVirtualRowMeasure = useCallback((id: string, height: number) => {
         if (rowHeightsRef.current.get(id) === height) return;
         rowHeightsRef.current.set(id, height);
@@ -492,8 +497,7 @@ export function ContextsView() {
                                             return (
                                                 <VirtualTaskRow
                                                     key={task.id}
-                                                    task={task}
-                                                    project={task.projectId ? projectMap.get(task.projectId) : undefined}
+                                                    taskId={task.id}
                                                     index={taskIndex}
                                                     top={rowOffsets[taskIndex] ?? 0}
                                                     selectionMode={selectionMode}
@@ -507,12 +511,12 @@ export function ContextsView() {
                                     </div>
                                 ) : (
                                     filteredTasks.map(task => (
-                                        <TaskItem
+                                        <StoreTaskItem
                                             key={task.id}
-                                            task={task}
+                                            taskId={task.id}
                                             selectionMode={selectionMode}
                                             isMultiSelected={multiSelectedIds.has(task.id)}
-                                            onToggleSelect={() => toggleMultiSelect(task.id)}
+                                            onToggleSelectId={toggleMultiSelect}
                                             showProjectBadgeInActions={false}
                                         />
                                     ))

@@ -1,8 +1,7 @@
 import { useMemo, useCallback, useEffect, useState, useRef, type UIEvent } from 'react';
 import { ErrorBoundary } from '../ErrorBoundary';
-import { shallow, useTaskStore, filterTasksBySearch, sortTasksBy, Project, TaskStatus, Task } from '@mindwtr/core';
+import { shallow, useTaskStore, filterTasksBySearch, sortTasksBy, TaskStatus } from '@mindwtr/core';
 import type { TaskSortBy } from '@mindwtr/core';
-import { TaskItem } from '../TaskItem';
 import { useLanguage } from '../../contexts/language-context';
 import { Trash2 } from 'lucide-react';
 import { usePerformanceMonitor } from '../../hooks/usePerformanceMonitor';
@@ -19,6 +18,7 @@ import {
     LIST_VIRTUAL_OVERSCAN,
     useVirtualList,
 } from './list/useVirtualList';
+import { StoreTaskItem } from './list/StoreTaskItem';
 
 interface SearchViewProps {
     savedSearchId: string;
@@ -27,9 +27,10 @@ interface SearchViewProps {
 
 export function SearchView({ savedSearchId, onDelete }: SearchViewProps) {
     const perf = usePerformanceMonitor('SearchView');
-    const { tasks, projects, areas, settings, updateSettings, batchUpdateTasks, batchDeleteTasks, batchMoveTasks } = useTaskStore(
+    const { tasks, tasksById, projects, areas, settings, updateSettings, batchUpdateTasks, batchDeleteTasks, batchMoveTasks } = useTaskStore(
         (state) => ({
             tasks: state.tasks,
+            tasksById: state._tasksById,
             projects: state.projects,
             areas: state.areas,
             settings: state.settings,
@@ -86,12 +87,6 @@ export function SearchView({ savedSearchId, onDelete }: SearchViewProps) {
         };
     }, []);
 
-    const projectMap = useMemo(() => {
-        return projects.reduce((acc, project) => {
-            acc[project.id] = project;
-            return acc;
-        }, {} as Record<string, Project>);
-    }, [projects]);
     const projectMapById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
     const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas]);
     const resolvedAreaFilter = useMemo(
@@ -127,13 +122,6 @@ export function SearchView({ savedSearchId, onDelete }: SearchViewProps) {
         rowEstimate: LIST_VIRTUAL_ROW_ESTIMATE,
         overscan: LIST_VIRTUAL_OVERSCAN,
     });
-
-    const tasksById = useMemo(() => {
-        return tasks.reduce((acc, task) => {
-            acc.set(task.id, task);
-            return acc;
-        }, new Map<string, Task>());
-    }, [tasks]);
 
     const exitSelectionMode = useCallback(() => {
         setSelectionMode(false);
@@ -276,8 +264,7 @@ export function SearchView({ savedSearchId, onDelete }: SearchViewProps) {
                             return (
                                 <VirtualTaskRow
                                     key={task.id}
-                                    task={task}
-                                    project={task.projectId ? projectMap[task.projectId] : undefined}
+                                    taskId={task.id}
                                     index={taskIndex}
                                     top={rowOffsets[taskIndex] ?? 0}
                                     selectionMode={selectionMode}
@@ -292,13 +279,12 @@ export function SearchView({ savedSearchId, onDelete }: SearchViewProps) {
                     </div>
                 ) : (
                     filteredTasks.map(task => (
-                        <TaskItem
+                        <StoreTaskItem
                             key={task.id}
-                            task={task}
-                            project={task.projectId ? projectMap[task.projectId] : undefined}
+                            taskId={task.id}
                             selectionMode={selectionMode}
                             isMultiSelected={multiSelectedIds.has(task.id)}
-                            onToggleSelect={() => toggleMultiSelect(task.id)}
+                            onToggleSelectId={toggleMultiSelect}
                         />
                     ))
                 )}

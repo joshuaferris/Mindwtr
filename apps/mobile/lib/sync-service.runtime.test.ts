@@ -362,6 +362,60 @@ describe('mobile sync-service runtime', () => {
     expect(logMocks.logSyncError).not.toHaveBeenCalled();
   });
 
+  it('skips WebDAV writes when remote data only differs by device-local sync history', async () => {
+    const localSyncedData = {
+      tasks: [],
+      projects: [],
+      sections: [],
+      areas: [],
+      settings: {
+        syncPreferences: { appearance: true },
+        syncPreferencesUpdatedAt: {
+          appearance: '2026-04-16T00:00:00.000Z',
+          preferences: '2026-04-16T00:00:00.000Z',
+        },
+        theme: 'dark',
+        lastSyncHistory: [
+          {
+            at: '2026-04-16T00:00:00.000Z',
+            status: 'success',
+            conflicts: 0,
+            conflictIds: [],
+            maxClockSkewMs: 0,
+            timestampAdjustments: 0,
+          },
+        ],
+      },
+    };
+    const remoteSyncedData = {
+      ...localSyncedData,
+      settings: {
+        syncPreferences: { appearance: true },
+        syncPreferencesUpdatedAt: {
+          appearance: '2026-04-16T00:00:00.000Z',
+          preferences: '2026-04-16T00:00:00.000Z',
+        },
+        theme: 'dark',
+      },
+    };
+
+    storageMocks.getData.mockResolvedValue(localSyncedData);
+    coreMocks.webdavGetJson.mockResolvedValue(remoteSyncedData);
+    coreMocks.performSyncCycle.mockImplementation(async (io: any) => {
+      const local = await io.readLocal();
+      const remote = await io.readRemote();
+      expect(remote).toEqual(remoteSyncedData);
+      await io.writeRemote(local);
+      await io.writeLocal(local);
+      return { status: 'success', stats: emptyStats, data: local };
+    });
+
+    const result = await syncServiceModule.performMobileSync();
+
+    expect(result).toEqual({ success: true, stats: emptyStats });
+    expect(coreMocks.webdavPutJson).not.toHaveBeenCalled();
+  });
+
   it('runs a final attachment sync pass before writing remote data when uploads are still pending', async () => {
     const localData = {
       tasks: [
@@ -431,6 +485,7 @@ describe('mobile sync-service runtime', () => {
         ],
       }),
       expect.objectContaining({
+        allowInsecureHttp: true,
         username: 'user',
         password: 'pass',
       }),

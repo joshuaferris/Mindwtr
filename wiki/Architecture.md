@@ -307,6 +307,17 @@ Data synchronization relies on revision-aware last-write-wins with deterministic
 
 If remote write fails after local persistence, Mindwtr stores retry metadata and backs off from 5 seconds up to 5 minutes before retrying.
 
+### Snapshot Transport
+
+Mindwtr sync currently transports full snapshots on purpose. This is not a placeholder for a missing delta system.
+
+- ADR 0003 and ADR 0007 define the revision-aware merge rules that operate on those snapshots.
+- ADR 0008 records the current transport decision: keep snapshot merge and do not add a delta log yet.
+- For current personal GTD workloads, snapshot sync keeps the implementation simpler, preserves full-file atomicity, and avoids extra replay and compaction state.
+- If this changes later, the delta design should extend the existing `rev` and `revBy` model rather than replacing it with a new sequence system.
+
+The delta-log decision should be revisited only if snapshot files regularly exceed 5 MB, sync round-trips exceed 5 seconds on typical networks, or the product needs real-time multi-device streaming.
+
 ---
 
 ## Internationalization

@@ -12,6 +12,7 @@ import { classifySyncFailure, coerceSupportedBackend, isLikelyOfflineSyncError, 
 import { SYNC_BACKEND_KEY } from '@/lib/sync-constants';
 import { isCloudKitAvailable, subscribeToCloudKitChanges } from '@/lib/cloudkit-sync';
 import { updateMobileWidgetFromStore } from '@/lib/widget-service';
+import { hasActiveMobileNotificationFeature } from '@/lib/mobile-notification-settings';
 import { logError, logWarn } from '@/lib/app-log';
 
 type Localize = (english: string, chinese: string) => string;
@@ -321,7 +322,7 @@ export function useRootLayoutSyncEffects({
                     if (!isActive.current) return;
                     updateMobileWidgetFromStore().catch(logAppError);
                 }, 800);
-                if (Platform.OS === 'android' && useTaskStore.getState().settings.notificationsEnabled !== false) {
+                if (Platform.OS === 'android' && hasActiveMobileNotificationFeature(useTaskStore.getState().settings)) {
                     getNotificationPermissionStatus()
                         .then((permission) => {
                             if (!isActive.current) return;
@@ -388,9 +389,9 @@ export function useRootLayoutSyncEffects({
     }, [refreshSyncCadence, requestSync]);
 
     useEffect(() => {
-        let previousEnabled = useTaskStore.getState().settings.notificationsEnabled;
+        let previousEnabled = hasActiveMobileNotificationFeature(useTaskStore.getState().settings);
         const unsubscribe = useTaskStore.subscribe((state) => {
-            const enabled = state.settings.notificationsEnabled;
+            const enabled = hasActiveMobileNotificationFeature(state.settings);
             if (enabled === previousEnabled) return;
             previousEnabled = enabled;
 

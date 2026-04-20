@@ -13,6 +13,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../.." && pwd)"
 default_analytics_heartbeat_url="https://mindwtr-analytics.mindwtr.workers.dev/"
 analytics_heartbeat_url="${ANALYTICS_HEARTBEAT_URL:-${default_analytics_heartbeat_url}}"
+dropbox_app_key="${VITE_DROPBOX_APP_KEY:-}"
+single_instance_dbus_name="org.tech_dongdongbh_mindwtr.SingleInstance"
 
 manifest_path="${flathub_dir}/tech.dongdongbh.mindwtr.yml"
 node_sources_path="${flathub_dir}/tech.dongdongbh.mindwtr.node-sources.json"
@@ -53,7 +55,7 @@ fi
 
 upstream_commit="$(git -C "${repo_root}" rev-parse "${ref}^{commit}")"
 
-python3 - "${manifest_path}" "${upstream_commit}" "${analytics_heartbeat_url}" <<'PY'
+python3 - "${manifest_path}" "${upstream_commit}" "${analytics_heartbeat_url}" "${dropbox_app_key}" "${single_instance_dbus_name}" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -61,6 +63,8 @@ import sys
 manifest_path = Path(sys.argv[1])
 commit = sys.argv[2]
 heartbeat_url = sys.argv[3]
+dropbox_app_key = sys.argv[4]
+single_instance_dbus_name = sys.argv[5]
 text = manifest_path.read_text()
 updated, count = re.subn(
     r'(^\s*commit:\s*)([0-9a-f]{7,40})(\s*$)',
@@ -73,29 +77,64 @@ if count != 1:
     raise SystemExit(f"Expected to update exactly one commit line in {manifest_path}")
 
 lines = updated.splitlines()
+
+def find_block_end(start_index: int, base_indent: int) -> int:
+    block_end_index = len(lines)
+    for index in range(start_index + 1, len(lines)):
+        stripped = lines[index].strip()
+        if not stripped:
+            continue
+        indent = len(lines[index]) - len(lines[index].lstrip())
+        if indent <= base_indent:
+            block_end_index = index
+            break
+    return block_end_index
+
+finish_args_line_index = next((index for index, line in enumerate(lines) if line.strip() == 'finish-args:'), None)
+if finish_args_line_index is None:
+    raise SystemExit(f"Expected finish-args block in {manifest_path}")
+
+finish_args_indent = len(lines[finish_args_line_index]) - len(lines[finish_args_line_index].lstrip())
+finish_entry_indent = finish_args_indent + 2
+
+def ensure_finish_arg(value: str) -> None:
+    entry = f"{' ' * finish_entry_indent}- {value}"
+    finish_block_end_index = find_block_end(finish_args_line_index, finish_args_indent)
+    for index in range(finish_args_line_index + 1, finish_block_end_index):
+        if lines[index].strip() == f'- {value}':
+            return
+    lines.insert(finish_block_end_index, entry)
+
+ensure_finish_arg(f'--talk-name={single_instance_dbus_name}')
+ensure_finish_arg(f'--own-name={single_instance_dbus_name}')
+
 env_line_index = next((index for index, line in enumerate(lines) if line.strip() == 'env:'), None)
 if env_line_index is None:
     raise SystemExit(f"Expected build-options env block in {manifest_path}")
 
 env_indent = len(lines[env_line_index]) - len(lines[env_line_index].lstrip())
 entry_indent = env_indent + 2
-block_end_index = len(lines)
-for index in range(env_line_index + 1, len(lines)):
-    stripped = lines[index].strip()
-    if not stripped:
-        continue
-    indent = len(lines[index]) - len(lines[index].lstrip())
-    if indent <= env_indent:
-        block_end_index = index
-        break
+block_end_index = find_block_end(env_line_index, env_indent)
 
-heartbeat_line = f"{' ' * entry_indent}VITE_ANALYTICS_HEARTBEAT_URL: {heartbeat_url}"
-for index in range(env_line_index + 1, block_end_index):
-    if lines[index].lstrip().startswith('VITE_ANALYTICS_HEARTBEAT_URL:'):
-        lines[index] = heartbeat_line
-        break
+def set_env_value(name: str, value: str) -> None:
+    env_line = f"{' ' * entry_indent}{name}: {value}"
+    for index in range(env_line_index + 1, block_end_index):
+        if lines[index].lstrip().startswith(f'{name}:'):
+            lines[index] = env_line
+            return
+    lines.insert(env_line_index + 1, env_line)
+
+def remove_env_value(name: str) -> None:
+    for index in range(env_line_index + 1, block_end_index):
+        if lines[index].lstrip().startswith(f'{name}:'):
+            del lines[index]
+            return
+
+set_env_value('VITE_ANALYTICS_HEARTBEAT_URL', heartbeat_url)
+if dropbox_app_key:
+    set_env_value('VITE_DROPBOX_APP_KEY', dropbox_app_key)
 else:
-    lines.insert(env_line_index + 1, heartbeat_line)
+    remove_env_value('VITE_DROPBOX_APP_KEY')
 
 manifest_path.write_text("\n".join(lines) + "\n")
 PY

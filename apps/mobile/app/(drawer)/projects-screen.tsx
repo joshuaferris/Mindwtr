@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, SectionList, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Alert, FlatList, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AREA_PRESET_COLORS, Attachment, DEFAULT_PROJECT_COLOR, generateUUID, normalizeLinkAttachmentInput, Project, resolveAutoTextDirection, Task, type MarkdownSelection, type MarkdownToolbarActionId, type MarkdownToolbarResult, applyMarkdownToolbarAction, continueMarkdownOnTextChange, useTaskStore, validateAttachmentForUpload } from '@mindwtr/core';
@@ -7,6 +7,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
 import { projectsScreenStyles as styles } from '@/components/projects-screen/projects-screen.styles';
 import {
@@ -19,8 +20,9 @@ import { ProjectAreaModals } from '@/components/projects-screen/ProjectAreaModal
 import { ProjectDetailModal } from '@/components/projects-screen/ProjectDetailModal';
 import { ProjectImagePreviewModal, ProjectLinkModal, ProjectTagPickerModal } from '@/components/projects-screen/ProjectOverlayModals';
 import { ProjectRow } from '@/components/projects-screen/ProjectRow';
+import { buildProjectListRows, type ProjectListRow } from '@/components/projects-screen/project-list-model';
 import { TaskEditModal } from '@/components/task-edit-modal';
-import { useProjectFiltering, type ProjectSectionItem } from '@/hooks/use-project-filtering';
+import { useProjectFiltering } from '@/hooks/use-project-filtering';
 import { useMobileAreaFilter } from '@/hooks/use-mobile-area-filter';
 import { useLanguage } from '../../contexts/language-context';
 import { useToast } from '../../contexts/toast-context';
@@ -75,6 +77,9 @@ export default function ProjectsScreen() {
   const NO_AREA = AREA_FILTER_NONE;
   const [selectedTagFilter, setSelectedTagFilter] = useState(ALL_TAGS);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [collapsedAreas, setCollapsedAreas] = useState<Record<string, boolean>>({});
+  const [showDeferredProjects, setShowDeferredProjects] = useState(false);
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
   const {
     areaById,
     resolvedAreaFilter: selectedAreaFilter,
@@ -112,7 +117,9 @@ export default function ProjectsScreen() {
   const {
     areaUsage,
     focusedCount,
-    groupedProjects,
+    groupedActiveProjects,
+    groupedDeferredProjects,
+    groupedArchivedProjects,
     projectTagOptions,
     tagFilterOptions,
   } = useProjectFiltering({
@@ -126,6 +133,26 @@ export default function ProjectsScreen() {
     noTagsValue: NO_TAGS,
     t,
   });
+
+  const projectListRows = useMemo(() => buildProjectListRows({
+    areaById,
+    collapsedAreas,
+    groupedActiveProjects,
+    groupedArchivedProjects,
+    groupedDeferredProjects,
+    showArchivedProjects,
+    showDeferredProjects,
+    t,
+  }), [
+    areaById,
+    collapsedAreas,
+    groupedActiveProjects,
+    groupedArchivedProjects,
+    groupedDeferredProjects,
+    showArchivedProjects,
+    showDeferredProjects,
+    t,
+  ]);
 
   const openProject = useCallback((project: Project) => {
     setSelectedProject(project);
@@ -203,10 +230,10 @@ export default function ProjectsScreen() {
     setSelectedProject({ ...selectedProject, tagIds: next });
   };
 
-  const renderSectionItem = ({ item }: { item: ProjectSectionItem }) => {
+  const renderProjectItem = (project: Project) => {
     return (
       <ProjectRow
-        project={item.data}
+        project={project}
         tasks={tasks}
         areaById={areaById}
         tc={tc}
@@ -218,6 +245,76 @@ export default function ProjectsScreen() {
         onToggleProjectFocus={toggleProjectFocus}
       />
     );
+  };
+
+  const toggleAreaCollapse = useCallback((areaId: string) => {
+    setCollapsedAreas((current) => ({
+      ...current,
+      [areaId]: !(current[areaId] ?? false),
+    }));
+  }, []);
+
+  const renderProjectListRow = ({ item, index }: { item: ProjectListRow; index: number }) => {
+    if (item.type === 'section-label') {
+      return <ListSectionHeader title={item.title} tc={tc} />;
+    }
+
+    if (item.type === 'section-toggle') {
+      const showTopBorder = index > 0;
+      return (
+        <TouchableOpacity
+          onPress={() => {
+            if (item.sectionKind === 'deferred') {
+              setShowDeferredProjects((current) => !current);
+              return;
+            }
+            setShowArchivedProjects((current) => !current);
+          }}
+          style={[
+            styles.collapsibleSectionToggle,
+            showTopBorder && { borderTopWidth: 1, borderTopColor: tc.border },
+          ]}
+        >
+          <Text style={[styles.collapsibleSectionToggleText, { color: tc.secondaryText }]}>
+            {item.title}
+          </Text>
+          {item.expanded
+            ? <ChevronDown size={16} color={tc.secondaryText} strokeWidth={2.2} />
+            : <ChevronRight size={16} color={tc.secondaryText} strokeWidth={2.2} />}
+        </TouchableOpacity>
+      );
+    }
+
+    if (item.type === 'area-header') {
+      return (
+        <TouchableOpacity
+          onPress={() => toggleAreaCollapse(item.areaId)}
+          style={styles.collapsibleAreaHeader}
+        >
+          <View style={styles.collapsibleAreaHeaderContent}>
+            {item.color ? (
+              <View
+                style={[
+                  styles.collapsibleAreaDot,
+                  { backgroundColor: item.color, borderColor: tc.border },
+                ]}
+              />
+            ) : null}
+            {item.icon ? (
+              <Text style={[styles.collapsibleAreaIcon, { color: tc.secondaryText }]}>{item.icon}</Text>
+            ) : null}
+            <Text style={[styles.collapsibleAreaHeaderText, { color: tc.secondaryText }]} numberOfLines={1}>
+              {item.title}
+            </Text>
+          </View>
+          {item.collapsed
+            ? <ChevronRight size={16} color={tc.secondaryText} strokeWidth={2.2} />
+            : <ChevronDown size={16} color={tc.secondaryText} strokeWidth={2.2} />}
+        </TouchableOpacity>
+      );
+    }
+
+    return renderProjectItem(item.project);
   };
 
   const selectedProjectNotes = selectedProject?.supportNotes || '';
@@ -774,10 +871,9 @@ export default function ProjectsScreen() {
         </TouchableOpacity>
       </View>
 
-      <SectionList
-        sections={groupedProjects}
-        keyExtractor={(item) => `${item.type}-${item.data.id}`}
-        stickySectionHeadersEnabled={false}
+      <FlatList
+        data={projectListRows}
+        keyExtractor={(item) => item.key}
         contentContainerStyle={defaultListContentStyle}
         style={{ flex: 1 }}
         ListEmptyComponent={
@@ -785,10 +881,7 @@ export default function ProjectsScreen() {
             <Text style={[styles.emptyText, { color: tc.secondaryText }]}>{t('projects.empty')}</Text>
           </View>
         }
-        renderSectionHeader={({ section }) => (
-          <ListSectionHeader title={section.title} tc={tc} />
-        )}
-        renderItem={({ item }) => renderSectionItem({ item })}
+        renderItem={renderProjectListRow}
       />
 
       <ProjectDetailModal

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { normalizeDateFormatSetting, resolveDateLocaleTag, useTaskStore } from '@mindwtr/core';
 
+import { areTaskRemindersEnabled, isWeeklyReviewReminderEnabled } from '@/lib/mobile-notification-settings';
 import { requestNotificationPermission, startMobileNotifications } from '@/lib/notification-service';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 
@@ -23,12 +24,12 @@ export function NotificationsSettingsScreen() {
     const [weeklyReviewTimeDraft, setWeeklyReviewTimeDraft] = useState<Date | null>(null);
     const [weeklyReviewDayPickerOpen, setWeeklyReviewDayPickerOpen] = useState(false);
 
-    const notificationsEnabled = settings.notificationsEnabled !== false;
+    const notificationsEnabled = areTaskRemindersEnabled(settings);
     const dailyDigestMorningEnabled = settings.dailyDigestMorningEnabled === true;
     const dailyDigestEveningEnabled = settings.dailyDigestEveningEnabled === true;
     const dailyDigestMorningTime = settings.dailyDigestMorningTime || '09:00';
     const dailyDigestEveningTime = settings.dailyDigestEveningTime || '20:00';
-    const weeklyReviewEnabled = settings.weeklyReviewEnabled === true;
+    const weeklyReviewEnabled = isWeeklyReviewReminderEnabled(settings);
     const weeklyReviewTime = settings.weeklyReviewTime || '18:00';
     const weeklyReviewDay = Number.isFinite(settings.weeklyReviewDay) ? (settings.weeklyReviewDay as number) : 0;
     const dateFormat = normalizeDateFormatSetting(settings.dateFormat);
@@ -177,14 +178,13 @@ export function NotificationsSettingsScreen() {
                                     .catch(console.error);
                             }}
                             trackColor={{ false: '#767577', true: '#3B82F6' }}
-                            disabled={!notificationsEnabled}
                         />
                     </View>
 
                     <TouchableOpacity
                         style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: tc.border }]}
                         onPress={() => setWeeklyReviewDayPickerOpen(true)}
-                        disabled={!weeklyReviewEnabled || !notificationsEnabled}
+                        disabled={!weeklyReviewEnabled}
                     >
                         <View style={styles.settingInfo}>
                             <Text style={[styles.settingLabel, { color: tc.text, opacity: weeklyReviewEnabled ? 1 : 0.5 }]}>
@@ -199,7 +199,7 @@ export function NotificationsSettingsScreen() {
                     <TouchableOpacity
                         style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: tc.border }]}
                         onPress={openWeeklyReviewTimePicker}
-                        disabled={!weeklyReviewEnabled || !notificationsEnabled}
+                        disabled={!weeklyReviewEnabled}
                     >
                         <View style={styles.settingInfo}>
                             <Text style={[styles.settingLabel, { color: tc.text, opacity: weeklyReviewEnabled ? 1 : 0.5 }]}>

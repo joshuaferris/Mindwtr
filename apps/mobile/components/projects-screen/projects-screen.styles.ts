@@ -105,6 +105,50 @@ export const projectsScreenStyles = StyleSheet.create({
     sectionBlock: {
         marginBottom: 12,
     },
+    collapsibleSectionToggle: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingTop: 14,
+        paddingBottom: 10,
+        marginTop: 6,
+    },
+    collapsibleSectionToggleText: {
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+    },
+    collapsibleAreaHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingTop: 4,
+        paddingBottom: 8,
+    },
+    collapsibleAreaHeaderContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        flex: 1,
+        paddingRight: 8,
+    },
+    collapsibleAreaDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+    },
+    collapsibleAreaIcon: {
+        fontSize: 10,
+    },
+    collapsibleAreaHeaderText: {
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+        flexShrink: 1,
+    },
     projectTitleRow: {
         flexDirection: 'row',
         alignItems: 'center',

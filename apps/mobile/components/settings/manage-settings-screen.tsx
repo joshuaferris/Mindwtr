@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,6 +11,67 @@ import { useThemeColors } from '@/hooks/use-theme-colors';
 import { useSettingsLocalization, useSettingsScrollContent } from './settings.hooks';
 import { SettingsTopBar, SubHeader } from './settings.shell';
 import { styles } from './settings.styles';
+
+type ManageSectionKey = 'areas' | 'contexts' | 'tags';
+const MANAGE_OPEN_SECTIONS_STORAGE_KEY = 'mindwtr:settings:manage:openSections';
+const DEFAULT_OPEN_SECTIONS: Record<ManageSectionKey, boolean> = {
+    areas: false,
+    contexts: false,
+    tags: false,
+};
+
+const normalizeOpenSections = (value: unknown): Record<ManageSectionKey, boolean> => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return { ...DEFAULT_OPEN_SECTIONS };
+    }
+    const record = value as Record<string, unknown>;
+    return {
+        areas: record.areas === true,
+        contexts: record.contexts === true,
+        tags: record.tags === true,
+    };
+};
+
+function CollapsibleSection({
+    children,
+    count,
+    onToggle,
+    open,
+    tc,
+    testID,
+    title,
+}: {
+    children: React.ReactNode;
+    count: number;
+    onToggle: () => void;
+    open: boolean;
+    tc: ReturnType<typeof useThemeColors>;
+    testID?: string;
+    title: string;
+}) {
+    return (
+        <View style={{ marginBottom: 16 }}>
+            <TouchableOpacity
+                testID={testID}
+                onPress={onToggle}
+                style={[
+                    styles.settingCard,
+                    {
+                        backgroundColor: tc.cardBg,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        padding: 16,
+                    },
+                ]}
+            >
+                <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={tc.secondaryText} />
+                <Text style={[styles.settingLabel, { color: tc.text, flex: 1, marginLeft: 8 }]}>{title}</Text>
+                <Text style={{ fontSize: 13, color: tc.secondaryText }}>{count}</Text>
+            </TouchableOpacity>
+            {open && <View style={[styles.settingCard, { backgroundColor: tc.cardBg, marginTop: 1 }]}>{children}</View>}
+        </View>
+    );
+}
 
 export function ManageSettingsScreen() {
     const tc = useThemeColors();
@@ -32,6 +94,37 @@ export function ManageSettingsScreen() {
     >(null);
     const [editorName, setEditorName] = useState('');
     const [editorColor, setEditorColor] = useState(DEFAULT_AREA_COLOR);
+    const [openSections, setOpenSections] = useState<Record<ManageSectionKey, boolean>>(() => ({ ...DEFAULT_OPEN_SECTIONS }));
+    const openSectionsHydratedRef = useRef(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        AsyncStorage.getItem(MANAGE_OPEN_SECTIONS_STORAGE_KEY)
+            .then((raw) => {
+                if (cancelled) return;
+                if (raw) {
+                    try {
+                        setOpenSections(normalizeOpenSections(JSON.parse(raw)));
+                    } catch {
+                        setOpenSections({ ...DEFAULT_OPEN_SECTIONS });
+                    }
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                if (!cancelled) {
+                    openSectionsHydratedRef.current = true;
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!openSectionsHydratedRef.current) return;
+        AsyncStorage.setItem(MANAGE_OPEN_SECTIONS_STORAGE_KEY, JSON.stringify(openSections)).catch(() => {});
+    }, [openSections]);
 
     const localize2 = (en: string, zh: string) => localize(en, zh);
     const confirmDelete = (label: string, onConfirm: () => void) => {
@@ -129,37 +222,19 @@ export function ManageSettingsScreen() {
         </View>
     );
 
-    const CollapsibleSection = ({ title, count, children }: { title: string; count: number; children: React.ReactNode }) => {
-        const [open, setOpen] = useState(false);
-        return (
-            <View style={{ marginBottom: 16 }}>
-                <TouchableOpacity
-                    onPress={() => setOpen((prev) => !prev)}
-                    style={[
-                        styles.settingCard,
-                        {
-                            backgroundColor: tc.cardBg,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            padding: 16,
-                        },
-                    ]}
-                >
-                    <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={tc.secondaryText} />
-                    <Text style={[styles.settingLabel, { color: tc.text, flex: 1, marginLeft: 8 }]}>{title}</Text>
-                    <Text style={{ fontSize: 13, color: tc.secondaryText }}>{count}</Text>
-                </TouchableOpacity>
-                {open && <View style={[styles.settingCard, { backgroundColor: tc.cardBg, marginTop: 1 }]}>{children}</View>}
-            </View>
-        );
-    };
-
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: tc.bg }]} edges={['bottom']}>
             <SettingsTopBar />
             <SubHeader title={t('settings.manage')} />
             <ScrollView style={styles.scrollView} contentContainerStyle={scrollContentStyle}>
-                <CollapsibleSection title={t('areas.manage')} count={sortedAreas.length}>
+                <CollapsibleSection
+                    testID="manage-section-toggle-areas"
+                    title={t('areas.manage')}
+                    count={sortedAreas.length}
+                    open={openSections.areas}
+                    onToggle={() => setOpenSections((current) => ({ ...current, areas: !current.areas }))}
+                    tc={tc}
+                >
                     {sortedAreas.length === 0 && (
                         <View style={styles.settingRow}>
                             <Text style={[styles.settingDescription, { color: tc.secondaryText }]}>{t('projects.noArea')}</Text>
@@ -170,7 +245,14 @@ export function ManageSettingsScreen() {
                     ))}
                 </CollapsibleSection>
 
-                <CollapsibleSection title={t('contexts.title')} count={allContexts.length}>
+                <CollapsibleSection
+                    testID="manage-section-toggle-contexts"
+                    title={t('contexts.title')}
+                    count={allContexts.length}
+                    open={openSections.contexts}
+                    onToggle={() => setOpenSections((current) => ({ ...current, contexts: !current.contexts }))}
+                    tc={tc}
+                >
                     {allContexts.length === 0 && (
                         <View style={styles.settingRow}>
                             <Text style={[styles.settingDescription, { color: tc.secondaryText }]}>
@@ -188,7 +270,14 @@ export function ManageSettingsScreen() {
                     ))}
                 </CollapsibleSection>
 
-                <CollapsibleSection title={localize2('Tags', '标签')} count={allTags.length}>
+                <CollapsibleSection
+                    testID="manage-section-toggle-tags"
+                    title={localize2('Tags', '标签')}
+                    count={allTags.length}
+                    open={openSections.tags}
+                    onToggle={() => setOpenSections((current) => ({ ...current, tags: !current.tags }))}
+                    tc={tc}
+                >
                     {allTags.length === 0 && (
                         <View style={styles.settingRow}>
                             <Text style={[styles.settingDescription, { color: tc.secondaryText }]}>{t('projects.noTags')}</Text>
