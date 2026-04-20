@@ -65,6 +65,26 @@ describe('recurrence', () => {
         expect(next?.dueDate).toBeUndefined();
     });
 
+    it('carries startTime and dueDate forward for yearly strict recurrence', () => {
+        const task: Task = {
+            id: 't2-yearly-window',
+            title: 'Annual enrollment reminder',
+            status: 'done',
+            tags: [],
+            contexts: [],
+            startTime: '2027-03-01T09:00:00.000Z',
+            dueDate: '2027-04-01T09:00:00.000Z',
+            recurrence: { rule: 'yearly', strategy: 'strict' },
+            createdAt: '2027-01-01T00:00:00.000Z',
+            updatedAt: '2027-01-01T00:00:00.000Z',
+        };
+
+        const next = createNextRecurringTask(task, '2027-04-01T12:00:00.000Z', 'done');
+        expect(next?.startTime).toBe('2028-03-01T09:00:00.000Z');
+        expect(next?.dueDate).toBe('2028-04-01T09:00:00.000Z');
+        expect(next?.status).toBe('next');
+    });
+
     it('respects daily interval for strict recurrence', () => {
         const task: Task = {
             id: 't2b',

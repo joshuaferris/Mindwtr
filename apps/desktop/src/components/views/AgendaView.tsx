@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ErrorBoundary } from '../ErrorBoundary';
-import { shallow, useTaskStore, TaskPriority, TimeEstimate, getUsedTaskTokens, matchesHierarchicalToken, safeParseDate, safeParseDueDate, isDueForReview, isTaskInActiveProject } from '@mindwtr/core';
+import { shallow, useTaskStore, TaskPriority, TimeEstimate, getUsedTaskTokens, matchesHierarchicalToken, safeParseDate, safeParseDueDate, isDueForReview, isTaskInActiveProject, sortFocusNextActions } from '@mindwtr/core';
 import type { Task, TaskEnergyLevel } from '@mindwtr/core';
 import { useLanguage } from '../../contexts/language-context';
 import { cn } from '../../lib/utils';
@@ -444,42 +444,6 @@ export function AgendaView() {
         [filteredActiveTasks]
     );
 
-    const projectOrderMap = useMemo(() => {
-        const sorted = [...projects]
-            .filter((project) => !project.deletedAt)
-            .sort((a, b) => {
-                const aOrder = Number.isFinite(a.order) ? (a.order as number) : Number.POSITIVE_INFINITY;
-                const bOrder = Number.isFinite(b.order) ? (b.order as number) : Number.POSITIVE_INFINITY;
-                if (aOrder !== bOrder) return aOrder - bOrder;
-                return a.title.localeCompare(b.title);
-            });
-        const map = new Map<string, number>();
-        sorted.forEach((project, index) => map.set(project.id, index));
-        return map;
-    }, [projects]);
-
-    const sortByProjectOrder = useCallback((items: Task[]) => {
-        return [...items].sort((a, b) => {
-            const aProjectOrder = a.projectId ? (projectOrderMap.get(a.projectId) ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
-            const bProjectOrder = b.projectId ? (projectOrderMap.get(b.projectId) ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
-            if (aProjectOrder !== bProjectOrder) return aProjectOrder - bProjectOrder;
-            const aOrder = Number.isFinite(a.order)
-                ? (a.order as number)
-                : Number.isFinite(a.orderNum)
-                    ? (a.orderNum as number)
-                    : Number.POSITIVE_INFINITY;
-            const bOrder = Number.isFinite(b.order)
-                ? (b.order as number)
-                : Number.isFinite(b.orderNum)
-                    ? (b.orderNum as number)
-                    : Number.POSITIVE_INFINITY;
-            if (aOrder !== bOrder) return aOrder - bOrder;
-            const aCreated = safeParseDate(a.createdAt)?.getTime() ?? 0;
-            const bCreated = safeParseDate(b.createdAt)?.getTime() ?? 0;
-            return aCreated - bCreated;
-        });
-    }, [projectOrderMap]);
-
     // Categorize tasks
     const sections = useMemo(() => {
         const now = new Date();
@@ -575,10 +539,13 @@ export function AgendaView() {
 
         return {
             schedule: sortWith(schedule, scheduleSortTime),
-            nextActions: sortByProjectOrder(nextActions),
+            nextActions: sortFocusNextActions(nextActions, {
+                now,
+                prioritizeByPriority: prioritiesEnabled,
+            }),
             reviewDue: sortWith(reviewDue, (task) => safeParseDate(task.reviewAt)?.getTime() ?? Number.POSITIVE_INFINITY),
         };
-    }, [filteredActiveTasks, reviewDueCandidates, prioritiesEnabled, sortByProjectOrder, sequentialProjectIds]);
+    }, [filteredActiveTasks, reviewDueCandidates, prioritiesEnabled, sequentialProjectIds]);
     const nextActionGroups = useMemo(() => {
         if (nextGroupBy === 'none') return [] as TaskGroup[];
         if (nextGroupBy === 'area') {

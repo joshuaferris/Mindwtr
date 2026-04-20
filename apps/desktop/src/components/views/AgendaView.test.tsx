@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
 import { useTaskStore, type Task } from '@mindwtr/core';
 import { LanguageProvider } from '../../contexts/language-context';
@@ -46,6 +46,10 @@ describe('AgendaView', () => {
             },
             expandedTaskIds: {},
         });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it('keeps focus task details open when checklist items are toggled', async () => {
@@ -163,6 +167,66 @@ describe('AgendaView', () => {
         expect(getByRole('heading', { name: /today/i })).toBeInTheDocument();
         expect(getByText('Start today next task')).toBeInTheDocument();
         expect(queryByRole('heading', { name: /next actions/i })).not.toBeInTheDocument();
+    });
+
+    it('shows due-soon next actions before undated tasks and sinks far-future due tasks', () => {
+        vi.useFakeTimers();
+        const now = new Date('2026-02-28T12:00:00.000Z');
+        vi.setSystemTime(now);
+
+        const soonTask: Task = {
+            id: 'soon-task',
+            title: 'Soon task',
+            status: 'next',
+            dueDate: '2026-03-05T09:00:00.000Z',
+            tags: [],
+            contexts: [],
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+        };
+        const undatedTask: Task = {
+            id: 'undated-task',
+            title: 'Undated task',
+            status: 'next',
+            tags: [],
+            contexts: [],
+            createdAt: '2026-02-21T00:00:00.000Z',
+            updatedAt: '2026-02-21T00:00:00.000Z',
+        };
+        const futureTask: Task = {
+            id: 'future-task',
+            title: 'Future task',
+            status: 'next',
+            dueDate: '2027-04-01T09:00:00.000Z',
+            tags: [],
+            contexts: [],
+            createdAt: '2026-02-22T00:00:00.000Z',
+            updatedAt: '2026-02-22T00:00:00.000Z',
+        };
+
+        useTaskStore.setState({
+            tasks: [futureTask, undatedTask, soonTask],
+            _allTasks: [futureTask, undatedTask, soonTask],
+            projects: [],
+            _allProjects: [],
+            areas: [],
+            _allAreas: [],
+            settings: {},
+            highlightTaskId: null,
+        });
+
+        const { container, getByRole } = renderAgenda();
+        expect(getByRole('heading', { name: /next actions/i })).toBeInTheDocument();
+
+        const soonRow = container.querySelector('[data-task-id="soon-task"]');
+        const undatedRow = container.querySelector('[data-task-id="undated-task"]');
+        const futureRow = container.querySelector('[data-task-id="future-task"]');
+
+        expect(soonRow).toBeTruthy();
+        expect(undatedRow).toBeTruthy();
+        expect(futureRow).toBeTruthy();
+        expect(soonRow!.compareDocumentPosition(undatedRow!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(undatedRow!.compareDocumentPosition(futureRow!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('keeps waiting tasks with review dates out of Today', () => {
