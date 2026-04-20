@@ -30,7 +30,7 @@
           "完全离线可用，无需互联网连接",
           "完全开源，安全透明"
         ],
-        "ReleaseNotes": "• 文档现已更清楚说明移动端已上线的日历同步行为。\n• 新增 SQLite 与 JSON 同步桥接 ADR，并明确同步诊断只保留在本机。\n• 增加同步回归覆盖，避免设备本地同步历史差异触发不必要的远端写入。\n• 本次是一次以同步维护和文档澄清为主的小版本更新。",
+        "ReleaseNotes": "• 新增桌面端回顾排序与详情控制，并让项目侧栏缩放与宽度同步更稳定。\n• 桌面端现可内联预览图片附件，并在任务编辑中支持撤销操作。\n• 改进桌面端附件路径与 CloudKit 自动同步行为，减少同步与附件相关的粗糙边缘。\n• 同步刷新截图、演示链接与发布元数据，保持桌面发布说明与当前体验一致。",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
@@ -82,7 +82,7 @@
           "No internet connection required to function",
           "Open source and transparent"
         ],
-        "ReleaseNotes": "• Clarified the shipped mobile calendar sync behavior in the docs and roadmap.\n• Documented the SQLite-to-JSON sync bridge and kept sync diagnostics explicitly device-local.\n• Added regression coverage so device-local sync history does not trigger unnecessary remote writes.\n• This release stays focused on sync maintenance and documentation polish rather than UI changes.",
+        "ReleaseNotes": "• Added desktop review sorting/details controls and made project sidebar resizing behave more smoothly.\n• Added inline image previews for desktop attachments and undo support in task editors.\n• Improved desktop attachment-path handling and CloudKit autosync reliability.\n• Refreshed screenshots, demo links, and store/release metadata to match the current desktop experience.",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",
@@ -130,7 +130,7 @@
           "No requiere conexión a internet para funcionar",
           "Código abierto y transparente"
         ],
-        "ReleaseNotes": "• La documentacion ahora aclara mejor el comportamiento ya publicado de sync con calendario en movil.\n• Tambien documenta el puente SQLite-JSON y deja explicito que el diagnostico de sync queda solo en el dispositivo.\n• Agregamos cobertura para evitar escrituras remotas innecesarias por historial local de sync.\n• Esta version se enfoca en mantenimiento de sync y documentacion, sin cambios grandes de interfaz.",
+        "ReleaseNotes": "• Agregamos orden y control de detalles en la revision de escritorio, con un panel de proyectos que cambia de tamano con mas estabilidad.\n• El escritorio ahora puede previsualizar imagenes adjuntas en linea y admite deshacer dentro del editor de tareas.\n• Mejoramos el manejo de rutas de adjuntos y la fiabilidad del autosync con CloudKit en escritorio.\n• Tambien actualizamos capturas, enlaces de demo y metadatos de publicacion para reflejar mejor la experiencia actual.",
         "Images": [
           {
             "FileName": "2026-01-27_22-59-40.png",

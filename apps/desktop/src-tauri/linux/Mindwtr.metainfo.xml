@@ -51,6 +51,18 @@
   <url type="bugtracker">https://github.com/dongdongbh/Mindwtr/issues</url>
   <url type="vcs-browser">https://github.com/dongdongbh/Mindwtr</url>
   <releases>
+    <release version="0.8.5" date="2026-04-19">
+      <url type="details">https://github.com/dongdongbh/Mindwtr/releases/tag/v0.8.5</url>
+      <description translate="no">
+        <p>Mindwtr 0.8.5 sharpens desktop review and project planning while tightening attachment and sync behavior for Linux desktop users.</p>
+        <ul>
+          <li>Added review sort and detail controls plus a resizable projects sidebar with steadier width syncing.</li>
+          <li>Let the projects workspace use more width and improved task editing with inline image previews and undo support.</li>
+          <li>Improved desktop attachment-path handling and re-enabled CloudKit autosync on desktop builds.</li>
+          <li>Preferred the web audio backend on Flatpak and updated Flathub-facing release plumbing.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.4" date="2026-04-16">
       <url type="details">https://github.com/dongdongbh/Mindwtr/releases/tag/v0.8.4</url>
       <description translate="no">

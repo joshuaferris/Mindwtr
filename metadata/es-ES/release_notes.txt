@@ -1,3 +1,3 @@
-- La documentacion ahora aclara mejor el comportamiento ya publicado de sync con calendario en movil.
-- Tambien documenta el puente SQLite-JSON y que el diagnostico de sync queda solo en el dispositivo.
-- Agregamos cobertura para evitar escrituras remotas innecesarias por historial local de sync.
+- Los grupos de proyectos en movil ahora coinciden con escritorio y la seccion Manage conserva mejor su estado expandido.
+- Editar en movil es mas fluido con bloques Markdown con codigo, cambios rapidos de campos y mejor cierre del teclado al capturar contenido compartido.
+- Calendario y sync son mas estables con mejor comportamiento para tareas con fecha, WebDAV local mas seguro y mejor coordinacion entre revision y recordatorios.
