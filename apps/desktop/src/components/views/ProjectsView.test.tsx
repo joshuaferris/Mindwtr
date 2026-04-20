@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectsView } from './ProjectsView';
@@ -7,6 +7,15 @@ import { ProjectsView } from './ProjectsView';
 const setProjectView = vi.fn();
 const showToast = vi.fn();
 const requestConfirmation = vi.fn();
+let resizeObserverCallback: ResizeObserverCallback | null = null;
+let animationFrameId = 0;
+const queuedAnimationFrames = new Map<number, FrameRequestCallback>();
+
+const flushAnimationFrames = () => {
+    const callbacks = Array.from(queuedAnimationFrames.values());
+    queuedAnimationFrames.clear();
+    callbacks.forEach((callback) => callback(Date.now()));
+};
 
 vi.mock('../ErrorBoundary', () => ({
     ErrorBoundary: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -114,18 +123,62 @@ describe('ProjectsView', () => {
         setProjectView.mockReset();
         showToast.mockReset();
         requestConfirmation.mockReset();
+        resizeObserverCallback = null;
+        animationFrameId = 0;
+        queuedAnimationFrames.clear();
         window.localStorage.clear();
+        Object.defineProperty(window, 'requestAnimationFrame', {
+            configurable: true,
+            writable: true,
+            value: vi.fn((callback: FrameRequestCallback) => {
+                animationFrameId += 1;
+                queuedAnimationFrames.set(animationFrameId, callback);
+                return animationFrameId;
+            }),
+        });
+        Object.defineProperty(window, 'cancelAnimationFrame', {
+            configurable: true,
+            writable: true,
+            value: vi.fn((id: number) => {
+                queuedAnimationFrames.delete(id);
+            }),
+        });
+        class ResizeObserverMock {
+            observe = vi.fn();
+            disconnect = vi.fn();
+
+            constructor(callback: ResizeObserverCallback) {
+                resizeObserverCallback = callback;
+            }
+        }
+        Object.defineProperty(window, 'ResizeObserver', {
+            configurable: true,
+            writable: true,
+            value: ResizeObserverMock,
+        });
+        Object.defineProperty(globalThis, 'ResizeObserver', {
+            configurable: true,
+            writable: true,
+            value: ResizeObserverMock,
+        });
     });
 
     it('allows keyboard resizing of the projects sidebar and persists the width', async () => {
         const originalInnerWidth = window.innerWidth;
+        const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
         Object.defineProperty(window, 'innerWidth', {
             configurable: true,
             value: 1500,
         });
-        const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1800);
+        Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+            configurable: true,
+            get: () => 1800,
+        });
 
         render(<ProjectsView />);
+        act(() => {
+            flushAnimationFrames();
+        });
 
         const separator = screen.getByRole('separator', { name: 'Resize projects panel' });
         const sidebar = screen.getByTestId('projects-sidebar').parentElement?.parentElement;
@@ -148,10 +201,33 @@ describe('ProjectsView', () => {
             expect(window.localStorage.getItem('mindwtr:projects:sidebarWidth')).toBe('328');
         });
 
-        clientWidthSpy.mockRestore();
+        if (originalClientWidthDescriptor) {
+            Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor);
+        } else {
+            delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+        }
         Object.defineProperty(window, 'innerWidth', {
             configurable: true,
             value: originalInnerWidth,
         });
+    });
+
+    it('coalesces ResizeObserver sidebar sync work into a single animation frame', () => {
+        const requestAnimationFrameMock = window.requestAnimationFrame as unknown as ReturnType<typeof vi.fn>;
+
+        render(<ProjectsView />);
+        act(() => {
+            flushAnimationFrames();
+        });
+        requestAnimationFrameMock.mockClear();
+
+        expect(resizeObserverCallback).not.toBeNull();
+
+        act(() => {
+            resizeObserverCallback?.([], {} as ResizeObserver);
+            resizeObserverCallback?.([], {} as ResizeObserver);
+        });
+
+        expect(requestAnimationFrameMock).toHaveBeenCalledTimes(1);
     });
 });

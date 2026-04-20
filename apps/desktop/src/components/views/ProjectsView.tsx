@@ -117,6 +117,7 @@ export function ProjectsView() {
     useEffect(() => { saveCollapsedAreas(collapsedAreas); }, [collapsedAreas]);
     const projectsLayoutRef = useRef<HTMLDivElement | null>(null);
     const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
+    const sidebarWidthSyncFrameRef = useRef<number | null>(null);
     const [sidebarWidth, setSidebarWidth] = useState(loadProjectsSidebarWidth);
     const [isSidebarResizing, setIsSidebarResizing] = useState(false);
     const [availableProjectsWidth, setAvailableProjectsWidth] = useState<number | null>(null);
@@ -160,29 +161,53 @@ export function ProjectsView() {
         saveProjectsSidebarWidth(sidebarWidth);
     }, [sidebarWidth]);
 
+    const syncSidebarWidth = useCallback(() => {
+        const nextAvailableWidth = projectsLayoutRef.current?.parentElement?.clientWidth ?? null;
+        setAvailableProjectsWidth((current) => current === nextAvailableWidth ? current : nextAvailableWidth);
+        setSidebarWidth((current) => {
+            const next = clampProjectsSidebarWidth(current, nextAvailableWidth ?? undefined);
+            return current === next ? current : next;
+        });
+    }, []);
+
     useEffect(() => {
-        const syncSidebarWidth = () => {
-            const nextAvailableWidth = projectsLayoutRef.current?.parentElement?.clientWidth ?? null;
-            setAvailableProjectsWidth((current) => current === nextAvailableWidth ? current : nextAvailableWidth);
-            setSidebarWidth((current) => {
-                const next = clampProjectsSidebarWidth(current, projectsLayoutMaxWidth);
-                return current === next ? current : next;
-            });
+        const scheduleSidebarWidthSync = () => {
+            if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+                if (sidebarWidthSyncFrameRef.current !== null) return;
+                sidebarWidthSyncFrameRef.current = window.requestAnimationFrame(() => {
+                    sidebarWidthSyncFrameRef.current = null;
+                    syncSidebarWidth();
+                });
+                return;
+            }
+            syncSidebarWidth();
         };
 
-        syncSidebarWidth();
+        scheduleSidebarWidthSync();
 
         if (typeof ResizeObserver === 'function' && projectsLayoutRef.current) {
-            const observer = new ResizeObserver(syncSidebarWidth);
+            const observer = new ResizeObserver(scheduleSidebarWidthSync);
             observer.observe(projectsLayoutRef.current);
             const parentElement = projectsLayoutRef.current.parentElement;
             if (parentElement) observer.observe(parentElement);
-            return () => observer.disconnect();
+            return () => {
+                observer.disconnect();
+                if (sidebarWidthSyncFrameRef.current !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+                    window.cancelAnimationFrame(sidebarWidthSyncFrameRef.current);
+                    sidebarWidthSyncFrameRef.current = null;
+                }
+            };
         }
 
-        window.addEventListener('resize', syncSidebarWidth);
-        return () => window.removeEventListener('resize', syncSidebarWidth);
-    }, [projectsLayoutMaxWidth]);
+        window.addEventListener('resize', scheduleSidebarWidthSync);
+        return () => {
+            window.removeEventListener('resize', scheduleSidebarWidthSync);
+            if (sidebarWidthSyncFrameRef.current !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+                window.cancelAnimationFrame(sidebarWidthSyncFrameRef.current);
+                sidebarWidthSyncFrameRef.current = null;
+            }
+        };
+    }, [syncSidebarWidth]);
 
     useEffect(() => () => {
         sidebarResizeCleanupRef.current?.();
