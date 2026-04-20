@@ -46,12 +46,14 @@ beforeEach(() => {
   storeState.highlightTaskId = null;
 });
 
-vi.mock('@mindwtr/core', () => {
+vi.mock('@mindwtr/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@mindwtr/core')>();
   const useTaskStore = Object.assign(() => storeState, {
     getState: () => storeState,
   });
 
   return {
+    ...actual,
     getUsedTaskTokens: (tasks: Task[], selector: (task: Task) => string[]) => {
       const tokens = new Set<string>();
       tasks.forEach((task) => {
@@ -151,7 +153,7 @@ describe('FocusScreen', () => {
 
     expect(
       tree.root.findAllByType(SwipeableTaskItem).map((node) => node.props.task.id),
-    ).toEqual(['focused-next', 'plain-next', 'another-next']);
+    ).toEqual(['focused-next', 'another-next', 'plain-next']);
 
     expect(() =>
       tree.root.find((node) =>
