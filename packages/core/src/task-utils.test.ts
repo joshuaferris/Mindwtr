@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { sortTasks, getStatusColor, getTaskAgeLabel, rescheduleTask, extractWaitingPerson, getWaitingPerson } from './task-utils';
+import { sortTasks, sortFocusNextActions, getStatusColor, getTaskAgeLabel, rescheduleTask, extractWaitingPerson, getWaitingPerson } from './task-utils';
 import { Task } from './types';
 
 describe('task-utils', () => {
@@ -24,6 +24,85 @@ describe('task-utils', () => {
 
             const sorted = sortTasks(tasks as Task[]);
             expect(sorted.map(t => t.title)).toEqual(['Soon', 'Later', 'No Date']);
+        });
+    });
+
+    describe('sortFocusNextActions', () => {
+        it('puts due-soon tasks ahead of undated tasks and sinks far-future due tasks', () => {
+            const sorted = sortFocusNextActions([
+                {
+                    id: 'future',
+                    title: 'Future due',
+                    status: 'next',
+                    dueDate: '2027-04-01T09:00:00.000Z',
+                    tags: [],
+                    contexts: [],
+                    createdAt: '2026-01-01T08:00:00.000Z',
+                    updatedAt: '2026-01-01T08:00:00.000Z',
+                },
+                {
+                    id: 'undated',
+                    title: 'Undated task',
+                    status: 'next',
+                    tags: [],
+                    contexts: [],
+                    createdAt: '2026-01-01T07:00:00.000Z',
+                    updatedAt: '2026-01-01T07:00:00.000Z',
+                },
+                {
+                    id: 'soon',
+                    title: 'Soon due',
+                    status: 'next',
+                    dueDate: '2026-01-10T09:00:00.000Z',
+                    tags: [],
+                    contexts: [],
+                    createdAt: '2026-01-01T06:00:00.000Z',
+                    updatedAt: '2026-01-01T06:00:00.000Z',
+                },
+            ] as Task[], {
+                now: new Date('2026-01-01T00:00:00.000Z'),
+            });
+
+            expect(sorted.map((task) => task.id)).toEqual(['soon', 'undated', 'future']);
+        });
+
+        it('orders due-soon tasks by earliest due date', () => {
+            const sorted = sortFocusNextActions([
+                {
+                    id: 'later',
+                    title: 'Later this month',
+                    status: 'next',
+                    dueDate: '2026-01-20T09:00:00.000Z',
+                    tags: [],
+                    contexts: [],
+                    createdAt: '2026-01-01T08:00:00.000Z',
+                    updatedAt: '2026-01-01T08:00:00.000Z',
+                },
+                {
+                    id: 'overdue',
+                    title: 'Overdue task',
+                    status: 'next',
+                    dueDate: '2025-12-31T09:00:00.000Z',
+                    tags: [],
+                    contexts: [],
+                    createdAt: '2026-01-01T07:00:00.000Z',
+                    updatedAt: '2026-01-01T07:00:00.000Z',
+                },
+                {
+                    id: 'near',
+                    title: 'Near due',
+                    status: 'next',
+                    dueDate: '2026-01-05T09:00:00.000Z',
+                    tags: [],
+                    contexts: [],
+                    createdAt: '2026-01-01T06:00:00.000Z',
+                    updatedAt: '2026-01-01T06:00:00.000Z',
+                },
+            ] as Task[], {
+                now: new Date('2026-01-01T00:00:00.000Z'),
+            });
+
+            expect(sorted.map((task) => task.id)).toEqual(['overdue', 'near', 'later']);
         });
     });
 

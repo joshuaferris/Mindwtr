@@ -27,6 +27,7 @@ export default function DoneScreen() {
         emptyHint={emptyHint}
         allowAdd={false}
         showQuickAddHelp={false}
+        showTimeEstimateFilters={false}
         defaultEditTab="view"
         contentPaddingBottom={navBarInset}
       />

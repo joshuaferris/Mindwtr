@@ -2,7 +2,7 @@
  * Utility functions for task operations
  */
 
-import { Task, TaskStatus, TaskSortBy, Project, AppData } from './types';
+import { Task, TaskStatus, TaskSortBy, TaskPriority, Project, AppData } from './types';
 import { safeParseDate, safeParseDueDate } from './date';
 import { TASK_STATUS_ORDER } from './task-status';
 import type { Language } from './i18n/i18n-types';
@@ -23,6 +23,15 @@ export const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string; borde
     'done': { bg: '#22C55E20', text: '#22C55E', border: '#22C55E' },
     'archived': { bg: '#6B728020', text: '#6B7280', border: '#6B7280' },
 };
+
+const TASK_PRIORITY_SORT_RANK: Record<TaskPriority, number> = {
+    low: 1,
+    medium: 2,
+    high: 3,
+    urgent: 4,
+};
+
+export const FOCUS_NEXT_DUE_SOON_WINDOW_DAYS = 30;
 
 const safeTime = (value: string | undefined, fallback: number): number => {
     if (!value) return fallback;
@@ -45,6 +54,23 @@ const shouldIncrementPushCount = (oldDueDate?: string, newDueDate?: string): boo
 };
 
 const WAITING_FOR_LINE_REGEX = /^\s*waiting\s+for\s*[:：]\s*(.+?)\s*$/i;
+
+type SortFocusNextActionsOptions = {
+    now?: Date;
+    dueSoonWindowDays?: number;
+    prioritizeByPriority?: boolean;
+};
+
+function getFocusNextActionBucket(
+    task: Pick<Task, 'dueDate'>,
+    nowMs: number,
+    dueSoonWindowMs: number,
+): number {
+    const dueMs = safeDueTime(task.dueDate, Number.NaN);
+    if (!Number.isFinite(dueMs)) return 1;
+    if (dueMs <= nowMs + dueSoonWindowMs) return 0;
+    return 2;
+}
 
 export function rescheduleTask(task: Task, newDueDate?: string): Task {
     const next: Task = { ...task, dueDate: newDueDate };
@@ -153,6 +179,45 @@ export function sortTasksBy(tasks: Task[], sortBy: TaskSortBy = 'default'): Task
         default:
             return sortTasks(tasks);
     }
+}
+
+export function sortFocusNextActions(tasks: Task[], options: SortFocusNextActionsOptions = {}): Task[] {
+    const nowMs = (options.now ?? new Date()).getTime();
+    const dueSoonWindowDays = Number.isFinite(options.dueSoonWindowDays)
+        ? Math.max(0, Math.floor(options.dueSoonWindowDays as number))
+        : FOCUS_NEXT_DUE_SOON_WINDOW_DAYS;
+    const dueSoonWindowMs = dueSoonWindowDays * 24 * 60 * 60 * 1000;
+    const prioritizeByPriority = options.prioritizeByPriority === true;
+
+    return [...tasks].sort((a, b) => {
+        const bucketA = getFocusNextActionBucket(a, nowMs, dueSoonWindowMs);
+        const bucketB = getFocusNextActionBucket(b, nowMs, dueSoonWindowMs);
+        if (bucketA !== bucketB) return bucketA - bucketB;
+
+        if (bucketA !== 1) {
+            const dueA = safeDueTime(a.dueDate, Number.POSITIVE_INFINITY);
+            const dueB = safeDueTime(b.dueDate, Number.POSITIVE_INFINITY);
+            if (dueA !== dueB) return dueA - dueB;
+        }
+
+        if (prioritizeByPriority) {
+            const priorityDiff = (TASK_PRIORITY_SORT_RANK[b.priority as TaskPriority] || 0)
+                - (TASK_PRIORITY_SORT_RANK[a.priority as TaskPriority] || 0);
+            if (priorityDiff !== 0) return priorityDiff;
+        }
+
+        const startA = safeTime(a.startTime, Number.POSITIVE_INFINITY);
+        const startB = safeTime(b.startTime, Number.POSITIVE_INFINITY);
+        if (startA !== startB) return startA - startB;
+
+        const createdDiff = safeTime(a.createdAt, 0) - safeTime(b.createdAt, 0);
+        if (createdDiff !== 0) return createdDiff;
+
+        const titleDiff = a.title.localeCompare(b.title);
+        if (titleDiff !== 0) return titleDiff;
+
+        return a.id.localeCompare(b.id);
+    });
 }
 
 /**

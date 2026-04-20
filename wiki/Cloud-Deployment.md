@@ -50,7 +50,9 @@ Optional but useful:
 | Variable | Purpose | Notes |
 | --- | --- | --- |
 | `MINDWTR_CLOUD_AUTH_TOKENS` | Comma-separated allowlist of bearer tokens. | Recommended setting for production. |
+| `MINDWTR_CLOUD_AUTH_TOKENS_FILE` | Path to a file containing bearer tokens. | Useful for Docker secrets; file contents may match `MINDWTR_CLOUD_AUTH_TOKENS`. |
 | `MINDWTR_CLOUD_TOKEN` | Legacy single-token alias. | Still supported for backward compatibility, but deprecated. |
+| `MINDWTR_CLOUD_TOKEN_FILE` | Path to a file containing the legacy single token. | Still supported for backward compatibility, but deprecated. |
 | `MINDWTR_CLOUD_ALLOW_ANY_TOKEN` | Allows any syntactically valid bearer token. | Explicit opt-in only. Best avoided outside controlled environments. |
 
 ### Networking and storage
@@ -123,6 +125,7 @@ Operational notes:
 - Pin the Bun image tag instead of floating latest for stable upgrades.
 - Mount `/data` on durable disk, not ephemeral container FS.
 - Keep tokens in secrets manager or `.env` outside git.
+- For Docker secrets, use `MINDWTR_CLOUD_AUTH_TOKENS_FILE` instead of inlining the token in compose.
 - The same deployed container serves both sync and REST API traffic on the same host/port.
 
 ## Reverse Proxy Checklist

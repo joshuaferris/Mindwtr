@@ -40,34 +40,63 @@ describe('cloud server utils', () => {
     });
 
     test('resolves auth tokens from both current and legacy env var names', () => {
-        const primaryOnly = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
-            MINDWTR_CLOUD_AUTH_TOKENS: 'alpha,beta',
-        });
-        expect(primaryOnly).not.toBeNull();
-        expect(primaryOnly?.has('alpha')).toBe(true);
-        expect(primaryOnly?.has('beta')).toBe(true);
+        const tempDir = mkdtempSync(join(tmpdir(), 'mindwtr-cloud-auth-'));
+        const authTokensFile = join(tempDir, 'auth-tokens.txt');
+        const legacyTokenFile = join(tempDir, 'legacy-token.txt');
+        try {
+            writeFileSync(authTokensFile, 'file-alpha,file-beta\n');
+            writeFileSync(legacyTokenFile, 'legacy-file-token\n');
 
-        const legacyOnly = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
-            MINDWTR_CLOUD_TOKEN: 'legacy-token',
-        });
-        expect(legacyOnly).not.toBeNull();
-        expect(legacyOnly?.has('legacy-token')).toBe(true);
+            const primaryOnly = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
+                MINDWTR_CLOUD_AUTH_TOKENS: 'alpha,beta',
+            });
+            expect(primaryOnly).not.toBeNull();
+            expect(primaryOnly?.has('alpha')).toBe(true);
+            expect(primaryOnly?.has('beta')).toBe(true);
 
-        const combined = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
-            MINDWTR_CLOUD_AUTH_TOKENS: 'new-token',
-            MINDWTR_CLOUD_TOKEN: 'legacy-token',
-        });
-        expect(combined?.has('new-token')).toBe(true);
-        expect(combined?.has('legacy-token')).toBe(true);
+            const legacyOnly = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
+                MINDWTR_CLOUD_TOKEN: 'legacy-token',
+            });
+            expect(legacyOnly).not.toBeNull();
+            expect(legacyOnly?.has('legacy-token')).toBe(true);
 
-        const allowAny = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
-            MINDWTR_CLOUD_ALLOW_ANY_TOKEN: 'true',
-        });
-        expect(allowAny).toBeNull();
+            const combined = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
+                MINDWTR_CLOUD_AUTH_TOKENS: 'new-token',
+                MINDWTR_CLOUD_TOKEN: 'legacy-token',
+            });
+            expect(combined?.has('new-token')).toBe(true);
+            expect(combined?.has('legacy-token')).toBe(true);
 
-        expect(() => __cloudTestUtils.resolveAllowedAuthTokensFromEnv({})).toThrow(
-            'Cloud auth is not configured.'
-        );
+            const fileOnly = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
+                MINDWTR_CLOUD_AUTH_TOKENS_FILE: authTokensFile,
+            });
+            expect(fileOnly?.has('file-alpha')).toBe(true);
+            expect(fileOnly?.has('file-beta')).toBe(true);
+
+            const legacyFileOnly = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
+                MINDWTR_CLOUD_TOKEN_FILE: legacyTokenFile,
+            });
+            expect(legacyFileOnly?.has('legacy-file-token')).toBe(true);
+
+            const mixedWithFile = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
+                MINDWTR_CLOUD_AUTH_TOKENS: 'inline-token',
+                MINDWTR_CLOUD_AUTH_TOKENS_FILE: authTokensFile,
+            });
+            expect(mixedWithFile?.has('inline-token')).toBe(true);
+            expect(mixedWithFile?.has('file-alpha')).toBe(true);
+            expect(mixedWithFile?.has('file-beta')).toBe(true);
+
+            const allowAny = __cloudTestUtils.resolveAllowedAuthTokensFromEnv({
+                MINDWTR_CLOUD_ALLOW_ANY_TOKEN: 'true',
+            });
+            expect(allowAny).toBeNull();
+
+            expect(() => __cloudTestUtils.resolveAllowedAuthTokensFromEnv({})).toThrow(
+                'Cloud auth is not configured.'
+            );
+        } finally {
+            rmSync(tempDir, { recursive: true, force: true });
+        }
     });
 
     test('ignores proxy IP headers unless explicitly trusted', () => {

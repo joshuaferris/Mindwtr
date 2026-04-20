@@ -14,6 +14,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { SlidersHorizontal, X } from 'lucide-react-native';
 
 import {
+  sortFocusNextActions,
   useTaskStore,
   safeParseDate,
   safeParseDueDate,
@@ -291,8 +292,15 @@ export default function FocusScreen() {
       return !scheduleIds.has(task.id);
     });
 
-    return { focusedTasks: focusedItems, schedule: scheduleItems, nextActions: nextItems };
-  }, [filteredActiveTasks, sequentialProjectIds, sequentialFirstTaskIds]);
+    return {
+      focusedTasks: focusedItems,
+      schedule: scheduleItems,
+      nextActions: sortFocusNextActions(nextItems, {
+        now,
+        prioritizeByPriority: prioritiesEnabled,
+      }),
+    };
+  }, [filteredActiveTasks, prioritiesEnabled, sequentialProjectIds, sequentialFirstTaskIds]);
 
   const sections = useMemo(() => {
     const nextSections = [];
